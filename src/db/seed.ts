@@ -159,8 +159,9 @@ async function main() {
   const [manager] = await db
     .insert(t.users)
     .values([
-      // Manager gets the real account email so Google sign-in maps to this row.
+      // Managers get real account emails so Google sign-in maps to these rows.
       { email: "zed@springfield-re.com", fullName: "Zed", role: "manager" as const },
+      { email: "nihaal@springfield-re.com", fullName: "Nihaal", role: "manager" as const },
       { email: "exec@springfield-re.com", fullName: "Exec Viewer", role: "executive" as const },
     ])
     .returning({ id: t.users.id });
