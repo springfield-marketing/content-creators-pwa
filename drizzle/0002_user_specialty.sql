@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "specialty" "shoot_type" DEFAULT 'photo_video';

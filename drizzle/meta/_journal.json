@@ -15,6 +15,13 @@
       "when": 1783081466018,
       "tag": "0001_postgres_extras",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783083468306,
+      "tag": "0002_user_specialty",
+      "breakpoints": true
     }
   ]
 }

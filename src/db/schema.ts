@@ -64,6 +64,8 @@ export const users = pgTable("users", {
   fullName: text("full_name").notNull(),
   role: userRole("role").notNull(),
   slug: text("slug").unique(), // creators only; used in /book/[creator]
+  // Deviation from §B4: shown on the booking page cards; not in the spec schema.
+  specialty: shootType("specialty").default("photo_video"),
   googleCalendarId: text("google_calendar_id"),
   googleRefreshToken: text("google_refresh_token"), // Option B only; unused under Workspace delegation
   webhookChannelId: text("webhook_channel_id"),

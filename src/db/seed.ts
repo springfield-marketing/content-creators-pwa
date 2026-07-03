@@ -1,11 +1,19 @@
-// Dev seed: ports the wireframe mock data into Postgres so every screen has
-// realistic rows from day one. Destructive — dev only.
+// Dev seed. Destructive — dev only.
+//
+// Real data (never committed) is loaded from gitignored local files when present:
+//   seed-data/creators.local.json  [{ email, name }]  → creator users
+//   Agent list.csv                 name,phone,email   → agents
+// Without them, the fictional wireframe creators/agents are used instead.
+// Demo bookings/deliverables/targets are always fictional and are re-pointed
+// at whichever creators exist — wiped before go-live.
 //
 // Mapping notes (mock → §B4):
 //   shoot type  "both" → "photo_video"
 //   booking     "pending_cancellation" → "confirmed" (request flow arrives with §B12)
 //   deliverable "pending" → "submitted", "revision_requested" → "needs_revision"
 
+import fs from "node:fs";
+import path from "node:path";
 import dayjs from "dayjs";
 import { sql } from "drizzle-orm";
 import { db } from "./index";
@@ -24,6 +32,34 @@ import {
 
 const mapShootType = (s: MockShootType) =>
   s === "both" ? ("photo_video" as const) : s;
+
+const slugify = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+const ROOT = path.resolve(__dirname, "../..");
+
+function loadRealCreators(): { email: string; name: string }[] | null {
+  const f = path.join(ROOT, "seed-data/creators.local.json");
+  if (!fs.existsSync(f)) return null;
+  return JSON.parse(fs.readFileSync(f, "utf8"));
+}
+
+function loadRealAgents(): { name: string; phone: string; email: string }[] | null {
+  const f = path.join(ROOT, "Agent list.csv");
+  if (!fs.existsSync(f)) return null;
+  return fs
+    .readFileSync(f, "utf8")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [name, phone, email] = line.split(",").map((s) => s.trim());
+      return { name, phone: phone.startsWith("+") ? phone : `+${phone}`, email };
+    });
+}
 
 // Per-creator working hours, matching the wireframe's display strings.
 const hoursBySlug: Record<string, WorkingHours> = {
@@ -60,36 +96,62 @@ async function main() {
   `);
 
   console.log("Users…");
-  const creatorRows = await db
-    .insert(t.users)
-    .values(
-      mockCreators.map((c) => ({
-        email: `${c.slug}@springfield-re.com`,
-        fullName: c.name,
-        role: "creator" as const,
-        slug: c.slug,
-        googleCalendarId: `${c.slug}@springfield-re.com`,
-        workingHours: hoursBySlug[c.slug],
-        shootDurations: {
-          photo: c.settings.photoDuration,
-          video: c.settings.videoDuration,
-          photo_video: c.settings.videoDuration + 30,
-        },
-        bufferMinutes: c.settings.buffer,
-        minNoticeHours: c.settings.minNoticeHours,
-        maxHorizonDays: c.settings.horizonWeeks * 7,
-        maxShootsPerDay: c.settings.maxShootsPerDay,
-        isActive: c.active,
-      }))
-    )
-    .returning({ id: t.users.id, slug: t.users.slug });
+  const realCreators = loadRealCreators();
+  let creatorId: Map<string, string>;
 
-  const creatorId = new Map(
-    mockCreators.map((c) => [
-      c.id,
-      creatorRows.find((r) => r.slug === c.slug)!.id,
-    ])
-  );
+  if (realCreators) {
+    console.log(`  using ${realCreators.length} real creators (defaults for hours/durations)`);
+    const rows = await db
+      .insert(t.users)
+      .values(
+        realCreators.map((c) => ({
+          email: c.email,
+          fullName: c.name,
+          role: "creator" as const,
+          slug: slugify(c.name),
+          googleCalendarId: c.email,
+          // working hours, durations, buffers, specialty: §B4 defaults —
+          // the manager tunes them in /admin/creators.
+        }))
+      )
+      .returning({ id: t.users.id });
+    // Demo bookings/deliverables reference fictional creators c1..c5 —
+    // re-point them at real creators, cycling.
+    creatorId = new Map(
+      mockCreators.map((c, i) => [c.id, rows[i % rows.length].id])
+    );
+  } else {
+    const rows = await db
+      .insert(t.users)
+      .values(
+        mockCreators.map((c) => ({
+          email: `${c.slug}@springfield-re.com`,
+          fullName: c.name,
+          role: "creator" as const,
+          slug: c.slug,
+          specialty: mapShootType(c.specialty),
+          googleCalendarId: `${c.slug}@springfield-re.com`,
+          workingHours: hoursBySlug[c.slug],
+          shootDurations: {
+            photo: c.settings.photoDuration,
+            video: c.settings.videoDuration,
+            photo_video: c.settings.videoDuration + 30,
+          },
+          bufferMinutes: c.settings.buffer,
+          minNoticeHours: c.settings.minNoticeHours,
+          maxHorizonDays: c.settings.horizonWeeks * 7,
+          maxShootsPerDay: c.settings.maxShootsPerDay,
+          isActive: c.active,
+        }))
+      )
+      .returning({ id: t.users.id, slug: t.users.slug });
+    creatorId = new Map(
+      mockCreators.map((c) => [
+        c.id,
+        rows.find((r) => r.slug === c.slug)!.id,
+      ])
+    );
+  }
 
   const [manager] = await db
     .insert(t.users)
@@ -115,26 +177,52 @@ async function main() {
   }
 
   console.log("Agents…");
-  const agentRows = await db
-    .insert(t.agents)
-    .values(
-      mockAgents.map((a) => ({
-        fullName: a.name,
-        email: a.email,
-        phone: a.phone,
-        office: a.office,
-        isApproved: a.status !== "pending",
-        isActive: a.status !== "inactive",
-      }))
-    )
-    .returning({ id: t.agents.id, email: t.agents.email });
+  const realAgents = loadRealAgents();
+  let agentId: Map<string, string>;
 
-  const agentId = new Map(
-    mockAgents.map((a) => [
-      a.id,
-      agentRows.find((r) => r.email === a.email)!.id,
-    ])
-  );
+  if (realAgents) {
+    console.log(`  importing ${realAgents.length} real agents from CSV`);
+    const rows = await db
+      .insert(t.agents)
+      .values(
+        realAgents.map((a) => ({
+          fullName: a.name,
+          email: a.email,
+          phone: a.phone,
+        }))
+      )
+      .returning({ id: t.agents.id });
+    // One fictional pending registration so the approval inbox is demoable.
+    await db.insert(t.agents).values({
+      fullName: "Lena Fischer (demo)",
+      email: "lena.demo@example.invalid",
+      isApproved: false,
+    });
+    // Demo bookings/deliverables reference fictional agents — re-point, cycling.
+    agentId = new Map(
+      mockAgents.map((a, i) => [a.id, rows[i % rows.length].id])
+    );
+  } else {
+    const rows = await db
+      .insert(t.agents)
+      .values(
+        mockAgents.map((a) => ({
+          fullName: a.name,
+          email: a.email,
+          phone: a.phone,
+          office: a.office,
+          isApproved: a.status !== "pending",
+          isActive: a.status !== "inactive",
+        }))
+      )
+      .returning({ id: t.agents.id, email: t.agents.email });
+    agentId = new Map(
+      mockAgents.map((a) => [
+        a.id,
+        rows.find((r) => r.email === a.email)!.id,
+      ])
+    );
+  }
 
   console.log("Bookings…");
   const bookingRows = await db
