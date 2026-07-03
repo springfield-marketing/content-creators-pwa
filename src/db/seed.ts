@@ -41,7 +41,9 @@ const slugify = (name: string) =>
 
 const ROOT = path.resolve(__dirname, "../..");
 
-function loadRealCreators(): { email: string; name: string }[] | null {
+function loadRealCreators():
+  | { email: string; name: string; photo?: string }[]
+  | null {
   const f = path.join(ROOT, "seed-data/creators.local.json");
   if (!fs.existsSync(f)) return null;
   return JSON.parse(fs.readFileSync(f, "utf8"));
@@ -109,6 +111,7 @@ async function main() {
           fullName: c.name,
           role: "creator" as const,
           slug: slugify(c.name),
+          photoUrl: c.photo ?? null,
           googleCalendarId: c.email,
           // working hours, durations, buffers: §B4 defaults —
           // the manager tunes them in /admin/creators.

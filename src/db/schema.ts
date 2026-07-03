@@ -63,6 +63,7 @@ export const users = pgTable("users", {
   fullName: text("full_name").notNull(),
   role: userRole("role").notNull(),
   slug: text("slug").unique(), // creators only; used in /book/[creator]
+  photoUrl: text("photo_url"), // creator card photo (spec screen 1)
   googleCalendarId: text("google_calendar_id"),
   googleRefreshToken: text("google_refresh_token"), // Option B only; unused under Workspace delegation
   webhookChannelId: text("webhook_channel_id"),

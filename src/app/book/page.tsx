@@ -1,18 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   Alert,
   Avatar,
   Card,
-  Group,
   SimpleGrid,
   Skeleton,
   Stack,
   Text,
   Title,
 } from "@mantine/core";
-import { IconChevronRight } from "@tabler/icons-react";
 import { avatarColor, useCreators } from "@/lib/use-creator";
 
 const initials = (name: string) =>
@@ -23,7 +22,7 @@ const initials = (name: string) =>
     .slice(0, 2)
     .toUpperCase();
 
-// Screen 1 — Booking home: active creators as tappable cards.
+// Screen 1 — Booking home: photo cards, tap a creator to pick a time.
 export default function BookHome() {
   const { creators, error } = useCreators();
 
@@ -41,36 +40,50 @@ export default function BookHome() {
           Couldn&apos;t load the creator list — try refreshing.
         </Alert>
       ) : creators === null ? (
-        <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} height={88} radius="lg" />
+        <SimpleGrid cols={{ base: 2, xs: 3 }} spacing="md">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} height={220} radius="lg" />
           ))}
         </SimpleGrid>
       ) : (
-        <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
+        <SimpleGrid cols={{ base: 2, xs: 3 }} spacing="md">
           {creators.map((creator) => (
             <Card
               key={creator.id}
               component={Link}
               href={`/book/${creator.slug}`}
               className="hover-card"
+              padding={0}
             >
-              <Group wrap="nowrap">
-                {/* Placeholder avatar — real photos come with branding */}
-                <Avatar color={avatarColor(creator.name)} radius="xl" size="lg">
-                  {initials(creator.name)}
-                </Avatar>
-                <Stack gap={4} style={{ flex: 1 }}>
-                  <Text fw={600}>{creator.name}</Text>
-                  <Text size="xs" c="dimmed">
-                    Photo &amp; video shoots
-                  </Text>
-                </Stack>
-                <IconChevronRight
-                  size={18}
-                  color="var(--mantine-color-dimmed)"
-                />
-              </Group>
+              <div style={{ position: "relative", aspectRatio: "4 / 5" }}>
+                {creator.photoUrl ? (
+                  <Image
+                    src={encodeURI(creator.photoUrl)}
+                    alt={creator.name}
+                    fill
+                    sizes="(max-width: 576px) 50vw, 200px"
+                    style={{ objectFit: "cover", objectPosition: "top" }}
+                  />
+                ) : (
+                  <Avatar
+                    color={avatarColor(creator.name)}
+                    radius={0}
+                    styles={{
+                      root: {
+                        position: "absolute",
+                        inset: 0,
+                        width: "100%",
+                        height: "100%",
+                      },
+                    }}
+                  >
+                    {initials(creator.name)}
+                  </Avatar>
+                )}
+              </div>
+              <Text fw={600} size="sm" ta="center" py="sm" px={4}>
+                {creator.name}
+              </Text>
             </Card>
           ))}
         </SimpleGrid>

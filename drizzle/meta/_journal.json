@@ -36,6 +36,13 @@
       "when": 1783084871809,
       "tag": "0004_booking_project_name",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783086338801,
+      "tag": "0005_user_photo",
+      "breakpoints": true
     }
   ]
 }

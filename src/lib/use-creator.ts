@@ -8,7 +8,12 @@ import { useEffect, useState } from "react";
 import type { Creator } from "./mock-data";
 import type { ShootDurations, WorkingHours } from "@/db/schema";
 
-export type CreatorCard = { id: string; slug: string; name: string };
+export type CreatorCard = {
+  id: string;
+  slug: string;
+  name: string;
+  photoUrl: string | null;
+};
 
 type CreatorProfile = {
   id: string;
