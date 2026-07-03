@@ -1,0 +1,229 @@
+// Dev seed: ports the wireframe mock data into Postgres so every screen has
+// realistic rows from day one. Destructive — dev only.
+//
+// Mapping notes (mock → §B4):
+//   shoot type  "both" → "photo_video"
+//   booking     "pending_cancellation" → "confirmed" (request flow arrives with §B12)
+//   deliverable "pending" → "submitted", "revision_requested" → "needs_revision"
+
+import dayjs from "dayjs";
+import { sql } from "drizzle-orm";
+import { db } from "./index";
+import * as t from "./schema";
+import type { WorkingHours } from "./schema";
+import {
+  agents as mockAgents,
+  bookings as mockBookings,
+  creators as mockCreators,
+  currentMonth,
+  deliverables as mockDeliverables,
+  kpis as mockKpis,
+  targets as mockTargets,
+  type ShootType as MockShootType,
+} from "../lib/mock-data";
+
+const mapShootType = (s: MockShootType) =>
+  s === "both" ? ("photo_video" as const) : s;
+
+// Per-creator working hours, matching the wireframe's display strings.
+const hoursBySlug: Record<string, WorkingHours> = {
+  "mia-laurens": {
+    mon: [["09:00", "12:30"], ["13:00", "17:00"]],
+    tue: [["09:00", "12:30"], ["13:00", "17:00"]],
+    wed: [["09:00", "12:30"], ["13:00", "17:00"]],
+    thu: [["09:00", "12:30"], ["13:00", "17:00"]],
+    fri: [["09:00", "12:30"], ["13:00", "17:00"]],
+  },
+  "daan-vermeer": {
+    mon: [["08:30", "16:30"]], tue: [["08:30", "16:30"]], wed: [["08:30", "16:30"]],
+    thu: [["08:30", "16:30"]], fri: [["08:30", "16:30"]], sat: [["08:30", "16:30"]],
+  },
+  "sofia-ramos": {
+    tue: [["10:00", "18:00"]], wed: [["10:00", "18:00"]], thu: [["10:00", "18:00"]],
+    fri: [["10:00", "18:00"]], sat: [["10:00", "18:00"]],
+  },
+  "jonas-brandt": {
+    mon: [["09:00", "17:00"]], tue: [["09:00", "17:00"]], wed: [["09:00", "17:00"]],
+    thu: [["09:00", "17:00"]], fri: [["09:00", "17:00"]],
+  },
+  "elin-kask": {
+    mon: [["09:00", "17:00"]], tue: [["09:00", "17:00"]], wed: [["09:00", "17:00"]],
+    thu: [["09:00", "17:00"]], fri: [["09:00", "17:00"]],
+  },
+};
+
+async function main() {
+  console.log("Truncating…");
+  await db.execute(sql`
+    TRUNCATE audit_log, kpi_snapshots, kpi_targets, deliverables, bookings,
+      creator_time_off, agents, users RESTART IDENTITY CASCADE
+  `);
+
+  console.log("Users…");
+  const creatorRows = await db
+    .insert(t.users)
+    .values(
+      mockCreators.map((c) => ({
+        email: `${c.slug}@springfield-re.com`,
+        fullName: c.name,
+        role: "creator" as const,
+        slug: c.slug,
+        googleCalendarId: `${c.slug}@springfield-re.com`,
+        workingHours: hoursBySlug[c.slug],
+        shootDurations: {
+          photo: c.settings.photoDuration,
+          video: c.settings.videoDuration,
+          photo_video: c.settings.videoDuration + 30,
+        },
+        bufferMinutes: c.settings.buffer,
+        minNoticeHours: c.settings.minNoticeHours,
+        maxHorizonDays: c.settings.horizonWeeks * 7,
+        maxShootsPerDay: c.settings.maxShootsPerDay,
+        isActive: c.active,
+      }))
+    )
+    .returning({ id: t.users.id, slug: t.users.slug });
+
+  const creatorId = new Map(
+    mockCreators.map((c) => [
+      c.id,
+      creatorRows.find((r) => r.slug === c.slug)!.id,
+    ])
+  );
+
+  const [manager] = await db
+    .insert(t.users)
+    .values([
+      // Manager gets the real account email so Google sign-in maps to this row.
+      { email: "zed@springfield-re.com", fullName: "Zed", role: "manager" as const },
+      { email: "exec@springfield-re.com", fullName: "Exec Viewer", role: "executive" as const },
+    ])
+    .returning({ id: t.users.id });
+
+  console.log("Time off…");
+  for (const c of mockCreators) {
+    if (c.timeOff.length === 0) continue;
+    await db.insert(t.creatorTimeOff).values(
+      c.timeOff.map((o) => ({
+        creatorId: creatorId.get(c.id)!,
+        startsOn: o.from,
+        endsOn: o.to,
+        reason: o.reason,
+        createdBy: manager.id,
+      }))
+    );
+  }
+
+  console.log("Agents…");
+  const agentRows = await db
+    .insert(t.agents)
+    .values(
+      mockAgents.map((a) => ({
+        fullName: a.name,
+        email: a.email,
+        phone: a.phone,
+        office: a.office,
+        isApproved: a.status !== "pending",
+        isActive: a.status !== "inactive",
+      }))
+    )
+    .returning({ id: t.agents.id, email: t.agents.email });
+
+  const agentId = new Map(
+    mockAgents.map((a) => [
+      a.id,
+      agentRows.find((r) => r.email === a.email)!.id,
+    ])
+  );
+
+  console.log("Bookings…");
+  const bookingRows = await db
+    .insert(t.bookings)
+    .values(
+      mockBookings.map((b) => ({
+        creatorId: creatorId.get(b.creatorId)!,
+        agentId: agentId.get(b.agentId)!,
+        source: "agent" as const,
+        shootType: mapShootType(b.shootType),
+        locationType:
+          b.location.kind === "onsite" ? ("on_site" as const) : ("office" as const),
+        propertyAddress:
+          b.location.kind === "onsite" ? b.location.address : null,
+        notes: b.notes ?? null,
+        startsAt: new Date(b.start),
+        endsAt: new Date(b.end),
+        status:
+          b.status === "pending_cancellation" ? ("confirmed" as const) : b.status,
+        cancellationReason:
+          b.status === "cancelled" ? (b.cancellationReason ?? null) : null,
+        cancelledBy: b.status === "cancelled" ? "agent" : null,
+        cancelledAt: b.status === "cancelled" ? new Date(b.start) : null,
+      }))
+    )
+    .returning({ id: t.bookings.id });
+
+  const bookingId = new Map(
+    mockBookings.map((b, i) => [b.id, bookingRows[i].id])
+  );
+
+  console.log("Deliverables…");
+  await db.insert(t.deliverables).values(
+    mockDeliverables.map((d) => ({
+      creatorId: creatorId.get(d.creatorId)!,
+      bookingId: d.bookingId ? bookingId.get(d.bookingId)! : null,
+      agentId: d.agentId ? agentId.get(d.agentId)! : null,
+      type: d.type,
+      platform: d.platform,
+      url: d.url,
+      isPosted: d.posted,
+      postedAt: d.posted ? new Date(d.submittedAt) : null,
+      workDate: d.workDate,
+      reviewStatus:
+        d.status === "pending"
+          ? ("submitted" as const)
+          : d.status === "revision_requested"
+            ? ("needs_revision" as const)
+            : ("approved" as const),
+      reviewComment: d.reviewComment ?? null,
+      reviewedBy: d.status === "pending" ? null : manager.id,
+      reviewedAt: d.status === "pending" ? null : new Date(d.submittedAt),
+      createdAt: new Date(d.submittedAt),
+    }))
+  );
+
+  const monthStart = `${currentMonth}-01`;
+
+  console.log("Targets…");
+  await db.insert(t.kpiTargets).values(
+    mockTargets.map((x) => ({
+      creatorId: creatorId.get(x.creatorId)!,
+      month: monthStart,
+      targetShoots: x.shoots,
+      targetDeliverables: x.deliverables,
+      targetPosted: x.posted,
+    }))
+  );
+
+  console.log("KPI snapshots…");
+  await db.insert(t.kpiSnapshots).values(
+    mockKpis.map((k) => ({
+      creatorId: creatorId.get(k.creatorId)!,
+      snapshotDate: dayjs().format("YYYY-MM-DD"),
+      month: monthStart,
+      shootsCompleted: k.shootsCompleted,
+      shootsCancelled: k.shootsCancelled,
+      deliverablesTotal: k.submitted,
+      deliverablesApproved: k.approved,
+      postedTotal: k.postedCount,
+      avgTurnaroundHours: String(k.avgTurnaroundHours),
+    }))
+  );
+
+  console.log("Seed complete.");
+  process.exit(0);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
