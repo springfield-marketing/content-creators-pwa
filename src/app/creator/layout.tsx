@@ -1,0 +1,104 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Avatar,
+  Box,
+  Container,
+  Group,
+  Stack,
+  Text,
+  UnstyledButton,
+} from "@mantine/core";
+import {
+  IconCalendarEvent,
+  IconChartBar,
+  IconCirclePlus,
+} from "@tabler/icons-react";
+
+// Creator shell: phone-first app layout with a fixed bottom tab bar.
+const tabs = [
+  { href: "/creator", label: "Schedule", icon: IconCalendarEvent },
+  { href: "/creator/log", label: "Log", icon: IconCirclePlus },
+  { href: "/creator/progress", label: "Progress", icon: IconChartBar },
+];
+
+const TAB_BAR_HEIGHT = 64;
+
+export default function CreatorLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+
+  return (
+    <>
+      <Box component="header" className="app-header" py="xs">
+        <Container size="sm">
+          <Group justify="space-between">
+            <Text fw={700}>My Content App</Text>
+            {/* Mock logged-in creator until auth lands */}
+            <Group gap="xs">
+              <Text size="sm" c="dimmed">
+                Mia Laurens
+              </Text>
+              <Avatar color="brand" radius="xl" size="sm">
+                ML
+              </Avatar>
+            </Group>
+          </Group>
+        </Container>
+      </Box>
+
+      <Container size="sm" py="md" pb={TAB_BAR_HEIGHT + 24}>
+        {children}
+      </Container>
+
+      <Box
+        component="nav"
+        pos="fixed"
+        bottom={0}
+        left={0}
+        right={0}
+        h={TAB_BAR_HEIGHT}
+        bg="var(--mantine-color-body)"
+        style={{
+          borderTop: "1px solid var(--mantine-color-default-border)",
+          zIndex: 100,
+        }}
+      >
+        <Group grow h="100%" gap={0} maw={480} mx="auto">
+          {tabs.map((tab) => {
+            const active =
+              tab.href === "/creator"
+                ? pathname === "/creator"
+                : pathname.startsWith(tab.href);
+            return (
+              <UnstyledButton
+                key={tab.href}
+                component={Link}
+                href={tab.href}
+                h="100%"
+              >
+                <Stack
+                  gap={2}
+                  align="center"
+                  justify="center"
+                  h="100%"
+                  c={active ? "brand" : "dimmed"}
+                >
+                  <tab.icon size={24} stroke={active ? 2 : 1.5} />
+                  <Text size="xs" fw={active ? 600 : 400}>
+                    {tab.label}
+                  </Text>
+                </Stack>
+              </UnstyledButton>
+            );
+          })}
+        </Group>
+      </Box>
+    </>
+  );
+}
