@@ -34,9 +34,8 @@ import {
 } from "@/lib/mock-data";
 
 const typeLabel: Record<Deliverable["type"], string> = {
-  reel: "Reel",
-  photo_set: "Photo set",
-  video: "Video",
+  photo_shoot: "Photo Shoot",
+  video_shoot: "Video Shoot",
 };
 
 // Screen 8 — Review queue: clear the day's submissions in five minutes.

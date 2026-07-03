@@ -54,7 +54,7 @@ export default function LogDeliverable() {
   const [shootId, setShootId] = useState<string | null>(null);
   const [noShoot, setNoShoot] = useState(false);
   const [agentId, setAgentId] = useState<string | null>(null);
-  const [type, setType] = useState("reel");
+  const [type, setType] = useState("photo_shoot");
   const [url, setUrl] = useState("");
   const [posted, setPosted] = useState(false);
   const [workDate, setWorkDate] = useState<string | null>(
@@ -91,7 +91,7 @@ export default function LogDeliverable() {
     setShootId(null);
     setNoShoot(false);
     setAgentId(null);
-    setType("reel");
+    setType("photo_shoot");
     setUrl("");
     setPosted(false);
     setWorkDate(dayjs().format("YYYY-MM-DD"));
@@ -199,9 +199,8 @@ export default function LogDeliverable() {
           value={type}
           onChange={setType}
           data={[
-            { label: "Reel", value: "reel" },
-            { label: "Photo set", value: "photo_set" },
-            { label: "Video", value: "video" },
+            { label: "Photo Shoot", value: "photo_shoot" },
+            { label: "Video Shoot", value: "video_shoot" },
           ]}
         />
       </div>

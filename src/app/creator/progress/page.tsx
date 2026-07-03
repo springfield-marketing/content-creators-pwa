@@ -100,7 +100,7 @@ export default function MyProgress() {
                   Revision requested
                 </Text>
                 <Badge size="sm" color="orange" variant="light">
-                  {d.type === "photo_set" ? "Photo set" : d.type}
+                  {d.type === "photo_shoot" ? "Photo Shoot" : "Video Shoot"}
                 </Badge>
               </Group>
               <Text size="sm" c="dimmed">

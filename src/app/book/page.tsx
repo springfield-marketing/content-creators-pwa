@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   Avatar,
-  Badge,
   Card,
   Group,
   SimpleGrid,
@@ -12,7 +11,7 @@ import {
   Title,
 } from "@mantine/core";
 import { IconChevronRight } from "@tabler/icons-react";
-import { creators, shootTypeLabel } from "@/lib/mock-data";
+import { creators } from "@/lib/mock-data";
 
 const initials = (name: string) =>
   name
@@ -48,9 +47,9 @@ export default function BookHome() {
                 </Avatar>
                 <Stack gap={4} style={{ flex: 1 }}>
                   <Text fw={600}>{creator.name}</Text>
-                  <Badge variant="light" size="sm" w="fit-content">
-                    {shootTypeLabel[creator.specialty]}
-                  </Badge>
+                  <Text size="xs" c="dimmed">
+                    Photo &amp; video shoots
+                  </Text>
                 </Stack>
                 <IconChevronRight
                   size={18}

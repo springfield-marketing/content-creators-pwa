@@ -6,7 +6,6 @@ import dayjs from "dayjs";
 import {
   Alert,
   Avatar,
-  Badge,
   Box,
   Button,
   Center,
@@ -21,7 +20,7 @@ import {
 } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
 import { IconCalendarOff, IconInfoCircle } from "@tabler/icons-react";
-import { creatorBySlug, shootTypeLabel } from "@/lib/mock-data";
+import { creatorBySlug } from "@/lib/mock-data";
 import { isDayBookable, slotsForDay, upcomingDays } from "@/lib/mock-slots";
 
 const initials = (name: string) =>
@@ -73,9 +72,6 @@ function PickTime() {
             {creator.name}
           </Title>
           <Group gap="xs">
-            <Badge variant="light" size="sm">
-              {shootTypeLabel[creator.specialty]}
-            </Badge>
             <Text size="xs" c="dimmed">
               {creator.settings.workingHours}
             </Text>

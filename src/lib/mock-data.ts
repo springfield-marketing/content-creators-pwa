@@ -10,7 +10,6 @@ export type Creator = {
   id: string;
   slug: string;
   name: string;
-  specialty: ShootType;
   color: string; // avatar/placeholder color until real photos exist
   active: boolean;
   settings: {
@@ -62,7 +61,7 @@ export type Deliverable = {
   creatorId: string;
   bookingId?: string;
   agentId?: string;
-  type: "reel" | "photo_set" | "video";
+  type: "photo_shoot" | "video_shoot";
   url: string;
   platform: "instagram" | "tiktok" | "drive" | "dropbox" | "other";
   posted: boolean;
@@ -90,7 +89,6 @@ export const creators: Creator[] = [
     id: "c1",
     slug: "mia-laurens",
     name: "Mia Laurens",
-    specialty: "both",
     color: "indigo",
     active: true,
     settings: {
@@ -115,7 +113,6 @@ export const creators: Creator[] = [
     id: "c2",
     slug: "daan-vermeer",
     name: "Daan Vermeer",
-    specialty: "video",
     color: "teal",
     active: true,
     settings: {
@@ -134,7 +131,6 @@ export const creators: Creator[] = [
     id: "c3",
     slug: "sofia-ramos",
     name: "Sofia Ramos",
-    specialty: "photo",
     color: "grape",
     active: true,
     settings: {
@@ -153,7 +149,6 @@ export const creators: Creator[] = [
     id: "c4",
     slug: "jonas-brandt",
     name: "Jonas Brandt",
-    specialty: "both",
     color: "orange",
     active: true,
     settings: {
@@ -172,7 +167,6 @@ export const creators: Creator[] = [
     id: "c5",
     slug: "elin-kask",
     name: "Elin Kask",
-    specialty: "photo",
     color: "pink",
     active: false, // deactivated — must not appear on the booking page
     settings: {
@@ -228,18 +222,18 @@ export const bookings: Booking[] = [
 
 export const deliverables: Deliverable[] = [
   // Awaiting review
-  { id: "d1", creatorId: "c1", bookingId: "b10", agentId: "a2", type: "photo_set", url: "https://drive.google.com/drive/folders/mock-foxglove", platform: "drive", posted: false, workDate: today.subtract(1, "day").format("YYYY-MM-DD"), submittedAt: day(-1, 16, 40), status: "pending" },
-  { id: "d2", creatorId: "c1", bookingId: "b11", agentId: "a5", type: "reel", url: "https://www.instagram.com/reel/mock-marina", platform: "instagram", posted: true, workDate: today.subtract(2, "day").format("YYYY-MM-DD"), submittedAt: day(-1, 9, 10), status: "pending" },
-  { id: "d3", creatorId: "c2", bookingId: "b12", agentId: "a6", type: "video", url: "https://www.dropbox.com/s/mock-office-tour", platform: "dropbox", posted: false, workDate: today.subtract(2, "day").format("YYYY-MM-DD"), submittedAt: day(0, 8, 5), status: "pending" },
-  { id: "d4", creatorId: "c3", bookingId: "b13", agentId: "a1", type: "photo_set", url: "https://drive.google.com/drive/folders/mock-meadow", platform: "drive", posted: false, workDate: today.subtract(3, "day").format("YYYY-MM-DD"), submittedAt: day(-2, 17, 20), status: "pending" },
+  { id: "d1", creatorId: "c1", bookingId: "b10", agentId: "a2", type: "photo_shoot", url: "https://drive.google.com/drive/folders/mock-foxglove", platform: "drive", posted: false, workDate: today.subtract(1, "day").format("YYYY-MM-DD"), submittedAt: day(-1, 16, 40), status: "pending" },
+  { id: "d2", creatorId: "c1", bookingId: "b11", agentId: "a5", type: "video_shoot", url: "https://www.instagram.com/reel/mock-marina", platform: "instagram", posted: true, workDate: today.subtract(2, "day").format("YYYY-MM-DD"), submittedAt: day(-1, 9, 10), status: "pending" },
+  { id: "d3", creatorId: "c2", bookingId: "b12", agentId: "a6", type: "video_shoot", url: "https://www.dropbox.com/s/mock-office-tour", platform: "dropbox", posted: false, workDate: today.subtract(2, "day").format("YYYY-MM-DD"), submittedAt: day(0, 8, 5), status: "pending" },
+  { id: "d4", creatorId: "c3", bookingId: "b13", agentId: "a1", type: "photo_shoot", url: "https://drive.google.com/drive/folders/mock-meadow", platform: "drive", posted: false, workDate: today.subtract(3, "day").format("YYYY-MM-DD"), submittedAt: day(-2, 17, 20), status: "pending" },
   // Sent back for revision
-  { id: "d5", creatorId: "c1", agentId: "a4", type: "reel", url: "https://www.tiktok.com/@springfieldre/video/mock-1", platform: "tiktok", posted: false, workDate: today.subtract(4, "day").format("YYYY-MM-DD"), submittedAt: day(-3, 15, 0), status: "revision_requested", reviewComment: "Logo watermark is missing on the outro — please re-export and resubmit." },
+  { id: "d5", creatorId: "c1", agentId: "a4", type: "video_shoot", url: "https://www.tiktok.com/@springfieldre/video/mock-1", platform: "tiktok", posted: false, workDate: today.subtract(4, "day").format("YYYY-MM-DD"), submittedAt: day(-3, 15, 0), status: "revision_requested", reviewComment: "Logo watermark is missing on the outro — please re-export and resubmit." },
   // Approved this month
-  { id: "d6", creatorId: "c1", agentId: "a1", type: "photo_set", url: "https://drive.google.com/drive/folders/mock-a", platform: "drive", posted: false, workDate: today.subtract(6, "day").format("YYYY-MM-DD"), submittedAt: day(-6, 18, 0), status: "approved" },
-  { id: "d7", creatorId: "c1", agentId: "a3", type: "reel", url: "https://www.instagram.com/reel/mock-b", platform: "instagram", posted: true, workDate: today.subtract(7, "day").format("YYYY-MM-DD"), submittedAt: day(-7, 12, 0), status: "approved" },
-  { id: "d8", creatorId: "c2", agentId: "a2", type: "video", url: "https://drive.google.com/drive/folders/mock-c", platform: "drive", posted: true, workDate: today.subtract(5, "day").format("YYYY-MM-DD"), submittedAt: day(-5, 16, 30), status: "approved" },
-  { id: "d9", creatorId: "c3", agentId: "a7", type: "photo_set", url: "https://drive.google.com/drive/folders/mock-d", platform: "drive", posted: false, workDate: today.subtract(8, "day").format("YYYY-MM-DD"), submittedAt: day(-8, 17, 45), status: "approved" },
-  { id: "d10", creatorId: "c4", agentId: "a8", type: "reel", url: "https://www.instagram.com/reel/mock-e", platform: "instagram", posted: true, workDate: today.subtract(4, "day").format("YYYY-MM-DD"), submittedAt: day(-4, 11, 15), status: "approved" },
+  { id: "d6", creatorId: "c1", agentId: "a1", type: "photo_shoot", url: "https://drive.google.com/drive/folders/mock-a", platform: "drive", posted: false, workDate: today.subtract(6, "day").format("YYYY-MM-DD"), submittedAt: day(-6, 18, 0), status: "approved" },
+  { id: "d7", creatorId: "c1", agentId: "a3", type: "video_shoot", url: "https://www.instagram.com/reel/mock-b", platform: "instagram", posted: true, workDate: today.subtract(7, "day").format("YYYY-MM-DD"), submittedAt: day(-7, 12, 0), status: "approved" },
+  { id: "d8", creatorId: "c2", agentId: "a2", type: "video_shoot", url: "https://drive.google.com/drive/folders/mock-c", platform: "drive", posted: true, workDate: today.subtract(5, "day").format("YYYY-MM-DD"), submittedAt: day(-5, 16, 30), status: "approved" },
+  { id: "d9", creatorId: "c3", agentId: "a7", type: "photo_shoot", url: "https://drive.google.com/drive/folders/mock-d", platform: "drive", posted: false, workDate: today.subtract(8, "day").format("YYYY-MM-DD"), submittedAt: day(-8, 17, 45), status: "approved" },
+  { id: "d10", creatorId: "c4", agentId: "a8", type: "video_shoot", url: "https://www.instagram.com/reel/mock-e", platform: "instagram", posted: true, workDate: today.subtract(4, "day").format("YYYY-MM-DD"), submittedAt: day(-4, 11, 15), status: "approved" },
 ];
 
 export const currentMonth = today.format("YYYY-MM");

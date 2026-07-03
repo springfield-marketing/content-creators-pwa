@@ -110,7 +110,7 @@ async function main() {
           role: "creator" as const,
           slug: slugify(c.name),
           googleCalendarId: c.email,
-          // working hours, durations, buffers, specialty: §B4 defaults —
+          // working hours, durations, buffers: §B4 defaults —
           // the manager tunes them in /admin/creators.
         }))
       )
@@ -129,7 +129,6 @@ async function main() {
           fullName: c.name,
           role: "creator" as const,
           slug: c.slug,
-          specialty: mapShootType(c.specialty),
           googleCalendarId: `${c.slug}@springfield-re.com`,
           workingHours: hoursBySlug[c.slug],
           shootDurations: {
