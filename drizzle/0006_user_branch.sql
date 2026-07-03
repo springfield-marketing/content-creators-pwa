@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "branch" text DEFAULT 'Dubai';

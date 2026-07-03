@@ -5,6 +5,7 @@ import Image from "next/image";
 import {
   Alert,
   Avatar,
+  Badge,
   Card,
   SimpleGrid,
   Skeleton,
@@ -56,6 +57,20 @@ export default function BookHome() {
               padding={0}
             >
               <div style={{ position: "relative", aspectRatio: "4 / 5" }}>
+                {creator.branch && (
+                  <Badge
+                    variant="default"
+                    size="sm"
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      left: 8,
+                      zIndex: 1,
+                    }}
+                  >
+                    {creator.branch}
+                  </Badge>
+                )}
                 {creator.photoUrl ? (
                   <Image
                     src={encodeURI(creator.photoUrl)}

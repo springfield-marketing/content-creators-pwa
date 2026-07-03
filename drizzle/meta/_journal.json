@@ -43,6 +43,13 @@
       "when": 1783086338801,
       "tag": "0005_user_photo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783086899467,
+      "tag": "0006_user_branch",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,7 @@ export type CreatorCard = {
   slug: string;
   name: string;
   photoUrl: string | null;
+  branch: string | null;
 };
 
 type CreatorProfile = {

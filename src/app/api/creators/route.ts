@@ -12,6 +12,7 @@ export async function GET() {
       slug: users.slug,
       name: users.fullName,
       photoUrl: users.photoUrl,
+      branch: users.branch,
     })
     .from(users)
     .where(and(eq(users.role, "creator"), eq(users.isActive, true)))
