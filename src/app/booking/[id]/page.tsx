@@ -94,7 +94,8 @@ export default function ManageBooking() {
           <Group gap="sm">
             <IconCalendarEvent size={20} color="var(--mantine-color-brand-6)" />
             <div>
-              <Text fw={600}>{start.format("dddd, MMMM D YYYY")}</Text>
+              <Text fw={600}>{booking.projectName}</Text>
+              <Text size="sm">{start.format("dddd, MMMM D YYYY")}</Text>
               <Text size="sm" c="dimmed">
                 {start.format("HH:mm")}–{end.format("HH:mm")} ·{" "}
                 {shootTypeLabel[booking.shootType]}

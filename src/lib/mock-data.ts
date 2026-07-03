@@ -48,6 +48,7 @@ export type Booking = {
   start: string; // ISO datetime
   end: string;
   shootType: ShootType;
+  projectName: string; // what the shoot is about
   location: { kind: "onsite"; address: string } | { kind: "office" };
   notes?: string;
   status: BookingStatus;
@@ -201,23 +202,23 @@ export const agents: Agent[] = [
 
 export const bookings: Booking[] = [
   // Today
-  { id: "b1", creatorId: "c1", agentId: "a1", start: day(0, 9, 30), end: day(0, 11, 0), shootType: "photo", location: { kind: "onsite", address: "14 Maple Drive, Springfield" }, notes: "Family home, focus on the garden.", status: "confirmed" },
-  { id: "b2", creatorId: "c1", agentId: "a4", start: day(0, 13, 0), end: day(0, 15, 30), shootType: "video", location: { kind: "onsite", address: "82 Lakeshore Blvd, Riverside" }, status: "confirmed" },
-  { id: "b3", creatorId: "c2", agentId: "a2", start: day(0, 10, 0), end: day(0, 13, 0), shootType: "video", location: { kind: "office" }, notes: "Agent intro reel for socials.", status: "confirmed" },
+  { id: "b1", creatorId: "c1", agentId: "a1", start: day(0, 9, 30), end: day(0, 11, 0), shootType: "photo", projectName: "14 Maple Drive listing", location: { kind: "onsite", address: "14 Maple Drive, Springfield" }, notes: "Family home, focus on the garden.", status: "confirmed" },
+  { id: "b2", creatorId: "c1", agentId: "a4", start: day(0, 13, 0), end: day(0, 15, 30), shootType: "video", projectName: "Lakeshore Blvd penthouse listing", location: { kind: "onsite", address: "82 Lakeshore Blvd, Riverside" }, status: "confirmed" },
+  { id: "b3", creatorId: "c2", agentId: "a2", start: day(0, 10, 0), end: day(0, 13, 0), shootType: "video", projectName: "Agent intro video — socials", location: { kind: "office" }, notes: "Agent intro reel for socials.", status: "confirmed" },
   // Upcoming
-  { id: "b4", creatorId: "c1", agentId: "a3", start: day(1, 10, 0), end: day(1, 11, 30), shootType: "photo", location: { kind: "onsite", address: "3 Vineyard Lane, Hillside" }, status: "confirmed" },
-  { id: "b5", creatorId: "c3", agentId: "a5", start: day(1, 11, 0), end: day(1, 12, 15), shootType: "photo", location: { kind: "onsite", address: "27 Crown Street, Springfield" }, status: "confirmed" },
-  { id: "b6", creatorId: "c2", agentId: "a7", start: day(2, 9, 0), end: day(2, 12, 0), shootType: "video", location: { kind: "onsite", address: "156 Harbor View, Riverside" }, notes: "Penthouse — drone shots approved.", status: "confirmed" },
-  { id: "b7", creatorId: "c4", agentId: "a8", start: day(2, 14, 0), end: day(2, 15, 30), shootType: "photo", location: { kind: "office" }, status: "confirmed" },
-  { id: "b8", creatorId: "c1", agentId: "a9", start: day(3, 9, 0), end: day(3, 11, 30), shootType: "both", location: { kind: "onsite", address: "9 Birchwood Court, Springfield" }, status: "confirmed" },
-  { id: "b9", creatorId: "c3", agentId: "a10", start: day(4, 10, 0), end: day(4, 11, 15), shootType: "photo", location: { kind: "onsite", address: "44 Elm Park, Hillside" }, status: "pending_cancellation", cancellationReason: "Seller postponed the listing." },
+  { id: "b4", creatorId: "c1", agentId: "a3", start: day(1, 10, 0), end: day(1, 11, 30), shootType: "photo", projectName: "3 Vineyard Lane listing", location: { kind: "onsite", address: "3 Vineyard Lane, Hillside" }, status: "confirmed" },
+  { id: "b5", creatorId: "c3", agentId: "a5", start: day(1, 11, 0), end: day(1, 12, 15), shootType: "photo", projectName: "27 Crown Street listing", location: { kind: "onsite", address: "27 Crown Street, Springfield" }, status: "confirmed" },
+  { id: "b6", creatorId: "c2", agentId: "a7", start: day(2, 9, 0), end: day(2, 12, 0), shootType: "video", projectName: "Harbor View penthouse launch", location: { kind: "onsite", address: "156 Harbor View, Riverside" }, notes: "Penthouse — drone shots approved.", status: "confirmed" },
+  { id: "b7", creatorId: "c4", agentId: "a8", start: day(2, 14, 0), end: day(2, 15, 30), shootType: "photo", projectName: "Agent headshots refresh", location: { kind: "office" }, status: "confirmed" },
+  { id: "b8", creatorId: "c1", agentId: "a9", start: day(3, 9, 0), end: day(3, 11, 30), shootType: "both", projectName: "9 Birchwood Court listing", location: { kind: "onsite", address: "9 Birchwood Court, Springfield" }, status: "confirmed" },
+  { id: "b9", creatorId: "c3", agentId: "a10", start: day(4, 10, 0), end: day(4, 11, 15), shootType: "photo", projectName: "44 Elm Park listing", location: { kind: "onsite", address: "44 Elm Park, Hillside" }, status: "pending_cancellation", cancellationReason: "Seller postponed the listing." },
   // Past — feed the KPI numbers and deliverable links
-  { id: "b10", creatorId: "c1", agentId: "a2", start: day(-1, 9, 0), end: day(-1, 10, 30), shootType: "photo", location: { kind: "onsite", address: "5 Foxglove Way, Springfield" }, status: "completed" },
-  { id: "b11", creatorId: "c1", agentId: "a5", start: day(-2, 13, 0), end: day(-2, 15, 30), shootType: "video", location: { kind: "onsite", address: "18 Marina Walk, Riverside" }, status: "completed" },
-  { id: "b12", creatorId: "c2", agentId: "a6", start: day(-2, 9, 0), end: day(-2, 12, 0), shootType: "video", location: { kind: "office" }, status: "completed" },
-  { id: "b13", creatorId: "c3", agentId: "a1", start: day(-3, 10, 0), end: day(-3, 11, 15), shootType: "photo", location: { kind: "onsite", address: "61 Meadow Rise, Hillside" }, status: "completed" },
-  { id: "b14", creatorId: "c4", agentId: "a3", start: day(-3, 14, 0), end: day(-3, 15, 30), shootType: "photo", location: { kind: "onsite", address: "12 Orchard Close, Springfield" }, status: "no_show" },
-  { id: "b15", creatorId: "c2", agentId: "a4", start: day(-4, 9, 0), end: day(-4, 12, 0), shootType: "video", location: { kind: "onsite", address: "230 Skyline Ave, Riverside" }, status: "cancelled", cancellationReason: "Agent double-booked." },
+  { id: "b10", creatorId: "c1", agentId: "a2", start: day(-1, 9, 0), end: day(-1, 10, 30), shootType: "photo", projectName: "5 Foxglove Way listing", location: { kind: "onsite", address: "5 Foxglove Way, Springfield" }, status: "completed" },
+  { id: "b11", creatorId: "c1", agentId: "a5", start: day(-2, 13, 0), end: day(-2, 15, 30), shootType: "video", projectName: "Marina Walk apartment tour", location: { kind: "onsite", address: "18 Marina Walk, Riverside" }, status: "completed" },
+  { id: "b12", creatorId: "c2", agentId: "a6", start: day(-2, 9, 0), end: day(-2, 12, 0), shootType: "video", projectName: "Office tour video", location: { kind: "office" }, status: "completed" },
+  { id: "b13", creatorId: "c3", agentId: "a1", start: day(-3, 10, 0), end: day(-3, 11, 15), shootType: "photo", projectName: "61 Meadow Rise listing", location: { kind: "onsite", address: "61 Meadow Rise, Hillside" }, status: "completed" },
+  { id: "b14", creatorId: "c4", agentId: "a3", start: day(-3, 14, 0), end: day(-3, 15, 30), shootType: "photo", projectName: "12 Orchard Close listing", location: { kind: "onsite", address: "12 Orchard Close, Springfield" }, status: "no_show" },
+  { id: "b15", creatorId: "c2", agentId: "a4", start: day(-4, 9, 0), end: day(-4, 12, 0), shootType: "video", projectName: "Skyline Ave campaign", location: { kind: "onsite", address: "230 Skyline Ave, Riverside" }, status: "cancelled", cancellationReason: "Agent double-booked." },
 ];
 
 export const deliverables: Deliverable[] = [

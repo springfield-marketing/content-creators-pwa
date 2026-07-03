@@ -112,6 +112,9 @@ export default function MySchedule() {
             </Group>
           </Group>
 
+          <Text size="sm" fw={500}>
+            {b.projectName}
+          </Text>
           <Text size="sm" c="dimmed">
             {agent.name} — {agent.office}
           </Text>

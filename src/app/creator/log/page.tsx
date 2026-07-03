@@ -138,10 +138,7 @@ export default function LogDeliverable() {
                         {shootTypeLabel[b.shootType]}
                       </Text>
                       <Text size="xs" c="dimmed">
-                        {agent.name} —{" "}
-                        {b.location.kind === "onsite"
-                          ? b.location.address
-                          : "Office"}
+                        {b.projectName} · {agent.name}
                       </Text>
                     </div>
                     {selected && <Badge size="sm">Selected</Badge>}

@@ -40,6 +40,7 @@ function BookingDetails() {
   const [agentId, setAgentId] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
   const [newAgent, setNewAgent] = useState({ name: "", office: "", email: "", phone: "" });
+  const [projectName, setProjectName] = useState("");
   const [shootType, setShootType] = useState<ShootType>("photo");
   const [locationKind, setLocationKind] = useState<"onsite" | "office">("onsite");
   const [address, setAddress] = useState("");
@@ -72,13 +73,14 @@ function BookingDetails() {
     ? newAgent.name.trim() !== "" && newAgent.email.trim() !== ""
     : agentId !== null;
   const locationOk = locationKind === "office" || address.trim() !== "";
-  const canSubmit = agentOk && locationOk;
+  const canSubmit = agentOk && locationOk && projectName.trim() !== "";
 
   const submit = () => {
     const params = new URLSearchParams({
       start: slot.toISOString(),
       type: shootType,
       agent: registering ? `${newAgent.name} (new)` : (selectedAgent?.name ?? ""),
+      project: projectName,
       location: locationKind === "onsite" ? address : "Office",
     });
     if (rescheduleId) params.set("reschedule", rescheduleId);
@@ -168,6 +170,14 @@ function BookingDetails() {
               </Anchor>
             </Stack>
           )}
+
+          <TextInput
+            label="Project name"
+            required
+            placeholder="What is the shoot about? e.g. 14 Maple Drive listing"
+            value={projectName}
+            onChange={(e) => setProjectName(e.currentTarget.value)}
+          />
 
           <div>
             <Text size="sm" fw={500} mb={4}>

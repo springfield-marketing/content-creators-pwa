@@ -32,6 +32,7 @@ function Confirmed() {
   const start = searchParams.get("start");
   const type = (searchParams.get("type") ?? "photo") as ShootType;
   const agent = searchParams.get("agent") ?? "";
+  const project = searchParams.get("project") ?? "";
   const location = searchParams.get("location") ?? "";
   const wasReschedule = searchParams.get("reschedule") !== null;
 
@@ -50,6 +51,7 @@ function Confirmed() {
       : creator.settings.photoDuration;
 
   const rows = [
+    ["Project", project],
     ["Creator", creator.name],
     ["Agent", agent],
     ["Date", slot.format("dddd, MMMM D YYYY")],

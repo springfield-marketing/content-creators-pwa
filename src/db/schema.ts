@@ -124,6 +124,8 @@ export const bookings = pgTable(
     source: bookingSource("source").notNull().default("agent"),
     shootType: shootType("shoot_type").notNull(),
     locationType: shootLocation("location_type").notNull(),
+    // What the shoot is about (e.g. the listing/campaign) — not in §B4.
+    projectName: text("project_name"),
     propertyAddress: text("property_address"),
     notes: text("notes"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),

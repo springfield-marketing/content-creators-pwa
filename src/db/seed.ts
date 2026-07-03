@@ -232,6 +232,7 @@ async function main() {
         agentId: agentId.get(b.agentId)!,
         source: "agent" as const,
         shootType: mapShootType(b.shootType),
+        projectName: b.projectName,
         locationType:
           b.location.kind === "onsite" ? ("on_site" as const) : ("office" as const),
         propertyAddress:

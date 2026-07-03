@@ -14,6 +14,7 @@ import {
   Stack,
   Table,
   Text,
+  TextInput,
   Textarea,
   Title,
   UnstyledButton,
@@ -63,6 +64,7 @@ export default function BookingsOverview() {
   const [draft, setDraft] = useState({
     creatorId: null as string | null,
     agentId: null as string | null,
+    project: "",
     day: null as string | null,
     time: "10:00",
     type: "photo" as ShootType,
@@ -118,7 +120,7 @@ export default function BookingsOverview() {
   };
 
   const createBooking = () => {
-    const { creatorId, agentId, day, time, type } = draft;
+    const { creatorId, agentId, project, day, time, type } = draft;
     if (!creatorId || !agentId || !day) return;
     const [h, m] = time.split(":").map(Number);
     const start = dayjs(day).hour(h).minute(m);
@@ -136,6 +138,7 @@ export default function BookingsOverview() {
         start: start.toISOString(),
         end: start.add(duration, "minute").toISOString(),
         shootType: type,
+        projectName: project,
         location: { kind: "office" },
         status: "confirmed",
       },
@@ -186,6 +189,7 @@ export default function BookingsOverview() {
               setDraft({
                 creatorId: null,
                 agentId: null,
+                project: "",
                 day: weekStart.format("YYYY-MM-DD"),
                 time: "10:00",
                 type: "photo",
@@ -292,6 +296,9 @@ export default function BookingsOverview() {
                 {selected.status.replace("_", " ")}
               </Badge>
             </Group>
+            <Text size="sm" fw={500}>
+              {selected.projectName}
+            </Text>
             <Text size="sm">
               {creators.find((c) => c.id === selected.creatorId)?.name} ·{" "}
               {shootTypeLabel[selected.shootType]} ·{" "}
@@ -371,6 +378,13 @@ export default function BookingsOverview() {
             value={draft.creatorId}
             onChange={(v) => setDraft({ ...draft, creatorId: v })}
           />
+          <TextInput
+            label="Project name"
+            required
+            placeholder="What is the shoot about?"
+            value={draft.project}
+            onChange={(e) => setDraft({ ...draft, project: e.currentTarget.value })}
+          />
           <Select
             label="Agent / requester"
             required
@@ -413,7 +427,12 @@ export default function BookingsOverview() {
               Cancel
             </Button>
             <Button
-              disabled={!draft.creatorId || !draft.agentId || !draft.day}
+              disabled={
+                !draft.creatorId ||
+                !draft.agentId ||
+                !draft.day ||
+                draft.project.trim() === ""
+              }
               onClick={createBooking}
             >
               Create booking
