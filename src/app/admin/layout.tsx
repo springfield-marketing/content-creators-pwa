@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import {
   AppShell,
-  Avatar,
   Burger,
   Group,
   NavLink,
   Text,
 } from "@mantine/core";
+import { UserMenu } from "@/components/UserMenu";
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconCalendarWeek,
@@ -62,9 +62,7 @@ export default function AdminLayout({
             />
             <Text fw={700}>Content Team · Admin</Text>
           </Group>
-          <Avatar color="brand" radius="xl" size="sm">
-            M
-          </Avatar>
+          <UserMenu showName={false} />
         </Group>
       </AppShell.Header>
 

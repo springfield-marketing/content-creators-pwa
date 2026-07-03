@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
+import { SessionProvider } from "next-auth/react";
 import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { theme } from "@/lib/theme";
@@ -45,11 +46,13 @@ export default function RootLayout({
         <ColorSchemeScript />
       </head>
       <body>
-        <MantineProvider theme={theme}>
-          <Notifications position="top-center" />
-          <PwaSetup />
-          {children}
-        </MantineProvider>
+        <SessionProvider>
+          <MantineProvider theme={theme}>
+            <Notifications position="top-center" />
+            <PwaSetup />
+            {children}
+          </MantineProvider>
+        </SessionProvider>
       </body>
     </html>
   );

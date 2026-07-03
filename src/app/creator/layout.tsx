@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Avatar,
   Box,
   Container,
   Group,
@@ -11,6 +10,7 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
+import { UserMenu } from "@/components/UserMenu";
 import {
   IconCalendarEvent,
   IconChartBar,
@@ -39,15 +39,7 @@ export default function CreatorLayout({
         <Container size="sm">
           <Group justify="space-between">
             <Text fw={700}>My Content App</Text>
-            {/* Mock logged-in creator until auth lands */}
-            <Group gap="xs">
-              <Text size="sm" c="dimmed">
-                Mia Laurens
-              </Text>
-              <Avatar color="brand" radius="xl" size="sm">
-                ML
-              </Avatar>
-            </Group>
+            <UserMenu />
           </Group>
         </Container>
       </Box>
