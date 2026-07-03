@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import {
@@ -12,32 +12,30 @@ import {
   Paper,
   Radio,
   SegmentedControl,
-  Select,
+  Skeleton,
   Stack,
   Text,
   TextInput,
   Textarea,
   Title,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { IconCalendarEvent, IconInfoCircle } from "@tabler/icons-react";
-import {
-  agents,
-  creatorBySlug,
-  shootTypeLabel,
-  type ShootType,
-} from "@/lib/mock-data";
+import { shootTypeLabel, type ShootType } from "@/lib/mock-data";
+import { useCreatorProfile } from "@/lib/use-creator";
+import { AgentSearchSelect, type AgentHit } from "@/components/AgentSearchSelect";
 
-// Screen 3 — Booking details: one screen, five fields, under two minutes.
+// Screen 3 — Booking details: one screen, under two minutes.
 function BookingDetails() {
   const { creator: slug } = useParams<{ creator: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const creator = creatorBySlug(slug);
+  const { creator, state } = useCreatorProfile(slug);
 
   const start = searchParams.get("start");
   const rescheduleId = searchParams.get("reschedule");
 
-  const [agentId, setAgentId] = useState<string | null>(null);
+  const [agent, setAgent] = useState<AgentHit | null>(null);
   const [registering, setRegistering] = useState(false);
   const [newAgent, setNewAgent] = useState({ name: "", office: "", email: "", phone: "" });
   const [projectName, setProjectName] = useState("");
@@ -45,15 +43,17 @@ function BookingDetails() {
   const [locationKind, setLocationKind] = useState<"onsite" | "office">("onsite");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const agentOptions = useMemo(
-    () =>
-      agents
-        .filter((a) => a.status === "active")
-        .map((a) => ({ value: a.id, label: `${a.name} — ${a.office}` })),
-    []
-  );
-  const selectedAgent = agents.find((a) => a.id === agentId);
+  if (state === "loading") {
+    return (
+      <Stack gap="md">
+        <Skeleton height={28} width={200} />
+        <Skeleton height={72} radius="lg" />
+        <Skeleton height={420} radius="lg" />
+      </Stack>
+    );
+  }
 
   if (!creator || !start) {
     return (
@@ -71,15 +71,43 @@ function BookingDetails() {
 
   const agentOk = registering
     ? newAgent.name.trim() !== "" && newAgent.email.trim() !== ""
-    : agentId !== null;
+    : agent !== null;
   const locationOk = locationKind === "office" || address.trim() !== "";
   const canSubmit = agentOk && locationOk && projectName.trim() !== "";
 
-  const submit = () => {
+  const submit = async () => {
+    setSubmitting(true);
+    let agentName = agent?.name ?? "";
+
+    if (registering) {
+      // Real self-registration: lands in the manager's approval inbox.
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: newAgent.name,
+          email: newAgent.email,
+          phone: newAgent.phone || undefined,
+          office: newAgent.office || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        notifications.show({
+          title: "Registration failed",
+          message: body.error ?? "Please check your details and try again.",
+          color: "red",
+        });
+        setSubmitting(false);
+        return;
+      }
+      agentName = `${newAgent.name} (new)`;
+    }
+
     const params = new URLSearchParams({
       start: slot.toISOString(),
       type: shootType,
-      agent: registering ? `${newAgent.name} (new)` : (selectedAgent?.name ?? ""),
+      agent: agentName,
       project: projectName,
       location: locationKind === "onsite" ? address : "Office",
     });
@@ -110,16 +138,11 @@ function BookingDetails() {
         <Stack gap="md">
           {!registering ? (
             <Stack gap={6}>
-              <Select
+              <AgentSearchSelect
                 label="Your name"
-                placeholder="Type at least 3 letters to search"
-                searchable
-                clearable
-                data={agentOptions}
-                value={agentId}
-                onChange={setAgentId}
-                nothingFoundMessage="No matching agent"
-                description="Searches the full agent list (200+)"
+                value={agent}
+                onChange={setAgent}
+                description="Searches the full agent list"
               />
               <Anchor
                 size="xs"
@@ -129,10 +152,20 @@ function BookingDetails() {
               >
                 Can&apos;t find your name?
               </Anchor>
-              {selectedAgent && (
+              {agent && (
                 <Group grow>
-                  <TextInput label="Email" value={selectedAgent.email} readOnly variant="filled" />
-                  <TextInput label="Phone" value={selectedAgent.phone} readOnly variant="filled" />
+                  <TextInput
+                    label="Email"
+                    value={agent.email ?? ""}
+                    readOnly
+                    variant="filled"
+                  />
+                  <TextInput
+                    label="Phone"
+                    value={agent.phone ?? ""}
+                    readOnly
+                    variant="filled"
+                  />
                 </Group>
               )}
             </Stack>
@@ -224,7 +257,7 @@ function BookingDetails() {
             onChange={(e) => setNotes(e.currentTarget.value)}
           />
 
-          <Button size="md" disabled={!canSubmit} onClick={submit}>
+          <Button size="md" disabled={!canSubmit} loading={submitting} onClick={submit}>
             {rescheduleId ? "Confirm new time" : "Confirm booking"}
           </Button>
         </Stack>

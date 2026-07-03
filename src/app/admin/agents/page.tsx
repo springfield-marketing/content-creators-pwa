@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActionIcon,
   Alert,
@@ -10,6 +10,7 @@ import {
   Group,
   Menu,
   Modal,
+  Skeleton,
   Stack,
   Table,
   Tabs,
@@ -29,33 +30,87 @@ import {
   IconUserOff,
   IconX,
 } from "@tabler/icons-react";
-import { agents as initialAgents, type Agent } from "@/lib/mock-data";
+
+type AgentRow = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  office: string | null;
+  isApproved: boolean;
+  isActive: boolean;
+};
 
 const emptyForm = { name: "", office: "", email: "", phone: "" };
 
+async function apiCall(url: string, method: string, body?: unknown) {
+  const res = await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? `Request failed (${res.status})`);
+  }
+  return res;
+}
+
 // Screen 11 — Agents admin: the master list plus the approval inbox.
 export default function AgentsAdmin() {
-  const [agents, setAgents] = useState<Agent[]>(initialAgents);
+  const [agents, setAgents] = useState<AgentRow[] | null>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(emptyForm);
-  const [editing, setEditing] = useState<Agent | null>(null);
+  const [editing, setEditing] = useState<AgentRow | null>(null);
+  const [saving, setSaving] = useState(false);
   const [formOpen, { open: openForm, close: closeForm }] = useDisclosure(false);
 
-  const pending = agents.filter((a) => a.status === "pending");
+  const reload = useCallback(() => {
+    fetch("/api/admin/agents")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setAgents)
+      .catch(() =>
+        notifications.show({
+          title: "Couldn't load agents",
+          message: "Try refreshing the page.",
+          color: "red",
+        })
+      );
+  }, []);
+
+  useEffect(reload, [reload]);
+
+  const pending = useMemo(
+    () => (agents ?? []).filter((a) => !a.isApproved && a.isActive),
+    [agents]
+  );
   const list = useMemo(
     () =>
-      agents
-        .filter((a) => a.status !== "pending")
+      (agents ?? [])
+        .filter((a) => a.isApproved || !a.isActive)
         .filter(
           (a) =>
             search.trim() === "" ||
-            `${a.name} ${a.office} ${a.email}`
+            `${a.name} ${a.office ?? ""} ${a.email ?? ""}`
               .toLowerCase()
               .includes(search.toLowerCase())
-        )
-        .sort((a, b) => a.name.localeCompare(b.name)),
+        ),
     [agents, search]
   );
+
+  const mutate = async (fn: () => Promise<unknown>, successTitle: string, message: string) => {
+    try {
+      await fn();
+      notifications.show({ title: successTitle, message, color: "green" });
+      reload();
+    } catch (e) {
+      notifications.show({
+        title: "Something went wrong",
+        message: e instanceof Error ? e.message : "Try again.",
+        color: "red",
+      });
+    }
+  };
 
   const startAdd = () => {
     setEditing(null);
@@ -63,55 +118,57 @@ export default function AgentsAdmin() {
     openForm();
   };
 
-  const startEdit = (a: Agent) => {
+  const startEdit = (a: AgentRow) => {
     setEditing(a);
-    setForm({ name: a.name, office: a.office, email: a.email, phone: a.phone });
+    setForm({
+      name: a.name,
+      office: a.office ?? "",
+      email: a.email ?? "",
+      phone: a.phone ?? "",
+    });
     openForm();
   };
 
-  const saveForm = () => {
-    if (editing) {
-      setAgents((all) =>
-        all.map((a) => (a.id === editing.id ? { ...a, ...form } : a))
-      );
-      notifications.show({ title: "Agent updated", message: form.name, color: "green" });
-    } else {
-      setAgents((all) => [
-        ...all,
-        { id: `new-${all.length}`, ...form, status: "active" },
-      ]);
-      notifications.show({ title: "Agent added", message: form.name, color: "green" });
-    }
+  const saveForm = async () => {
+    setSaving(true);
+    const body = {
+      fullName: form.name,
+      email: form.email,
+      phone: form.phone || undefined,
+      office: form.office || undefined,
+    };
+    await mutate(
+      () =>
+        editing
+          ? apiCall(`/api/admin/agents/${editing.id}`, "PATCH", body)
+          : apiCall("/api/admin/agents", "POST", body),
+      editing ? "Agent updated" : "Agent added",
+      form.name
+    );
+    setSaving(false);
     closeForm();
   };
 
-  const toggleActive = (a: Agent) => {
-    const next = a.status === "active" ? "inactive" : "active";
-    setAgents((all) =>
-      all.map((x) => (x.id === a.id ? { ...x, status: next } : x))
+  const toggleActive = (a: AgentRow) =>
+    mutate(
+      () => apiCall(`/api/admin/agents/${a.id}`, "PATCH", { isActive: !a.isActive }),
+      a.isActive ? "Agent deactivated" : "Agent reactivated",
+      a.isActive
+        ? `${a.name} no longer appears in booking search.`
+        : `${a.name} can book again.`
     );
-    notifications.show({
-      title: next === "inactive" ? "Agent deactivated" : "Agent reactivated",
-      message:
-        next === "inactive"
-          ? `${a.name} no longer appears in booking search.`
-          : `${a.name} can book again.`,
-      color: next === "inactive" ? "orange" : "green",
-    });
-  };
 
-  const decide = (a: Agent, ok: boolean) => {
-    setAgents((all) =>
-      all.map((x) =>
-        x.id === a.id ? { ...x, status: ok ? "active" : "inactive" } : x
-      )
+  const decide = (a: AgentRow, ok: boolean) =>
+    mutate(
+      () =>
+        apiCall(
+          `/api/admin/agents/${a.id}`,
+          "PATCH",
+          ok ? { isApproved: true } : { isApproved: false, isActive: false }
+        ),
+      ok ? "Agent approved" : "Registration rejected",
+      a.name
     );
-    notifications.show({
-      title: ok ? "Agent approved" : "Registration rejected",
-      message: a.name,
-      color: ok ? "green" : "red",
-    });
-  };
 
   return (
     <Stack gap="lg">
@@ -119,8 +176,9 @@ export default function AgentsAdmin() {
         <div>
           <Title order={2}>Agents</Title>
           <Text size="sm" c="dimmed">
-            {agents.filter((a) => a.status === "active").length} active ·
-            mock slice of the real 200+ list
+            {agents
+              ? `${agents.filter((a) => a.isActive && a.isApproved).length} active agents`
+              : "Loading…"}
           </Text>
         </div>
         <Group>
@@ -130,8 +188,7 @@ export default function AgentsAdmin() {
             onClick={() =>
               notifications.show({
                 title: "CSV import",
-                message:
-                  "Wired in stage 2 — used once to load the initial 200+ agents.",
+                message: "The initial list is already imported — bulk updates come with phase 1.",
                 color: "blue",
               })
             }
@@ -170,69 +227,77 @@ export default function AgentsAdmin() {
               onChange={(e) => setSearch(e.currentTarget.value)}
               maw={320}
             />
-            <Card padding="xs">
-              <Table.ScrollContainer minWidth={640}>
-                <Table verticalSpacing="xs" highlightOnHover>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Name</Table.Th>
-                      <Table.Th>Office</Table.Th>
-                      <Table.Th>Email</Table.Th>
-                      <Table.Th>Phone</Table.Th>
-                      <Table.Th>Status</Table.Th>
-                      <Table.Th />
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {list.map((a) => (
-                      <Table.Tr key={a.id} opacity={a.status === "inactive" ? 0.5 : 1}>
-                        <Table.Td>
-                          <Text size="sm" fw={600}>
-                            {a.name}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>{a.office}</Table.Td>
-                        <Table.Td>{a.email}</Table.Td>
-                        <Table.Td>{a.phone}</Table.Td>
-                        <Table.Td>
-                          <Badge
-                            size="sm"
-                            variant="light"
-                            color={a.status === "active" ? "green" : "gray"}
-                          >
-                            {a.status}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td>
-                          <Menu position="bottom-end">
-                            <Menu.Target>
-                              <ActionIcon variant="subtle" color="gray" aria-label="Agent actions">
-                                <IconDots size={16} />
-                              </ActionIcon>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                              <Menu.Item
-                                leftSection={<IconPencil size={14} />}
-                                onClick={() => startEdit(a)}
-                              >
-                                Edit
-                              </Menu.Item>
-                              <Menu.Item
-                                leftSection={<IconUserOff size={14} />}
-                                color={a.status === "active" ? "red" : "green"}
-                                onClick={() => toggleActive(a)}
-                              >
-                                {a.status === "active" ? "Deactivate" : "Reactivate"}
-                              </Menu.Item>
-                            </Menu.Dropdown>
-                          </Menu>
-                        </Table.Td>
+            {agents === null ? (
+              <Skeleton height={320} radius="lg" />
+            ) : (
+              <Card padding="xs">
+                <Table.ScrollContainer minWidth={640}>
+                  <Table verticalSpacing="xs" highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Name</Table.Th>
+                        <Table.Th>Office</Table.Th>
+                        <Table.Th>Email</Table.Th>
+                        <Table.Th>Phone</Table.Th>
+                        <Table.Th>Status</Table.Th>
+                        <Table.Th />
                       </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Table.ScrollContainer>
-            </Card>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {list.map((a) => (
+                        <Table.Tr key={a.id} opacity={a.isActive ? 1 : 0.5}>
+                          <Table.Td>
+                            <Text size="sm" fw={600}>
+                              {a.name}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>{a.office}</Table.Td>
+                          <Table.Td>{a.email}</Table.Td>
+                          <Table.Td>{a.phone}</Table.Td>
+                          <Table.Td>
+                            <Badge
+                              size="sm"
+                              variant="light"
+                              color={a.isActive ? "green" : "gray"}
+                            >
+                              {a.isActive ? "active" : "inactive"}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Menu position="bottom-end">
+                              <Menu.Target>
+                                <ActionIcon
+                                  variant="subtle"
+                                  color="gray"
+                                  aria-label="Agent actions"
+                                >
+                                  <IconDots size={16} />
+                                </ActionIcon>
+                              </Menu.Target>
+                              <Menu.Dropdown>
+                                <Menu.Item
+                                  leftSection={<IconPencil size={14} />}
+                                  onClick={() => startEdit(a)}
+                                >
+                                  Edit
+                                </Menu.Item>
+                                <Menu.Item
+                                  leftSection={<IconUserOff size={14} />}
+                                  color={a.isActive ? "red" : "green"}
+                                  onClick={() => toggleActive(a)}
+                                >
+                                  {a.isActive ? "Deactivate" : "Reactivate"}
+                                </Menu.Item>
+                              </Menu.Dropdown>
+                            </Menu>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Table.ScrollContainer>
+              </Card>
+            )}
           </Stack>
         </Tabs.Panel>
 
@@ -248,10 +313,12 @@ export default function AgentsAdmin() {
                   <Group justify="space-between" wrap="nowrap">
                     <div>
                       <Text size="sm" fw={600}>
-                        {a.name} — {a.office}
+                        {a.name}
+                        {a.office ? ` — ${a.office}` : ""}
                       </Text>
                       <Text size="xs" c="dimmed">
-                        {a.email} · {a.phone} · self-registered during booking
+                        {a.email} · {a.phone ?? "no phone"} · self-registered
+                        during booking
                       </Text>
                     </div>
                     <Group gap="xs">
@@ -315,6 +382,7 @@ export default function AgentsAdmin() {
               Cancel
             </Button>
             <Button
+              loading={saving}
               disabled={form.name.trim() === "" || form.email.trim() === ""}
               onClick={saveForm}
             >

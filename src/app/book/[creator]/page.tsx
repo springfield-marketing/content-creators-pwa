@@ -20,8 +20,9 @@ import {
 } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
 import { IconCalendarOff, IconInfoCircle } from "@tabler/icons-react";
-import { creatorBySlug } from "@/lib/mock-data";
+import { useCreatorProfile } from "@/lib/use-creator";
 import { isDayBookable, slotsForDay, upcomingDays } from "@/lib/mock-slots";
+import { Skeleton } from "@mantine/core";
 
 const initials = (name: string) =>
   name
@@ -34,12 +35,26 @@ function PickTime() {
   const { creator: slug } = useParams<{ creator: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const creator = creatorBySlug(slug);
+  const { creator, state } = useCreatorProfile(slug);
 
   const [view, setView] = useState<"week" | "month">("week");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
-  if (!creator || !creator.active) {
+  if (state === "loading") {
+    return (
+      <Stack gap="md">
+        <Group>
+          <Skeleton height={56} width={56} circle />
+          <Skeleton height={28} width={180} />
+        </Group>
+        <Skeleton height={36} radius="md" />
+        <Skeleton height={64} radius="md" />
+        <Skeleton height={120} radius="lg" />
+      </Stack>
+    );
+  }
+
+  if (state === "not_found" || !creator) {
     return (
       <Alert color="red" variant="light">
         This creator is not available for booking.

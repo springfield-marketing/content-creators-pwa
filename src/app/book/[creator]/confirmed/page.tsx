@@ -21,13 +21,14 @@ import {
   IconCircleCheck,
   IconMail,
 } from "@tabler/icons-react";
-import { creatorBySlug, shootTypeLabel, type ShootType } from "@/lib/mock-data";
+import { shootTypeLabel, type ShootType } from "@/lib/mock-data";
+import { useCreatorProfile } from "@/lib/use-creator";
 
 // Screen 4 — Confirmation: summary + "it's in your calendar".
 function Confirmed() {
   const { creator: slug } = useParams<{ creator: string }>();
   const searchParams = useSearchParams();
-  const creator = creatorBySlug(slug);
+  const { creator, state } = useCreatorProfile(slug);
 
   const start = searchParams.get("start");
   const type = (searchParams.get("type") ?? "photo") as ShootType;
@@ -35,6 +36,10 @@ function Confirmed() {
   const project = searchParams.get("project") ?? "";
   const location = searchParams.get("location") ?? "";
   const wasReschedule = searchParams.get("reschedule") !== null;
+
+  if (state === "loading") {
+    return null;
+  }
 
   if (!creator || !start) {
     return (

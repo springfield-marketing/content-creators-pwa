@@ -8,7 +8,6 @@ import {
   Card,
   Group,
   SegmentedControl,
-  Select,
   Stack,
   Switch,
   Text,
@@ -25,7 +24,8 @@ import {
   IconBrandTiktok,
   IconLink,
 } from "@tabler/icons-react";
-import { agentById, agents, bookings, shootTypeLabel } from "@/lib/mock-data";
+import { agentById, bookings, shootTypeLabel } from "@/lib/mock-data";
+import { AgentSearchSelect, type AgentHit } from "@/components/AgentSearchSelect";
 
 // Mock logged-in creator until auth lands.
 const ME = "c1";
@@ -53,7 +53,7 @@ const platformMeta: Record<Platform, { label: string; icon: typeof IconLink }> =
 export default function LogDeliverable() {
   const [shootId, setShootId] = useState<string | null>(null);
   const [noShoot, setNoShoot] = useState(false);
-  const [agentId, setAgentId] = useState<string | null>(null);
+  const [agent, setAgent] = useState<AgentHit | null>(null);
   const [type, setType] = useState("photo_shoot");
   const [url, setUrl] = useState("");
   const [posted, setPosted] = useState(false);
@@ -79,7 +79,7 @@ export default function LogDeliverable() {
   const platform = detectPlatform(url);
   const PlatformIcon = platform ? platformMeta[platform].icon : IconLink;
   const shootOk = noShoot || shootId !== null;
-  const agentOk = !noShoot || agentId !== null;
+  const agentOk = !noShoot || agent !== null;
   const canSubmit = shootOk && agentOk && platform !== null;
 
   const submit = () => {
@@ -90,7 +90,7 @@ export default function LogDeliverable() {
     });
     setShootId(null);
     setNoShoot(false);
-    setAgentId(null);
+    setAgent(null);
     setType("photo_shoot");
     setUrl("");
     setPosted(false);
@@ -172,16 +172,10 @@ export default function LogDeliverable() {
           </UnstyledButton>
 
           {noShoot && (
-            <Select
+            <AgentSearchSelect
               placeholder="Search the agent it's for"
-              searchable
-              clearable
-              data={agents
-                .filter((a) => a.status === "active")
-                .map((a) => ({ value: a.id, label: `${a.name} — ${a.office}` }))}
-              value={agentId}
-              onChange={setAgentId}
-              nothingFoundMessage="No matching agent"
+              value={agent}
+              onChange={setAgent}
             />
           )}
         </Stack>
