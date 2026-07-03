@@ -28,6 +28,11 @@ body {
   border-color: var(--mantine-color-brand-3);
 }
 
+/* Navy wordmark needs inverting on dark backgrounds. */
+[data-mantine-color-scheme="dark"] .brand-logo {
+  filter: brightness(0) invert(1);
+}
+
 /* Shared elevated header bar for the simple (non-AppShell) shells. */
 .app-header {
   position: sticky;

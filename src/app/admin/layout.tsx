@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import {
   AppShell,
   Avatar,
@@ -9,12 +10,10 @@ import {
   Group,
   NavLink,
   Text,
-  ThemeIcon,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconCalendarWeek,
-  IconCamera,
   IconChartBar,
   IconChecklist,
   IconSettings,
@@ -55,9 +54,12 @@ export default function AdminLayout({
               hiddenFrom="sm"
               size="sm"
             />
-            <ThemeIcon size="md" radius="md" variant="filled">
-              <IconCamera size={16} stroke={2} />
-            </ThemeIcon>
+            <Image
+              src="/S LOGO-Blue.png"
+              alt="Springfield Properties"
+              width={26}
+              height={26}
+            />
             <Text fw={700}>Content Team · Admin</Text>
           </Group>
           <Avatar color="brand" radius="xl" size="sm">

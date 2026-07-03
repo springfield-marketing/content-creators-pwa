@@ -1,7 +1,7 @@
 "use client";
 
-import { Badge, Box, Container, Group, Text, ThemeIcon } from "@mantine/core";
-import { IconCamera } from "@tabler/icons-react";
+import Image from "next/image";
+import { Badge, Box, Container, Group } from "@mantine/core";
 
 // Shell for the secure manage-booking link (opened from email, no login).
 export default function BookingLayout({
@@ -14,12 +14,14 @@ export default function BookingLayout({
       <Box component="header" className="app-header" py="sm">
         <Container size="sm">
           <Group justify="space-between">
-            <Group gap="xs">
-              <ThemeIcon size="md" radius="md" variant="filled">
-                <IconCamera size={16} stroke={2} />
-              </ThemeIcon>
-              <Text fw={700}>Springfield RE</Text>
-            </Group>
+            <Image
+              src="/Springfield Properties Logo.png"
+              alt="Springfield Properties"
+              width={128}
+              height={30}
+              className="brand-logo"
+              priority
+            />
             <Badge variant="default" c="dimmed">
               Manage booking
             </Badge>

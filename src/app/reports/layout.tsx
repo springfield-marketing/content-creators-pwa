@@ -1,7 +1,7 @@
 "use client";
 
-import { Badge, Box, Container, Group, Text, ThemeIcon } from "@mantine/core";
-import { IconReportAnalytics } from "@tabler/icons-react";
+import Image from "next/image";
+import { Badge, Box, Container, Group, Text } from "@mantine/core";
 
 // Management shell: read-only, minimal chrome.
 export default function ReportsLayout({
@@ -15,9 +15,12 @@ export default function ReportsLayout({
         <Container size="lg">
           <Group justify="space-between">
             <Group gap="xs">
-              <ThemeIcon size="md" radius="md" variant="filled">
-                <IconReportAnalytics size={16} stroke={2} />
-              </ThemeIcon>
+              <Image
+                src="/S LOGO-Blue.png"
+                alt="Springfield Properties"
+                width={26}
+                height={26}
+              />
               <Text fw={700}>Content Team · Reports</Text>
             </Group>
             <Badge variant="default" c="dimmed">

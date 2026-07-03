@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Anchor, Box, Container, Group, Text, ThemeIcon } from "@mantine/core";
-import { IconCamera } from "@tabler/icons-react";
+import Image from "next/image";
+import { Anchor, Box, Container, Group, Text } from "@mantine/core";
 
-// Public agent-facing shell: minimal branded header, phone-first width.
+// Public agent-facing shell: branded header, phone-first width.
 export default function BookLayout({
   children,
 }: {
@@ -15,13 +15,15 @@ export default function BookLayout({
       <Box component="header" className="app-header" py="sm">
         <Container size="sm">
           <Group justify="space-between">
-            <Anchor component={Link} href="/book" underline="never" c="inherit">
-              <Group gap="xs">
-                <ThemeIcon size="md" radius="md" variant="filled">
-                  <IconCamera size={16} stroke={2} />
-                </ThemeIcon>
-                <Text fw={700}>Springfield RE</Text>
-              </Group>
+            <Anchor component={Link} href="/book" underline="never">
+              <Image
+                src="/Springfield Properties Logo.png"
+                alt="Springfield Properties"
+                width={128}
+                height={30}
+                className="brand-logo"
+                priority
+              />
             </Anchor>
             <Text size="sm" c="dimmed">
               Book a shoot
