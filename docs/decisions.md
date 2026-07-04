@@ -15,12 +15,13 @@ spec's §B13 open questions. Update this file when a decision is made or changed
 | 8 | Overtime tracking | **Post-hoc only** (`bookings.actual_ends_at`, offset computed): prompt at completion + auto-capture from calendar edits via webhook sync. No live-extension feature. | 2026-07-04 |
 | 9 | Slot duration per shoot type (§B13 Q4) | Per-creator, per-shoot-type durations (already in `users.shoot_durations`); agent picks shoot type **before** seeing slots | 2026-07-04 |
 
+| 10 | KPI counting (§B13 Q2) | **Approved only** — deliverables count toward targets once approved; submitted shown separately | 2026-07-04 |
+| 11 | Agent email verification (§B13 Q3) | **Self-registered agents only** — known agents book instantly; new registrants confirm via emailed link before the booking is finalized | 2026-07-04 |
+| 12 | Creator cancellation (§B13 Q5) | **Direct** — takes effect immediately (event deleted, agent notified, slot freed), manager informed; attributed to the creator in KPI cancellation stats | 2026-07-04 |
+| 13 | Agent cancellation cutoff (§B13 Q8) | **24h confirmed**; within 24h, manager **or** the affected creator can approve/decline (first to act) | 2026-07-04 |
+
 ## Open §B13 questions (awaiting product owner)
 
-- Q2: KPIs count **submitted** or **approved** deliverables? (Spec + dev recommendation: approved.)
-- Q3: Agent email verification before a booking confirms?
-- Q5: Creator cancellation — direct, or manager approval required? (Dev recommendation: request → manager decides, reassign-first.)
 - Q6: Migrate historical Google Sheets data? How far back?
 - Q7: Executive view-only role in Phase 3, or CSV export enough initially?
-- Q8: Confirm 24h agent-cancellation cutoff; late cancellations approved by creator or manager?
 - Q9: Can creators enter their own time off (with approval), or manager-entry only?
