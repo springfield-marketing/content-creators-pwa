@@ -13,12 +13,21 @@ let key: { client_email: string; private_key: string } | null = null;
 
 function loadKey() {
   if (!key) {
-    if (!fs.existsSync(KEY_PATH)) {
+    // Hosted (Vercel): key JSON in an env var — raw or base64.
+    const fromEnv = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+    if (fromEnv) {
+      const raw = fromEnv.trim().startsWith("{")
+        ? fromEnv
+        : Buffer.from(fromEnv, "base64").toString("utf8");
+      key = JSON.parse(raw);
+    } else if (fs.existsSync(KEY_PATH)) {
+      // Local dev: gitignored key file in the project root.
+      key = JSON.parse(fs.readFileSync(KEY_PATH, "utf8"));
+    } else {
       throw new Error(
-        "Service account key missing — expected google-service-account.local.json in the project root."
+        "Service account key missing — set GOOGLE_SERVICE_ACCOUNT_KEY or add google-service-account.local.json."
       );
     }
-    key = JSON.parse(fs.readFileSync(KEY_PATH, "utf8"));
   }
   return key!;
 }

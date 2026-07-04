@@ -36,6 +36,7 @@ async function staffByEmail(email: string) {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true, // required behind Vercel's proxy
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
