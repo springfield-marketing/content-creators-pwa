@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+// Screen 10 — Targets on the real table, with working "copy last month".
+
+import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import {
   Button,
@@ -8,6 +10,7 @@ import {
   Group,
   NumberInput,
   Select,
+  Skeleton,
   Stack,
   Table,
   Text,
@@ -15,53 +18,97 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconCopy, IconDeviceFloppy } from "@tabler/icons-react";
-import { creators, currentMonth, targets } from "@/lib/mock-data";
 
-type Row = { shoots: number; deliverables: number; posted: number };
+type Row = {
+  creatorId: string;
+  creatorName: string;
+  shoots: number;
+  deliverables: number;
+  posted: number;
+};
 
-// Screen 10 — Targets: monthly KPI targets per creator.
 export default function Targets() {
-  const [rows, setRows] = useState<Record<string, Row>>(() =>
-    Object.fromEntries(
-      creators
-        .filter((c) => c.active)
-        .map((c) => {
-          const t = targets.find(
-            (t) => t.creatorId === c.id && t.month === currentMonth
-          );
-          return [
-            c.id,
-            {
-              shoots: t?.shoots ?? 0,
-              deliverables: t?.deliverables ?? 0,
-              posted: t?.posted ?? 0,
-            },
-          ];
-        })
-    )
-  );
+  const [month, setMonth] = useState(dayjs().format("YYYY-MM"));
+  const [result, setResult] = useState<{ key: string; rows: Row[] } | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const update = (id: string, field: keyof Row, value: number | string) =>
-    setRows((r) => ({
-      ...r,
-      [id]: { ...r[id], [field]: Number(value) || 0 },
-    }));
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/admin/targets?month=${month}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => !cancelled && setResult({ key: month, rows: d.rows }))
+      .catch(() => !cancelled && setResult({ key: month, rows: [] }));
+    return () => {
+      cancelled = true;
+    };
+  }, [month]);
 
-  const copyLastMonth = () => {
-    // Mock: last month's targets equal the current stored ones.
+  const rows = result?.key === month ? result.rows : null;
+  const setRows = (fn: (r: Row[] | null) => Row[]) =>
+    setResult((cur) => (cur ? { ...cur, rows: fn(cur.rows) } : cur));
+
+  const months = Array.from({ length: 4 }, (_, i) => {
+    const m = dayjs().add(1 - i, "month");
+    return { value: m.format("YYYY-MM"), label: m.format("MMMM YYYY") };
+  });
+
+  const update = (id: string, field: "shoots" | "deliverables" | "posted", value: number | string) =>
+    setRows((r) =>
+      (r ?? []).map((row) =>
+        row.creatorId === id ? { ...row, [field]: Number(value) || 0 } : row
+      )
+    );
+
+  const copyLastMonth = async () => {
+    const prev = dayjs(`${month}-01`).subtract(1, "month").format("YYYY-MM");
+    const res = await fetch(`/api/admin/targets?month=${prev}`);
+    if (!res.ok) return;
+    const d = await res.json();
+    const byId = new Map(
+      (d.rows as Row[]).map((r) => [r.creatorId, r])
+    );
+    setRows((cur) =>
+      (cur ?? []).map((r) => {
+        const p = byId.get(r.creatorId);
+        return p
+          ? { ...r, shoots: p.shoots, deliverables: p.deliverables, posted: p.posted }
+          : r;
+      })
+    );
     notifications.show({
-      title: "Copied from " + dayjs(currentMonth).subtract(1, "month").format("MMMM"),
-      message: "Targets filled in — adjust and save.",
+      title: `Copied from ${dayjs(`${prev}-01`).format("MMMM")}`,
+      message: "Adjust and save.",
       color: "blue",
     });
   };
 
-  const save = () =>
-    notifications.show({
-      title: "Targets saved",
-      message: "Creators see the new targets on their progress screen.",
-      color: "green",
+  const save = async () => {
+    if (!rows) return;
+    setSaving(true);
+    const res = await fetch("/api/admin/targets", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        month,
+        rows: rows.map(({ creatorId, shoots, deliverables, posted }) => ({
+          creatorId,
+          shoots,
+          deliverables,
+          posted,
+        })),
+      }),
     });
+    setSaving(false);
+    notifications.show(
+      res.ok
+        ? {
+            title: "Targets saved",
+            message: "Creators see them on their progress screen.",
+            color: "green",
+          }
+        : { title: "Save failed", message: "Try again.", color: "red" }
+    );
+  };
 
   return (
     <Stack gap="lg">
@@ -74,13 +121,9 @@ export default function Targets() {
         </div>
         <Group>
           <Select
-            data={[
-              {
-                value: currentMonth,
-                label: dayjs(currentMonth).format("MMMM YYYY"),
-              },
-            ]}
-            value={currentMonth}
+            data={months}
+            value={month}
+            onChange={(v) => v && setMonth(v)}
             allowDeselect={false}
             maw={170}
           />
@@ -94,31 +137,32 @@ export default function Targets() {
         </Group>
       </Group>
 
-      <Card padding="sm">
-        <Table verticalSpacing="sm">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Creator</Table.Th>
-              <Table.Th>Shoots</Table.Th>
-              <Table.Th>Deliverables</Table.Th>
-              <Table.Th>Posted</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {creators
-              .filter((c) => c.active)
-              .map((c) => (
-                <Table.Tr key={c.id}>
+      {rows === null ? (
+        <Skeleton height={320} radius="lg" />
+      ) : (
+        <Card padding="sm">
+          <Table verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Creator</Table.Th>
+                <Table.Th>Shoots</Table.Th>
+                <Table.Th>Deliverables</Table.Th>
+                <Table.Th>Posted</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {rows.map((r) => (
+                <Table.Tr key={r.creatorId}>
                   <Table.Td>
                     <Text size="sm" fw={600}>
-                      {c.name}
+                      {r.creatorName}
                     </Text>
                   </Table.Td>
                   {(["shoots", "deliverables", "posted"] as const).map((f) => (
                     <Table.Td key={f}>
                       <NumberInput
-                        value={rows[c.id][f]}
-                        onChange={(v) => update(c.id, f, v)}
+                        value={r[f]}
+                        onChange={(v) => update(r.creatorId, f, v)}
                         min={0}
                         maw={90}
                       />
@@ -126,12 +170,17 @@ export default function Targets() {
                   ))}
                 </Table.Tr>
               ))}
-          </Table.Tbody>
-        </Table>
-      </Card>
+            </Table.Tbody>
+          </Table>
+        </Card>
+      )}
 
       <Group justify="flex-end">
-        <Button leftSection={<IconDeviceFloppy size={16} />} onClick={save}>
+        <Button
+          leftSection={<IconDeviceFloppy size={16} />}
+          loading={saving}
+          onClick={save}
+        >
           Save targets
         </Button>
       </Group>

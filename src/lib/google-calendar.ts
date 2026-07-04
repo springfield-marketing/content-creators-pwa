@@ -69,6 +69,27 @@ export async function insertBookingEvent(params: {
   return res.data.id;
 }
 
+// Moves a booking's event to new times (reschedule, §B12.1) — attendees get
+// Google's "event updated" notice automatically.
+export async function patchBookingEventTimes(params: {
+  creatorEmail: string;
+  eventId: string;
+  startIso: string;
+  endIso: string;
+  timeZone: string;
+}): Promise<void> {
+  const calendar = calendarFor(params.creatorEmail);
+  await calendar.events.patch({
+    calendarId: "primary",
+    eventId: params.eventId,
+    sendUpdates: "all",
+    requestBody: {
+      start: { dateTime: params.startIso, timeZone: params.timeZone },
+      end: { dateTime: params.endIso, timeZone: params.timeZone },
+    },
+  });
+}
+
 // Removes a booking's event (cancellation); attendees are notified by Google.
 export async function deleteBookingEvent(
   creatorEmail: string,

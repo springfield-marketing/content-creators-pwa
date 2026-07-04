@@ -1,5 +1,8 @@
 // Dev seed. Destructive — dev only.
 //
+// SEED_DEMO=0 skips the fictional bookings/deliverables/snapshots — clean
+// slate for real end-to-end testing (real creators/agents/targets only).
+//
 // Real data (never committed) is loaded from gitignored local files when present:
 //   seed-data/creators.local.json  [{ email, name }]  → creator users
 //   Agent list.csv                 name,phone,email   → agents
@@ -94,6 +97,8 @@ const hoursBySlug: Record<string, WorkingHours> = {
   },
 };
 
+const seedDemo = process.env.SEED_DEMO !== "0";
+
 async function main() {
   console.log("Truncating…");
   await db.execute(sql`
@@ -104,6 +109,7 @@ async function main() {
   console.log("Users…");
   const realCreators = loadRealCreators();
   let creatorId: Map<string, string>;
+  let allCreatorIds: string[] = [];
 
   if (realCreators) {
     console.log(`  using ${realCreators.length} real creators (defaults for hours/durations)`);
@@ -123,6 +129,7 @@ async function main() {
         }))
       )
       .returning({ id: t.users.id });
+    allCreatorIds = rows.map((r) => r.id);
     // Demo bookings/deliverables reference fictional creators c1..c5 —
     // re-point them at real creators, cycling.
     creatorId = new Map(
@@ -158,6 +165,7 @@ async function main() {
         rows.find((r) => r.slug === c.slug)!.id,
       ])
     );
+    allCreatorIds = rows.map((r) => r.id);
   }
 
   const [manager] = await db
@@ -170,6 +178,7 @@ async function main() {
     ])
     .returning({ id: t.users.id });
 
+  if (seedDemo) {
   console.log("Time off…");
   for (const c of mockCreators) {
     if (c.timeOff.length === 0) continue;
@@ -182,6 +191,7 @@ async function main() {
         createdBy: manager.id,
       }))
     );
+  }
   }
 
   console.log("Agents…");
@@ -230,6 +240,21 @@ async function main() {
         rows.find((r) => r.email === a.email)!.id,
       ])
     );
+  }
+
+  if (!seedDemo) {
+    console.log("Targets (defaults for all creators)…");
+    await db.insert(t.kpiTargets).values(
+      allCreatorIds.map((id) => ({
+        creatorId: id,
+        month: `${currentMonth}-01`,
+        targetShoots: 20,
+        targetDeliverables: 24,
+        targetPosted: 12,
+      }))
+    );
+    console.log("Seed complete (clean slate — no demo bookings/deliverables).");
+    process.exit(0);
   }
 
   console.log("Bookings…");

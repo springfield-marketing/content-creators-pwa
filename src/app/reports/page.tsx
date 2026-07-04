@@ -1,5 +1,9 @@
 "use client";
 
+// Screen 14 — Executive summary, read-only, on live KPIs. Trends deepen as
+// nightly snapshots accumulate.
+
+import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import {
   Card,
@@ -7,101 +11,43 @@ import {
   Progress,
   Select,
   SimpleGrid,
+  Skeleton,
   Stack,
   Table,
   Text,
   Title,
-  Tooltip,
 } from "@mantine/core";
-import {
-  creatorById,
-  currentMonth,
-  kpis,
-  targets,
-} from "@/lib/mock-data";
+import type { CreatorKpis } from "@/lib/kpis";
 
-// Mock 6-month history ending at the current month (stage 3 computes this).
-const MONTHS = Array.from({ length: 6 }, (_, i) =>
-  dayjs(currentMonth).subtract(5 - i, "month")
-);
-const approvedTrend = [34, 41, 38, 47, 44, 43];
-const cancellationTrend = [9, 6, 8, 5, 7, 5];
-
-// Single-series trend bars: no legend needed (the title names the series),
-// per-bar tooltip, direct label on the latest month only.
-function TrendBars({ values }: { values: number[] }) {
-  const max = Math.max(...values);
-  return (
-    <Group gap={6} align="flex-end" justify="center" h={120} mt="xs">
-      {values.map((v, i) => {
-        const isLatest = i === values.length - 1;
-        return (
-          <Tooltip
-            key={i}
-            label={`${MONTHS[i].format("MMMM YYYY")}: ${v}`}
-            withArrow
-          >
-            <Stack
-              gap={2}
-              align="center"
-              justify="flex-end"
-              h="100%"
-              style={{ flex: 1, maxWidth: 64 }}
-              aria-label={`${MONTHS[i].format("MMMM")}: ${v}`}
-            >
-              {isLatest && (
-                <Text size="xs" fw={600}>
-                  {v}
-                </Text>
-              )}
-              <div
-                style={{
-                  width: "100%",
-                  height: `${Math.max(4, (v / max) * 90)}%`,
-                  background: "var(--mantine-color-brand-filled)",
-                  borderRadius: "4px 4px 0 0",
-                  opacity: isLatest ? 1 : 0.75,
-                }}
-              />
-              <Text size="xs" c="dimmed">
-                {MONTHS[i].format("MMM")}
-              </Text>
-            </Stack>
-          </Tooltip>
-        );
-      })}
-    </Group>
-  );
-}
-
-// Screen 14 — Executive summary: read-only, monthly, no editing rights.
 export default function ExecutiveSummary() {
-  const sum = (fn: (i: number) => number) =>
-    kpis.reduce((s, _, i) => s + fn(i), 0);
+  const [month, setMonth] = useState(dayjs().format("YYYY-MM"));
+  const [result, setResult] = useState<{ key: string; kpis: CreatorKpis[] } | null>(null);
 
-  const teamTiles = [
-    {
-      label: "Shoots completed",
-      value: sum((i) => kpis[i].shootsCompleted),
-      target: sum(
-        (i) => targets.find((t) => t.creatorId === kpis[i].creatorId)!.shoots
-      ),
-    },
-    {
-      label: "Deliverables approved",
-      value: sum((i) => kpis[i].approved),
-      target: sum(
-        (i) =>
-          targets.find((t) => t.creatorId === kpis[i].creatorId)!.deliverables
-      ),
-    },
-    {
-      label: "Posted",
-      value: sum((i) => kpis[i].postedCount),
-      target: sum(
-        (i) => targets.find((t) => t.creatorId === kpis[i].creatorId)!.posted
-      ),
-    },
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/reports/kpis?month=${month}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => !cancelled && setResult({ key: month, kpis: d.kpis }))
+      .catch(() => !cancelled && setResult({ key: month, kpis: [] }));
+    return () => {
+      cancelled = true;
+    };
+  }, [month]);
+
+  const data = result?.key === month ? result.kpis : null;
+
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const m = dayjs().subtract(i, "month");
+    return { value: m.format("YYYY-MM"), label: m.format("MMMM YYYY") };
+  });
+
+  const total = (fn: (k: CreatorKpis) => number) =>
+    (data ?? []).reduce((s, k) => s + fn(k), 0);
+
+  const tiles = [
+    { label: "Shoots completed", value: total((k) => k.completed), target: total((k) => k.targetShoots) },
+    { label: "Deliverables approved", value: total((k) => k.approved), target: total((k) => k.targetDeliverables) },
+    { label: "Posted", value: total((k) => k.posted), target: total((k) => k.targetPosted) },
   ];
 
   return (
@@ -110,120 +56,122 @@ export default function ExecutiveSummary() {
         <div>
           <Title order={2}>Executive summary</Title>
           <Text size="sm" c="dimmed">
-            Team KPI attainment and trends
+            Team KPI attainment — live
           </Text>
         </div>
         <Select
-          data={[
-            { value: currentMonth, label: dayjs(currentMonth).format("MMMM YYYY") },
-          ]}
-          value={currentMonth}
+          data={months}
+          value={month}
+          onChange={(v) => v && setMonth(v)}
           allowDeselect={false}
           maw={170}
         />
       </Group>
 
-      <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md">
-        {teamTiles.map((t) => {
-          const pct = Math.round((t.value / t.target) * 100);
-          return (
-            <Card key={t.label}>
-              <Stack gap="xs">
-                <Text size="sm" c="dimmed">
-                  {t.label}
-                </Text>
-                <Group align="baseline" gap={6}>
-                  <Text fz={30} fw={700} lh={1}>
-                    {t.value}
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    / {t.target} target
-                  </Text>
-                </Group>
-                <Progress
-                  value={Math.min(100, pct)}
-                  size="sm"
-                  color={pct >= 100 ? "green" : "brand"}
-                />
-                <Text size="xs" c="dimmed">
-                  {pct}% attainment
-                </Text>
-              </Stack>
-            </Card>
-          );
-        })}
-      </SimpleGrid>
-
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        <Card>
-          <Text fw={600}>Deliverables approved per month</Text>
-          <TrendBars values={approvedTrend} />
-        </Card>
-        <Card>
-          <Text fw={600}>Cancellations per month</Text>
-          <TrendBars values={cancellationTrend} />
-        </Card>
-      </SimpleGrid>
-
-      <Card padding="sm">
-        <Text fw={600} px="xs" pt={4} pb="xs">
-          Attainment by creator — {dayjs(currentMonth).format("MMMM YYYY")}
-        </Text>
-        <Table.ScrollContainer minWidth={560}>
-          <Table verticalSpacing="xs">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Creator</Table.Th>
-                <Table.Th>Shoots</Table.Th>
-                <Table.Th>Deliverables</Table.Th>
-                <Table.Th>Posted</Table.Th>
-                <Table.Th>Overall</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {kpis.map((k) => {
-                const t = targets.find((x) => x.creatorId === k.creatorId)!;
-                const overall = Math.round(
-                  ((k.shootsCompleted / t.shoots +
-                    k.approved / t.deliverables +
-                    k.postedCount / t.posted) /
-                    3) *
-                    100
-                );
-                return (
-                  <Table.Tr key={k.creatorId}>
-                    <Table.Td>
-                      <Text size="sm" fw={600}>
-                        {creatorById(k.creatorId)?.name}
+      {data === null ? (
+        <Skeleton height={400} radius="lg" />
+      ) : (
+        <>
+          <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md">
+            {tiles.map((t) => {
+              const pct =
+                t.target > 0 ? Math.round((t.value / t.target) * 100) : 0;
+              return (
+                <Card key={t.label}>
+                  <Stack gap="xs">
+                    <Text size="sm" c="dimmed">
+                      {t.label}
+                    </Text>
+                    <Group align="baseline" gap={6}>
+                      <Text fz={30} fw={700} lh={1}>
+                        {t.value}
                       </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      {k.shootsCompleted} / {t.shoots}
-                    </Table.Td>
-                    <Table.Td>
-                      {k.approved} / {t.deliverables}
-                    </Table.Td>
-                    <Table.Td>
-                      {k.postedCount} / {t.posted}
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs" wrap="nowrap">
-                        <Progress
-                          value={Math.min(100, overall)}
-                          size="sm"
-                          w={80}
-                          color={overall >= 100 ? "green" : "brand"}
-                        />
-                        <Text size="sm">{overall}%</Text>
-                      </Group>
-                    </Table.Td>
+                      <Text size="sm" c="dimmed">
+                        / {t.target || "—"} target
+                      </Text>
+                    </Group>
+                    <Progress
+                      value={Math.min(100, pct)}
+                      size="sm"
+                      color={pct >= 100 ? "green" : "brand"}
+                    />
+                    <Text size="xs" c="dimmed">
+                      {t.target > 0 ? `${pct}% attainment` : "No targets set"}
+                    </Text>
+                  </Stack>
+                </Card>
+              );
+            })}
+          </SimpleGrid>
+
+          <Card padding="sm">
+            <Text fw={600} px="xs" pt={4} pb="xs">
+              Attainment by creator — {dayjs(`${month}-01`).format("MMMM YYYY")}
+            </Text>
+            <Table.ScrollContainer minWidth={640}>
+              <Table verticalSpacing="xs">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Creator</Table.Th>
+                    <Table.Th>Shoots</Table.Th>
+                    <Table.Th>Deliverables</Table.Th>
+                    <Table.Th>Posted</Table.Th>
+                    <Table.Th>Cancellations</Table.Th>
+                    <Table.Th>Overall</Table.Th>
                   </Table.Tr>
-                );
-              })}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      </Card>
+                </Table.Thead>
+                <Table.Tbody>
+                  {data.map((k) => {
+                    const parts = [
+                      k.targetShoots > 0 ? k.completed / k.targetShoots : null,
+                      k.targetDeliverables > 0 ? k.approved / k.targetDeliverables : null,
+                      k.targetPosted > 0 ? k.posted / k.targetPosted : null,
+                    ].filter((x): x is number => x !== null);
+                    const overall = parts.length
+                      ? Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 100)
+                      : 0;
+                    return (
+                      <Table.Tr key={k.creatorId}>
+                        <Table.Td>
+                          <Text size="sm" fw={600}>
+                            {k.creatorName}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          {k.completed} / {k.targetShoots || "—"}
+                        </Table.Td>
+                        <Table.Td>
+                          {k.approved} / {k.targetDeliverables || "—"}
+                        </Table.Td>
+                        <Table.Td>
+                          {k.posted} / {k.targetPosted || "—"}
+                        </Table.Td>
+                        <Table.Td>{k.cancelled}</Table.Td>
+                        <Table.Td>
+                          <Group gap="xs" wrap="nowrap">
+                            <Progress
+                              value={Math.min(100, overall)}
+                              size="sm"
+                              w={80}
+                              color={overall >= 100 ? "green" : "brand"}
+                            />
+                            <Text size="sm">{overall}%</Text>
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          </Card>
+
+          <Text size="xs" c="dimmed">
+            Month-over-month trends build up automatically from nightly KPI
+            snapshots.
+          </Text>
+        </>
+      )}
     </Stack>
   );
 }

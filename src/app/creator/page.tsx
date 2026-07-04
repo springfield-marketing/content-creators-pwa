@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+// Screen 5 — My schedule, on real data. Actions: mark no-show, mark done
+// (with overtime prompt, decision #8), direct cancel (decision #12).
+
+import { useCallback, useEffect, useState } from "react";
 import dayjs from "dayjs";
 import {
   Alert,
@@ -11,6 +14,8 @@ import {
   Divider,
   Group,
   Modal,
+  SegmentedControl,
+  Skeleton,
   Stack,
   Text,
   Textarea,
@@ -20,73 +25,138 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   IconCalendarOff,
+  IconCheck,
   IconMapPin,
   IconUserOff,
 } from "@tabler/icons-react";
-import {
-  agentById,
-  bookings,
-  shootTypeLabel,
-  type Booking,
-} from "@/lib/mock-data";
+import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
 
-// Mock logged-in creator until auth lands (matches the shell header).
-const ME = "c1";
+type MyBooking = {
+  id: string;
+  start: string;
+  end: string;
+  actualEnd: string | null;
+  shootType: DbShootType;
+  projectName: string | null;
+  locationType: "on_site" | "office";
+  propertyAddress: string | null;
+  notes: string | null;
+  status: "confirmed" | "completed" | "cancelled" | "no_show";
+  agentName: string | null;
+  agentDeclined: boolean;
+  pendingCancellation: boolean;
+};
 
-type LocalAction = "no_show" | "cancel_requested";
+const statusBadge: Record<string, { color: string; label: string } | null> = {
+  confirmed: null,
+  completed: { color: "green", label: "Completed" },
+  cancelled: { color: "red", label: "Cancelled" },
+  no_show: { color: "orange", label: "No-show" },
+};
 
-// Screen 5 — My schedule: today on top, upcoming below.
 export default function MySchedule() {
-  // Local mock state for actions taken this session.
-  const [actions, setActions] = useState<Record<string, LocalAction>>({});
-  const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
+  const [rows, setRows] = useState<MyBooking[] | null>(null);
+  const [target, setTarget] = useState<MyBooking | null>(null);
+  const [mode, setMode] = useState<"no_show" | "cancel" | "complete">("cancel");
   const [reason, setReason] = useState("");
-  const [cancelOpen, { open: openCancel, close: closeCancel }] =
+  const [overtime, setOvertime] = useState("0");
+  const [busy, setBusy] = useState(false);
+  const [modalOpen, { open: openModal, close: closeModal }] =
     useDisclosure(false);
 
-  const mine = bookings
-    .filter(
-      (b) =>
-        b.creatorId === ME &&
-        (b.status === "confirmed" || b.status === "pending_cancellation") &&
-        dayjs(b.end).isAfter(dayjs().startOf("day"))
-    )
-    .sort((a, b) => a.start.localeCompare(b.start));
+  const reload = useCallback(() => {
+    fetch("/api/me/bookings")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setRows)
+      .catch(() =>
+        notifications.show({
+          title: "Couldn't load your schedule",
+          message: "Try refreshing.",
+          color: "red",
+        })
+      );
+  }, []);
+  useEffect(reload, [reload]);
 
-  const todays = mine.filter((b) => dayjs(b.start).isSame(dayjs(), "day"));
-  const upcoming = mine.filter((b) => dayjs(b.start).isAfter(dayjs(), "day"));
-
-  const markNoShow = (b: Booking) => {
-    setActions((a) => ({ ...a, [b.id]: "no_show" }));
-    notifications.show({
-      title: "Marked as no-show",
-      message: "The manager can see this on the KPI dashboard.",
-      color: "orange",
+  const act = async () => {
+    if (!target) return;
+    setBusy(true);
+    const body =
+      mode === "complete"
+        ? {
+            action: "complete",
+            ...(overtime !== "0"
+              ? {
+                  actualEnd: dayjs(target.end)
+                    .add(Number(overtime), "minute")
+                    .toISOString(),
+                }
+              : {}),
+          }
+        : { action: mode, reason };
+    const res = await fetch(`/api/me/bookings/${target.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-  };
-
-  const askCancel = (b: Booking) => {
-    setCancelTarget(b);
-    setReason("");
-    openCancel();
-  };
-
-  const confirmCancel = () => {
-    if (cancelTarget) {
-      setActions((a) => ({ ...a, [cancelTarget.id]: "cancel_requested" }));
+    setBusy(false);
+    closeModal();
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
       notifications.show({
-        title: "Cancellation requested",
-        message: "Sent to the manager — the agent will be notified.",
-        color: "yellow",
+        title: "Action failed",
+        message: b.error ?? "Try again.",
+        color: "red",
       });
+      return;
     }
-    closeCancel();
+    notifications.show({
+      title:
+        mode === "cancel"
+          ? "Booking cancelled"
+          : mode === "no_show"
+            ? "Marked as no-show"
+            : "Marked as done",
+      message:
+        mode === "cancel"
+          ? "The event is removed and the agent has been notified."
+          : mode === "no_show"
+            ? "This is visible to the manager on the KPI dashboard."
+            : overtime !== "0"
+              ? `Recorded ${overtime} minutes of overtime.`
+              : "Nice work.",
+      color: mode === "cancel" ? "red" : "green",
+    });
+    reload();
   };
 
-  const renderBooking = (b: Booking, isToday: boolean) => {
-    const agent = agentById(b.agentId)!;
-    const action = actions[b.id];
-    const pending = b.status === "pending_cancellation";
+  const openAction = (b: MyBooking, m: typeof mode) => {
+    setTarget(b);
+    setMode(m);
+    setReason("");
+    setOvertime("0");
+    openModal();
+  };
+
+  if (rows === null) {
+    return (
+      <Stack gap="md">
+        <Skeleton height={32} width={160} />
+        <Skeleton height={140} radius="lg" />
+        <Skeleton height={140} radius="lg" />
+      </Stack>
+    );
+  }
+
+  const active = rows.filter(
+    (b) => b.status === "confirmed" || dayjs(b.end).isAfter(dayjs().subtract(1, "day"))
+  );
+  const todays = active.filter((b) => dayjs(b.start).isSame(dayjs(), "day"));
+  const upcoming = active.filter((b) => dayjs(b.start).isAfter(dayjs(), "day"));
+
+  const renderBooking = (b: MyBooking, isToday: boolean) => {
+    const started = dayjs(b.start).isBefore(dayjs());
+    const badge = statusBadge[b.status];
     return (
       <Card key={b.id}>
         <Stack gap="xs">
@@ -97,16 +167,21 @@ export default function MySchedule() {
             </Text>
             <Group gap={6}>
               <Badge variant="light" size="sm">
-                {shootTypeLabel[b.shootType]}
+                {dbShootTypeLabel[b.shootType]}
               </Badge>
-              {action === "no_show" && (
-                <Badge color="orange" size="sm">
-                  No-show
+              {badge && (
+                <Badge color={badge.color} size="sm">
+                  {badge.label}
                 </Badge>
               )}
-              {(action === "cancel_requested" || pending) && (
+              {b.pendingCancellation && (
                 <Badge color="yellow" size="sm">
                   Cancellation requested
+                </Badge>
+              )}
+              {b.agentDeclined && (
+                <Badge color="orange" size="sm" variant="light">
+                  Agent declined invite
                 </Badge>
               )}
             </Group>
@@ -116,18 +191,18 @@ export default function MySchedule() {
             {b.projectName}
           </Text>
           <Text size="sm" c="dimmed">
-            {agent.name} — {agent.office}
+            {b.agentName}
           </Text>
 
           <Group gap={6} wrap="nowrap">
             <IconMapPin size={16} color="var(--mantine-color-dimmed)" />
-            {b.location.kind === "onsite" ? (
+            {b.locationType === "on_site" && b.propertyAddress ? (
               <Anchor
                 size="sm"
-                href={`https://maps.google.com/?q=${encodeURIComponent(b.location.address)}`}
+                href={`https://maps.google.com/?q=${encodeURIComponent(b.propertyAddress)}`}
                 target="_blank"
               >
-                {b.location.address}
+                {b.propertyAddress}
               </Anchor>
             ) : (
               <Text size="sm">Office</Text>
@@ -140,30 +215,42 @@ export default function MySchedule() {
             </Text>
           )}
 
-          {!action && !pending && (
+          {b.status === "confirmed" && (
             <>
               <Divider />
               <Group gap="xs">
-                {isToday && (
+                {started && (
+                  <>
+                    <Button
+                      size="xs"
+                      color="green"
+                      leftSection={<IconCheck size={14} />}
+                      onClick={() => openAction(b, "complete")}
+                    >
+                      Mark done
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      color="orange"
+                      leftSection={<IconUserOff size={14} />}
+                      onClick={() => openAction(b, "no_show")}
+                    >
+                      No-show
+                    </Button>
+                  </>
+                )}
+                {!started && (
                   <Button
                     size="xs"
                     variant="light"
-                    color="orange"
-                    leftSection={<IconUserOff size={14} />}
-                    onClick={() => markNoShow(b)}
+                    color="red"
+                    leftSection={<IconCalendarOff size={14} />}
+                    onClick={() => openAction(b, "cancel")}
                   >
-                    Mark no-show
+                    Cancel shoot
                   </Button>
                 )}
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="red"
-                  leftSection={<IconCalendarOff size={14} />}
-                  onClick={() => askCancel(b)}
-                >
-                  Request cancellation
-                </Button>
               </Group>
             </>
           )}
@@ -198,34 +285,64 @@ export default function MySchedule() {
       )}
 
       <Modal
-        opened={cancelOpen}
-        onClose={closeCancel}
-        title="Request cancellation"
+        opened={modalOpen}
+        onClose={closeModal}
+        title={
+          mode === "cancel"
+            ? "Cancel this shoot"
+            : mode === "no_show"
+              ? "Mark as no-show"
+              : "Mark as done"
+        }
         centered
       >
         <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            The manager reviews the request and the agent is notified.
-          </Text>
-          <Textarea
-            label="Reason"
-            required
-            placeholder="Why can't this shoot go ahead?"
-            autosize
-            minRows={2}
-            value={reason}
-            onChange={(e) => setReason(e.currentTarget.value)}
-          />
+          {mode === "complete" ? (
+            <>
+              <Text size="sm" c="dimmed">
+                Did the shoot run over the booked time?
+              </Text>
+              <SegmentedControl
+                fullWidth
+                value={overtime}
+                onChange={setOvertime}
+                data={[
+                  { label: "On time", value: "0" },
+                  { label: "+15m", value: "15" },
+                  { label: "+30m", value: "30" },
+                  { label: "+1h", value: "60" },
+                  { label: "+2h", value: "120" },
+                ]}
+              />
+            </>
+          ) : (
+            <>
+              <Text size="sm" c="dimmed">
+                {mode === "cancel"
+                  ? "This cancels immediately: the calendar event is removed, the agent is notified, and the manager is informed."
+                  : "Use this when the agent didn't show up — it's recorded separately from cancellations."}
+              </Text>
+              <Textarea
+                label="Reason"
+                required
+                autosize
+                minRows={2}
+                value={reason}
+                onChange={(e) => setReason(e.currentTarget.value)}
+              />
+            </>
+          )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={closeCancel}>
+            <Button variant="default" onClick={closeModal}>
               Back
             </Button>
             <Button
-              color="red"
-              disabled={reason.trim() === ""}
-              onClick={confirmCancel}
+              color={mode === "complete" ? "green" : "red"}
+              disabled={mode !== "complete" && reason.trim().length < 3}
+              loading={busy}
+              onClick={act}
             >
-              Send request
+              Confirm
             </Button>
           </Group>
         </Stack>

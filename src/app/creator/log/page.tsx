@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+// Screen 6 — Log a deliverable, on real data: recent shoots from the API,
+// submission goes straight into the manager's review queue.
+
+import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import {
   Badge,
@@ -8,6 +11,7 @@ import {
   Card,
   Group,
   SegmentedControl,
+  Skeleton,
   Stack,
   Switch,
   Text,
@@ -24,11 +28,8 @@ import {
   IconBrandTiktok,
   IconLink,
 } from "@tabler/icons-react";
-import { agentById, bookings, shootTypeLabel } from "@/lib/mock-data";
+import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
 import { AgentSearchSelect, type AgentHit } from "@/components/AgentSearchSelect";
-
-// Mock logged-in creator until auth lands.
-const ME = "c1";
 
 type Platform = "instagram" | "tiktok" | "drive" | "dropbox" | "other";
 
@@ -49,8 +50,17 @@ const platformMeta: Record<Platform, { label: string; icon: typeof IconLink }> =
   other: { label: "Link", icon: IconLink },
 };
 
-// Screen 6 — Log a deliverable: designed to take under 60 seconds.
+type RecentShoot = {
+  id: string;
+  start: string;
+  shootType: DbShootType;
+  projectName: string | null;
+  agentName: string | null;
+  status: string;
+};
+
 export default function LogDeliverable() {
+  const [recent, setRecent] = useState<RecentShoot[] | null>(null);
   const [shootId, setShootId] = useState<string | null>(null);
   const [noShoot, setNoShoot] = useState(false);
   const [agent, setAgent] = useState<AgentHit | null>(null);
@@ -60,29 +70,56 @@ export default function LogDeliverable() {
   const [workDate, setWorkDate] = useState<string | null>(
     dayjs().format("YYYY-MM-DD")
   );
+  const [submitting, setSubmitting] = useState(false);
 
-  // The creator's own recent shoots, most recent first.
-  const recentShoots = useMemo(
-    () =>
-      bookings
-        .filter(
-          (b) =>
-            b.creatorId === ME &&
-            ["completed", "confirmed"].includes(b.status) &&
-            dayjs(b.start).isBefore(dayjs()) &&
-            dayjs(b.start).isAfter(dayjs().subtract(7, "day"))
+  useEffect(() => {
+    fetch("/api/me/bookings")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((rows: RecentShoot[]) =>
+        setRecent(
+          rows
+            .filter(
+              (b) =>
+                ["completed", "confirmed"].includes(b.status) &&
+                dayjs(b.start).isBefore(dayjs())
+            )
+            .sort((a, b) => b.start.localeCompare(a.start))
+            .slice(0, 6)
         )
-        .sort((a, b) => b.start.localeCompare(a.start)),
-    []
-  );
+      )
+      .catch(() => setRecent([]));
+  }, []);
 
-  const platform = detectPlatform(url);
+  const platform = useMemo(() => detectPlatform(url), [url]);
   const PlatformIcon = platform ? platformMeta[platform].icon : IconLink;
-  const shootOk = noShoot || shootId !== null;
-  const agentOk = !noShoot || agent !== null;
-  const canSubmit = shootOk && agentOk && platform !== null;
+  const shootOk = noShoot ? agent !== null : shootId !== null;
+  const canSubmit = shootOk && platform !== null && !!workDate;
 
-  const submit = () => {
+  const submit = async () => {
+    setSubmitting(true);
+    const res = await fetch("/api/me/deliverables", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bookingId: noShoot ? undefined : shootId,
+        agentId: noShoot ? agent?.id : undefined,
+        type,
+        url,
+        platform,
+        posted,
+        workDate,
+      }),
+    });
+    setSubmitting(false);
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      notifications.show({
+        title: "Couldn't submit",
+        message: b.error ?? "Check the link and try again.",
+        color: "red",
+      });
+      return;
+    }
     notifications.show({
       title: "Deliverable submitted",
       message: "It's in the manager's review queue.",
@@ -110,75 +147,78 @@ export default function LogDeliverable() {
         <Text size="sm" fw={500} mb={6}>
           Which shoot is this from?
         </Text>
-        <Stack gap="xs">
-          {recentShoots.map((b) => {
-            const agent = agentById(b.agentId)!;
-            const selected = shootId === b.id && !noShoot;
-            return (
-              <UnstyledButton
-                key={b.id}
-                onClick={() => {
-                  setShootId(b.id);
-                  setNoShoot(false);
-                }}
-              >
-                <Card
-                  padding="sm"
-                  style={
-                    selected
-                      ? { borderColor: "var(--mantine-color-brand-6)" }
-                      : undefined
-                  }
-                  bg={selected ? "var(--mantine-color-brand-0)" : undefined}
+        {recent === null ? (
+          <Skeleton height={120} radius="lg" />
+        ) : (
+          <Stack gap="xs">
+            {recent.map((b) => {
+              const selected = shootId === b.id && !noShoot;
+              return (
+                <UnstyledButton
+                  key={b.id}
+                  onClick={() => {
+                    setShootId(b.id);
+                    setNoShoot(false);
+                  }}
                 >
-                  <Group justify="space-between" wrap="nowrap">
-                    <div>
-                      <Text size="sm" fw={600}>
-                        {dayjs(b.start).format("ddd D MMM, HH:mm")} ·{" "}
-                        {shootTypeLabel[b.shootType]}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {b.projectName} · {agent.name}
-                      </Text>
-                    </div>
-                    {selected && <Badge size="sm">Selected</Badge>}
-                  </Group>
-                </Card>
-              </UnstyledButton>
-            );
-          })}
+                  <Card
+                    padding="sm"
+                    style={
+                      selected
+                        ? { borderColor: "var(--mantine-color-brand-6)" }
+                        : undefined
+                    }
+                    bg={selected ? "var(--mantine-color-brand-0)" : undefined}
+                  >
+                    <Group justify="space-between" wrap="nowrap">
+                      <div>
+                        <Text size="sm" fw={600}>
+                          {dayjs(b.start).format("ddd D MMM, HH:mm")} ·{" "}
+                          {dbShootTypeLabel[b.shootType]}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {b.projectName} · {b.agentName}
+                        </Text>
+                      </div>
+                      {selected && <Badge size="sm">Selected</Badge>}
+                    </Group>
+                  </Card>
+                </UnstyledButton>
+              );
+            })}
 
-          <UnstyledButton
-            onClick={() => {
-              setNoShoot(true);
-              setShootId(null);
-            }}
-          >
-            <Card
-              padding="sm"
-              style={{
-                borderStyle: "dashed",
-                ...(noShoot
-                  ? { borderColor: "var(--mantine-color-brand-6)" }
-                  : {}),
+            <UnstyledButton
+              onClick={() => {
+                setNoShoot(true);
+                setShootId(null);
               }}
-              bg={noShoot ? "var(--mantine-color-brand-0)" : undefined}
             >
-              <Group justify="space-between">
-                <Text size="sm">Not tied to a shoot</Text>
-                {noShoot && <Badge size="sm">Selected</Badge>}
-              </Group>
-            </Card>
-          </UnstyledButton>
+              <Card
+                padding="sm"
+                style={{
+                  borderStyle: "dashed",
+                  ...(noShoot
+                    ? { borderColor: "var(--mantine-color-brand-6)" }
+                    : {}),
+                }}
+                bg={noShoot ? "var(--mantine-color-brand-0)" : undefined}
+              >
+                <Group justify="space-between">
+                  <Text size="sm">Not tied to a shoot</Text>
+                  {noShoot && <Badge size="sm">Selected</Badge>}
+                </Group>
+              </Card>
+            </UnstyledButton>
 
-          {noShoot && (
-            <AgentSearchSelect
-              placeholder="Search the agent it's for"
-              value={agent}
-              onChange={setAgent}
-            />
-          )}
-        </Stack>
+            {noShoot && (
+              <AgentSearchSelect
+                placeholder="Search the agent it's for"
+                value={agent}
+                onChange={setAgent}
+              />
+            )}
+          </Stack>
+        )}
       </div>
 
       <div>
@@ -227,7 +267,7 @@ export default function LogDeliverable() {
         />
       </Group>
 
-      <Button size="md" disabled={!canSubmit} onClick={submit}>
+      <Button size="md" disabled={!canSubmit} loading={submitting} onClick={submit}>
         Submit for review
       </Button>
     </Stack>

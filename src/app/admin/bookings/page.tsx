@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+// Screen 12 — Bookings overview on real data: week grid, cancel/reassign,
+// pending ≤24h cancellation requests (§B12.1), decline flags.
+
+import { useCallback, useEffect, useState } from "react";
 import dayjs from "dayjs";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Card,
@@ -11,10 +15,10 @@ import {
   Group,
   Modal,
   Select,
+  Skeleton,
   Stack,
   Table,
   Text,
-  TextInput,
   Textarea,
   Title,
   UnstyledButton,
@@ -22,134 +26,138 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
+  IconAlertTriangle,
   IconChevronLeft,
   IconChevronRight,
-  IconPlus,
 } from "@tabler/icons-react";
-import { TimeInput } from "@mantine/dates";
-import {
-  agentById,
-  agents,
-  bookings as initialBookings,
-  creators,
-  shootTypeLabel,
-  type Booking,
-  type BookingStatus,
-  type ShootType,
-} from "@/lib/mock-data";
+import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
 
-const statusColor: Record<BookingStatus, string> = {
+type AdminBooking = {
+  id: string;
+  creatorId: string;
+  creatorName: string;
+  agentName: string | null;
+  start: string;
+  end: string;
+  shootType: DbShootType;
+  projectName: string | null;
+  locationType: "on_site" | "office";
+  propertyAddress: string | null;
+  status: string;
+  cancellationReason: string | null;
+  cancelledBy: string | null;
+  agentDeclined: boolean;
+};
+
+type CancelRequest = {
+  id: string;
+  reason: string;
+  bookingId: string;
+  start: string;
+  projectName: string | null;
+  creatorName: string;
+  agentName: string | null;
+};
+
+const statusColor: Record<string, string> = {
   confirmed: "brand",
   completed: "gray",
   cancelled: "red",
   no_show: "orange",
-  pending_cancellation: "yellow",
 };
 
-const activeCreators = creators.filter((c) => c.active);
-
-// Screen 12 — Bookings overview: every creator's week on one screen.
 export default function BookingsOverview() {
-  const [bookings, setBookings] = useState<Booking[]>(initialBookings);
   const [weekStart, setWeekStart] = useState(() =>
     dayjs().startOf("week").add(1, "day")
-  ); // Monday
-  const [selected, setSelected] = useState<Booking | null>(null);
+  );
+  const [rows, setRows] = useState<AdminBooking[] | null>(null);
+  const [creators, setCreators] = useState<{ id: string; name: string }[]>([]);
+  const [requests, setRequests] = useState<CancelRequest[]>([]);
+  const [selected, setSelected] = useState<AdminBooking | null>(null);
   const [reason, setReason] = useState("");
   const [reassignTo, setReassignTo] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [detailOpen, { open: openDetail, close: closeDetail }] =
     useDisclosure(false);
-  const [createOpen, { open: openCreate, close: closeCreate }] =
-    useDisclosure(false);
-  const [draft, setDraft] = useState({
-    creatorId: null as string | null,
-    agentId: null as string | null,
-    project: "",
-    day: null as string | null,
-    time: "10:00",
-    type: "photo" as ShootType,
-  });
 
   const days = Array.from({ length: 7 }, (_, i) => weekStart.add(i, "day"));
 
-  const cellBookings = (creatorId: string, day: dayjs.Dayjs) =>
-    bookings
-      .filter(
-        (b) =>
-          b.creatorId === creatorId && dayjs(b.start).isSame(day, "day")
+  const reload = useCallback(() => {
+    const from = weekStart.format("YYYY-MM-DD");
+    const to = weekStart.add(6, "day").format("YYYY-MM-DD");
+    fetch(`/api/admin/bookings?from=${from}&to=${to}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setRows)
+      .catch(() => setRows([]));
+    fetch("/api/admin/cancellation-requests")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setRequests)
+      .catch(() => {});
+    fetch("/api/admin/creators")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((cs: { id: string; name: string; isActive: boolean }[]) =>
+        setCreators(cs.filter((c) => c.isActive))
       )
+      .catch(() => {});
+  }, [weekStart]);
+  useEffect(reload, [reload]);
+
+  const decideRequest = async (id: string, approve: boolean) => {
+    const res = await fetch("/api/admin/cancellation-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, approve }),
+    });
+    if (res.ok) {
+      notifications.show({
+        title: approve ? "Cancellation approved" : "Request declined",
+        message: approve
+          ? "The event is removed and the agent notified."
+          : "The booking stands — the agent will be told.",
+        color: approve ? "red" : "blue",
+      });
+      reload();
+    }
+  };
+
+  const act = async (action: "cancel" | "reassign") => {
+    if (!selected) return;
+    setBusy(true);
+    const res = await fetch(`/api/admin/bookings/${selected.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        action === "cancel"
+          ? { action, reason }
+          : { action, creatorId: reassignTo }
+      ),
+    });
+    setBusy(false);
+    closeDetail();
+    const body = await res.json().catch(() => ({}));
+    notifications.show(
+      res.ok
+        ? {
+            title: action === "cancel" ? "Booking cancelled" : "Booking reassigned",
+            message:
+              action === "cancel"
+                ? "Calendar event removed — agent notified."
+                : "New invite sent; old event removed.",
+            color: action === "cancel" ? "red" : "green",
+          }
+        : { title: "Action failed", message: body.error ?? "Try again.", color: "red" }
+    );
+    reload();
+  };
+
+  const cellBookings = (creatorId: string, day: dayjs.Dayjs) =>
+    (rows ?? [])
+      .filter((b) => b.creatorId === creatorId && dayjs(b.start).isSame(day, "day"))
       .sort((a, b) => a.start.localeCompare(b.start));
 
-  const pick = (b: Booking) => {
-    setSelected(b);
-    setReason("");
-    setReassignTo(null);
-    openDetail();
-  };
-
-  const cancelBooking = () => {
-    if (!selected) return;
-    setBookings((all) =>
-      all.map((b) =>
-        b.id === selected.id
-          ? { ...b, status: "cancelled" as const, cancellationReason: reason }
-          : b
-      )
-    );
-    notifications.show({
-      title: "Booking cancelled",
-      message: "Calendar event removed — agent and creator notified.",
-      color: "red",
-    });
-    closeDetail();
-  };
-
-  const reassign = () => {
-    if (!selected || !reassignTo) return;
-    setBookings((all) =>
-      all.map((b) =>
-        b.id === selected.id ? { ...b, creatorId: reassignTo } : b
-      )
-    );
-    notifications.show({
-      title: "Booking reassigned",
-      message: `Moved to ${creators.find((c) => c.id === reassignTo)?.name} — everyone notified.`,
-      color: "green",
-    });
-    closeDetail();
-  };
-
-  const createBooking = () => {
-    const { creatorId, agentId, project, day, time, type } = draft;
-    if (!creatorId || !agentId || !day) return;
-    const [h, m] = time.split(":").map(Number);
-    const start = dayjs(day).hour(h).minute(m);
-    const creator = creators.find((c) => c.id === creatorId)!;
-    const duration =
-      type === "video"
-        ? creator.settings.videoDuration
-        : creator.settings.photoDuration;
-    setBookings((all) => [
-      ...all,
-      {
-        id: `new-${all.length}`,
-        creatorId,
-        agentId,
-        start: start.toISOString(),
-        end: start.add(duration, "minute").toISOString(),
-        shootType: type,
-        projectName: project,
-        location: { kind: "office" },
-        status: "confirmed",
-      },
-    ]);
-    notifications.show({
-      title: "Booking created",
-      message: "Calendar invites sent to creator and agent.",
-      color: "green",
-    });
-    closeCreate();
-  };
+  const gridCreators = creators.length
+    ? creators
+    : [...new Map((rows ?? []).map((b) => [b.creatorId, { id: b.creatorId, name: b.creatorName }])).values()];
 
   return (
     <Stack gap="lg">
@@ -183,88 +191,113 @@ export default function BookingsOverview() {
           >
             <IconChevronRight size={18} />
           </ActionIcon>
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={() => {
-              setDraft({
-                creatorId: null,
-                agentId: null,
-                project: "",
-                day: weekStart.format("YYYY-MM-DD"),
-                time: "10:00",
-                type: "photo",
-              });
-              openCreate();
-            }}
-          >
-            New booking
-          </Button>
         </Group>
       </Group>
 
-      <Card padding="xs">
-        <Table.ScrollContainer minWidth={860}>
-          <Table verticalSpacing="xs" withColumnBorders>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th w={130}>Creator</Table.Th>
-                {days.map((d) => (
-                  <Table.Th
-                    key={d.format()}
-                    ta="center"
-                    c={d.isSame(dayjs(), "day") ? "brand" : undefined}
-                  >
-                    {d.format("ddd D")}
-                  </Table.Th>
-                ))}
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {activeCreators.map((c) => (
-                <Table.Tr key={c.id}>
-                  <Table.Td>
-                    <Text size="sm" fw={600}>
-                      {c.name}
-                    </Text>
-                  </Table.Td>
+      {requests.length > 0 && (
+        <Alert
+          variant="light"
+          color="yellow"
+          icon={<IconAlertTriangle size={18} />}
+          title={`${requests.length} late cancellation request${requests.length > 1 ? "s" : ""} waiting`}
+        >
+          <Stack gap="xs">
+            {requests.map((r) => (
+              <Group key={r.id} justify="space-between" wrap="nowrap">
+                <Text size="sm">
+                  {dayjs(r.start).format("ddd D MMM HH:mm")} · {r.projectName} ·{" "}
+                  {r.creatorName} — “{r.reason}” ({r.agentName})
+                </Text>
+                <Group gap={6}>
+                  <Button size="compact-xs" color="red" onClick={() => decideRequest(r.id, true)}>
+                    Approve
+                  </Button>
+                  <Button size="compact-xs" variant="default" onClick={() => decideRequest(r.id, false)}>
+                    Decline
+                  </Button>
+                </Group>
+              </Group>
+            ))}
+          </Stack>
+        </Alert>
+      )}
+
+      {rows === null ? (
+        <Skeleton height={320} radius="lg" />
+      ) : (
+        <Card padding="xs">
+          <Table.ScrollContainer minWidth={860}>
+            <Table verticalSpacing="xs" withColumnBorders>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th w={140}>Creator</Table.Th>
                   {days.map((d) => (
-                    <Table.Td key={d.format()} p={4} valign="top">
-                      <Stack gap={4}>
-                        {cellBookings(c.id, d).map((b) => (
-                          <UnstyledButton key={b.id} onClick={() => pick(b)}>
-                            <Badge
-                              variant="light"
-                              color={statusColor[b.status]}
-                              size="sm"
-                              fullWidth
-                              radius="sm"
-                              style={{
-                                textDecoration:
-                                  b.status === "cancelled"
-                                    ? "line-through"
-                                    : undefined,
-                              }}
-                            >
-                              {dayjs(b.start).format("HH:mm")}{" "}
-                              {agentById(b.agentId)?.name.split(" ").pop()}
-                            </Badge>
-                          </UnstyledButton>
-                        ))}
-                      </Stack>
-                    </Table.Td>
+                    <Table.Th
+                      key={d.format()}
+                      ta="center"
+                      c={d.isSame(dayjs(), "day") ? "brand" : undefined}
+                    >
+                      {d.format("ddd D")}
+                    </Table.Th>
                   ))}
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      </Card>
+              </Table.Thead>
+              <Table.Tbody>
+                {gridCreators.map((c) => (
+                  <Table.Tr key={c.id}>
+                    <Table.Td>
+                      <Text size="sm" fw={600}>
+                        {c.name}
+                      </Text>
+                    </Table.Td>
+                    {days.map((d) => (
+                      <Table.Td key={d.format()} p={4} valign="top">
+                        <Stack gap={4}>
+                          {cellBookings(c.id, d).map((b) => (
+                            <UnstyledButton
+                              key={b.id}
+                              onClick={() => {
+                                setSelected(b);
+                                setReason("");
+                                setReassignTo(null);
+                                openDetail();
+                              }}
+                            >
+                              <Badge
+                                variant="light"
+                                color={
+                                  b.agentDeclined
+                                    ? "orange"
+                                    : (statusColor[b.status] ?? "gray")
+                                }
+                                size="sm"
+                                fullWidth
+                                radius="sm"
+                                style={{
+                                  textDecoration:
+                                    b.status === "cancelled" ? "line-through" : undefined,
+                                }}
+                              >
+                                {dayjs(b.start).format("HH:mm")}{" "}
+                                {(b.agentName ?? "—").split(" ")[0]}
+                              </Badge>
+                            </UnstyledButton>
+                          ))}
+                        </Stack>
+                      </Table.Td>
+                    ))}
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        </Card>
+      )}
 
       <Group gap="md">
         {(
           [
             ["confirmed", "Confirmed"],
-            ["pending_cancellation", "Cancellation requested"],
             ["completed", "Completed"],
             ["no_show", "No-show"],
             ["cancelled", "Cancelled"],
@@ -277,14 +310,15 @@ export default function BookingsOverview() {
             </Text>
           </Group>
         ))}
+        <Group gap={6}>
+          <Badge variant="light" color="orange" size="xs" circle />
+          <Text size="xs" c="dimmed">
+            Agent declined invite
+          </Text>
+        </Group>
       </Group>
 
-      <Modal
-        opened={detailOpen}
-        onClose={closeDetail}
-        title="Booking details"
-        centered
-      >
+      <Modal opened={detailOpen} onClose={closeDetail} title="Booking details" centered>
         {selected && (
           <Stack gap="sm">
             <Group justify="space-between">
@@ -292,7 +326,7 @@ export default function BookingsOverview() {
                 {dayjs(selected.start).format("ddd D MMM, HH:mm")}–
                 {dayjs(selected.end).format("HH:mm")}
               </Text>
-              <Badge variant="light" color={statusColor[selected.status]}>
+              <Badge variant="light" color={statusColor[selected.status] ?? "gray"}>
                 {selected.status.replace("_", " ")}
               </Badge>
             </Group>
@@ -300,30 +334,33 @@ export default function BookingsOverview() {
               {selected.projectName}
             </Text>
             <Text size="sm">
-              {creators.find((c) => c.id === selected.creatorId)?.name} ·{" "}
-              {shootTypeLabel[selected.shootType]} ·{" "}
-              {selected.location.kind === "onsite"
-                ? selected.location.address
+              {selected.creatorName} · {dbShootTypeLabel[selected.shootType]} ·{" "}
+              {selected.locationType === "on_site"
+                ? selected.propertyAddress
                 : "Office"}
             </Text>
             <Text size="sm" c="dimmed">
-              Booked by {agentById(selected.agentId)?.name}
+              Booked by {selected.agentName}
             </Text>
+            {selected.agentDeclined && (
+              <Alert color="orange" variant="light" p="xs">
+                The agent declined the calendar invite — worth a follow-up call.
+              </Alert>
+            )}
             {selected.cancellationReason && (
               <Text size="sm" c="dimmed">
                 Reason: “{selected.cancellationReason}”
+                {selected.cancelledBy ? ` (${selected.cancelledBy})` : ""}
               </Text>
             )}
 
-            {["confirmed", "pending_cancellation"].includes(
-              selected.status
-            ) && (
+            {selected.status === "confirmed" && (
               <>
                 <Divider label="Reassign (e.g. creator is sick)" />
                 <Group>
                   <Select
                     placeholder="Move to…"
-                    data={activeCreators
+                    data={creators
                       .filter((c) => c.id !== selected.creatorId)
                       .map((c) => ({ value: c.id, label: c.name }))}
                     value={reassignTo}
@@ -333,7 +370,8 @@ export default function BookingsOverview() {
                   <Button
                     variant="default"
                     disabled={!reassignTo}
-                    onClick={reassign}
+                    loading={busy}
+                    onClick={() => act("reassign")}
                   >
                     Reassign
                   </Button>
@@ -350,8 +388,9 @@ export default function BookingsOverview() {
                 <Button
                   color="red"
                   variant="light"
-                  disabled={reason.trim() === ""}
-                  onClick={cancelBooking}
+                  disabled={reason.trim().length < 3}
+                  loading={busy}
+                  onClick={() => act("cancel")}
                 >
                   Cancel booking
                 </Button>
@@ -359,86 +398,6 @@ export default function BookingsOverview() {
             )}
           </Stack>
         )}
-      </Modal>
-
-      <Modal
-        opened={createOpen}
-        onClose={closeCreate}
-        title="New booking"
-        centered
-      >
-        <Stack gap="sm">
-          <Text size="xs" c="dimmed">
-            For manual entries like company shoots — bypasses agent booking.
-          </Text>
-          <Select
-            label="Creator"
-            required
-            data={activeCreators.map((c) => ({ value: c.id, label: c.name }))}
-            value={draft.creatorId}
-            onChange={(v) => setDraft({ ...draft, creatorId: v })}
-          />
-          <TextInput
-            label="Project name"
-            required
-            placeholder="What is the shoot about?"
-            value={draft.project}
-            onChange={(e) => setDraft({ ...draft, project: e.currentTarget.value })}
-          />
-          <Select
-            label="Agent / requester"
-            required
-            searchable
-            data={agents
-              .filter((a) => a.status === "active")
-              .map((a) => ({ value: a.id, label: `${a.name} — ${a.office}` }))}
-            value={draft.agentId}
-            onChange={(v) => setDraft({ ...draft, agentId: v })}
-          />
-          <Group grow>
-            <Select
-              label="Day"
-              data={days.map((d) => ({
-                value: d.format("YYYY-MM-DD"),
-                label: d.format("ddd D MMM"),
-              }))}
-              value={draft.day}
-              onChange={(v) => setDraft({ ...draft, day: v })}
-            />
-            <TimeInput
-              label="Start"
-              value={draft.time}
-              onChange={(e) =>
-                setDraft({ ...draft, time: e.currentTarget.value })
-              }
-            />
-          </Group>
-          <Select
-            label="Shoot type"
-            data={(["photo", "video", "both"] as const).map((t) => ({
-              value: t,
-              label: shootTypeLabel[t],
-            }))}
-            value={draft.type}
-            onChange={(v) => setDraft({ ...draft, type: (v ?? "photo") as ShootType })}
-          />
-          <Group justify="flex-end" mt="xs">
-            <Button variant="default" onClick={closeCreate}>
-              Cancel
-            </Button>
-            <Button
-              disabled={
-                !draft.creatorId ||
-                !draft.agentId ||
-                !draft.day ||
-                draft.project.trim() === ""
-              }
-              onClick={createBooking}
-            >
-              Create booking
-            </Button>
-          </Group>
-        </Stack>
       </Modal>
     </Stack>
   );

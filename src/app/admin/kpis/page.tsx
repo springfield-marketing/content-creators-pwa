@@ -1,5 +1,8 @@
 "use client";
 
+// Screen 9 — KPI dashboard on live queries (§B6). Approved-only counting.
+
+import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import {
   Button,
@@ -8,6 +11,7 @@ import {
   Group,
   Progress,
   Select,
+  Skeleton,
   SimpleGrid,
   Stack,
   Text,
@@ -15,80 +19,54 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconDownload } from "@tabler/icons-react";
-import {
-  creatorById,
-  currentMonth,
-  kpis,
-  targets,
-  type KpiRow,
-} from "@/lib/mock-data";
+import type { CreatorKpis } from "@/lib/kpis";
 
-const pct = (v: number) => `${Math.round(v * 100)}%`;
+const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—");
 
-function exportCsv() {
+function exportCsv(month: string, kpis: CreatorKpis[]) {
   const header =
-    "creator,month,booked,completed,cancelled,no_shows,submitted,approved,revision_rate,posted,post_rate,avg_turnaround_h";
+    "creator,month,booked,completed,cancelled,cancelled_by_creator,no_shows,overtime_minutes,submitted,approved,needs_revision,posted,avg_turnaround_h,target_shoots,target_deliverables,target_posted";
   const rows = kpis.map((k) =>
     [
-      creatorById(k.creatorId)?.name,
-      k.month,
-      k.shootsBooked,
-      k.shootsCompleted,
-      k.shootsCancelled,
-      k.noShows,
-      k.submitted,
-      k.approved,
-      k.revisionRate,
-      k.postedCount,
-      k.postRate,
-      k.avgTurnaroundHours,
+      k.creatorName, month, k.booked, k.completed, k.cancelled, k.cancelledByCreator,
+      k.noShows, k.overtimeMinutes, k.submitted, k.approved, k.needsRevision,
+      k.posted, k.avgTurnaroundHours ?? "", k.targetShoots, k.targetDeliverables, k.targetPosted,
     ].join(",")
   );
   const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `kpis-${currentMonth}.csv`;
+  a.download = `kpis-${month}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
 
-function CreatorKpiCard({ kpi }: { kpi: KpiRow }) {
-  const creator = creatorById(kpi.creatorId)!;
-  const target = targets.find(
-    (t) => t.creatorId === kpi.creatorId && t.month === kpi.month
-  )!;
-
+function CreatorCard({ k }: { k: CreatorKpis }) {
   const bars = [
-    { label: "Shoots completed", value: kpi.shootsCompleted, target: target.shoots },
-    { label: "Deliverables approved", value: kpi.approved, target: target.deliverables },
-    { label: "Posted", value: kpi.postedCount, target: target.posted },
+    { label: "Shoots completed", value: k.completed, target: k.targetShoots },
+    { label: "Deliverables approved", value: k.approved, target: k.targetDeliverables },
+    { label: "Posted", value: k.posted, target: k.targetPosted },
   ];
-
-  const cancelledDetail = Object.entries(kpi.cancellationReasons)
-    .map(([reason, n]) => `${reason}: ${n}`)
+  const reasons = Object.entries(k.cancellationReasons)
+    .map(([r, n]) => `${r}: ${n}`)
     .join(" · ");
-
   const facts = [
-    { label: "Booked", value: String(kpi.shootsBooked) },
-    {
-      label: "Cancelled",
-      value: String(kpi.shootsCancelled),
-      tooltip: cancelledDetail || undefined,
-    },
-    { label: "No-shows", value: String(kpi.noShows) },
-    { label: "Submitted", value: String(kpi.submitted) },
-    { label: "Revision rate", value: pct(kpi.revisionRate) },
-    { label: "Post rate", value: pct(kpi.postRate) },
-    { label: "Avg turnaround", value: `${kpi.avgTurnaroundHours}h` },
+    { label: "Booked", value: String(k.booked) },
+    { label: "Cancelled", value: String(k.cancelled), tooltip: reasons || undefined },
+    { label: "No-shows", value: String(k.noShows) },
+    { label: "Submitted", value: String(k.submitted) },
+    { label: "Revisions", value: pct(k.needsRevision, k.submitted) },
+    { label: "Post rate", value: pct(k.posted, k.approved) },
+    { label: "Turnaround", value: k.avgTurnaroundHours != null ? `${k.avgTurnaroundHours}h` : "—" },
+    { label: "Overtime", value: k.overtimeMinutes > 0 ? `${k.overtimeMinutes}m` : "—" },
   ];
 
   return (
     <Card>
       <Stack gap="sm">
-        <Text fw={600}>{creator.name}</Text>
-
+        <Text fw={600}>{k.creatorName}</Text>
         {bars.map((b) => {
-          const p = Math.min(100, Math.round((b.value / b.target) * 100));
+          const p = b.target > 0 ? Math.min(100, Math.round((b.value / b.target) * 100)) : 0;
           return (
             <div key={b.label}>
               <Group justify="space-between" mb={2}>
@@ -96,25 +74,17 @@ function CreatorKpiCard({ kpi }: { kpi: KpiRow }) {
                   {b.label}
                 </Text>
                 <Text size="xs" fw={600}>
-                  {b.value} / {b.target}
+                  {b.value} / {b.target || "—"}
                 </Text>
               </Group>
               <Progress value={p} size="sm" color={p >= 100 ? "green" : "brand"} />
             </div>
           );
         })}
-
         <Divider />
-
         <SimpleGrid cols={4} spacing="xs">
           {facts.map((f) => (
-            <Tooltip
-              key={f.label}
-              label={f.tooltip}
-              disabled={!f.tooltip}
-              multiline
-              maw={220}
-            >
+            <Tooltip key={f.label} label={f.tooltip} disabled={!f.tooltip} multiline maw={240}>
               <div>
                 <Text size="xs" c="dimmed">
                   {f.label}
@@ -131,14 +101,35 @@ function CreatorKpiCard({ kpi }: { kpi: KpiRow }) {
   );
 }
 
-// Screen 9 — KPI dashboard: per creator, per month, plus team totals.
 export default function KpiDashboard() {
-  const total = (fn: (k: KpiRow) => number) => kpis.reduce((s, k) => s + fn(k), 0);
+  const [month, setMonth] = useState(dayjs().format("YYYY-MM"));
+  const [result, setResult] = useState<{ key: string; kpis: CreatorKpis[] } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/admin/kpis?month=${month}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => !cancelled && setResult({ key: month, kpis: d.kpis }))
+      .catch(() => !cancelled && setResult({ key: month, kpis: [] }));
+    return () => {
+      cancelled = true;
+    };
+  }, [month]);
+
+  const data = result?.key === month ? result.kpis : null;
+
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const m = dayjs().subtract(i, "month");
+    return { value: m.format("YYYY-MM"), label: m.format("MMMM YYYY") };
+  });
+
+  const total = (fn: (k: CreatorKpis) => number) =>
+    (data ?? []).reduce((s, k) => s + fn(k), 0);
   const teamStats = [
-    { label: "Shoots completed", value: total((k) => k.shootsCompleted) },
+    { label: "Shoots completed", value: total((k) => k.completed) },
     { label: "Deliverables approved", value: total((k) => k.approved) },
-    { label: "Posted", value: total((k) => k.postedCount) },
-    { label: "Cancellations", value: total((k) => k.shootsCancelled) },
+    { label: "Posted", value: total((k) => k.posted) },
+    { label: "Cancellations", value: total((k) => k.cancelled) },
     { label: "No-shows", value: total((k) => k.noShows) },
   ];
 
@@ -153,46 +144,49 @@ export default function KpiDashboard() {
         </div>
         <Group>
           <Select
-            data={[
-              {
-                value: currentMonth,
-                label: dayjs(currentMonth).format("MMMM YYYY"),
-              },
-            ]}
-            value={currentMonth}
+            data={months}
+            value={month}
+            onChange={(v) => v && setMonth(v)}
             allowDeselect={false}
             maw={170}
           />
           <Button
             variant="default"
             leftSection={<IconDownload size={16} />}
-            onClick={exportCsv}
+            disabled={!data}
+            onClick={() => data && exportCsv(month, data)}
           >
             Export CSV
           </Button>
         </Group>
       </Group>
 
-      <Card padding="sm">
-        <Group justify="space-around">
-          {teamStats.map((s) => (
-            <div key={s.label} style={{ textAlign: "center" }}>
-              <Text fz={24} fw={700} lh={1.2}>
-                {s.value}
-              </Text>
-              <Text size="xs" c="dimmed">
-                {s.label}
-              </Text>
-            </div>
-          ))}
-        </Group>
-      </Card>
+      {data === null ? (
+        <Skeleton height={400} radius="lg" />
+      ) : (
+        <>
+          <Card padding="sm">
+            <Group justify="space-around">
+              {teamStats.map((s) => (
+                <div key={s.label} style={{ textAlign: "center" }}>
+                  <Text fz={24} fw={700} lh={1.2}>
+                    {s.value}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {s.label}
+                  </Text>
+                </div>
+              ))}
+            </Group>
+          </Card>
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-        {kpis.map((k) => (
-          <CreatorKpiCard key={k.creatorId} kpi={k} />
-        ))}
-      </SimpleGrid>
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+            {data.map((k) => (
+              <CreatorCard key={k.creatorId} k={k} />
+            ))}
+          </SimpleGrid>
+        </>
+      )}
     </Stack>
   );
 }

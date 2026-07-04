@@ -133,6 +133,11 @@ export const bookings = pgTable(
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     status: bookingStatus("status").notNull().default("confirmed"),
+    // Overtime (decision #8): actual end recorded after the fact; offset is
+    // always computed as actual_ends_at − ends_at, never stored.
+    actualEndsAt: timestamp("actual_ends_at", { withTimezone: true }),
+    // §B12.1: invite declines flag the booking for follow-up, never auto-cancel.
+    agentDeclined: boolean("agent_declined").default(false),
     cancellationReason: text("cancellation_reason"),
     cancelledBy: text("cancelled_by"), // 'agent' | 'creator' | 'manager' | 'system'
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
@@ -174,6 +179,32 @@ export const deliverables = pgTable(
     index("deliverables_review").on(t.reviewStatus, t.createdAt),
     index("deliverables_creator_month").on(t.creatorId, t.workDate),
   ]
+);
+
+export const cancelRequestStatus = pgEnum("cancel_request_status", [
+  "pending",
+  "approved",
+  "declined",
+]);
+
+// §B12.1 ≤24h agent requests. Creator cancellations are direct (decision #12)
+// so they never create a request. While pending, the booking stays confirmed —
+// the slot remains blocked until someone decides.
+export const cancellationRequests = pgTable(
+  "cancellation_requests",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id),
+    requestedBy: text("requested_by").notNull(), // 'agent'
+    reason: text("reason").notNull(),
+    status: cancelRequestStatus("status").notNull().default("pending"),
+    decidedBy: uuid("decided_by").references(() => users.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("cancel_requests_status").on(t.status, t.createdAt)]
 );
 
 export const kpiTargets = pgTable(

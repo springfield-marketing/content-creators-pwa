@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+// Screen 8 — Review queue, on real data. J/K/A/R keyboard shortcuts.
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import {
   ActionIcon,
@@ -12,6 +14,7 @@ import {
   Kbd,
   Modal,
   Select,
+  Skeleton,
   Stack,
   Text,
   Textarea,
@@ -20,88 +23,113 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconExternalLink,
-  IconMessage,
-} from "@tabler/icons-react";
-import {
-  agentById,
-  creatorById,
-  creators,
-  deliverables,
-  type Deliverable,
-} from "@/lib/mock-data";
+import { IconCheck, IconExternalLink, IconMessage } from "@tabler/icons-react";
 
-const typeLabel: Record<Deliverable["type"], string> = {
-  photo_shoot: "Photo Shoot",
-  video_shoot: "Video Shoot",
+type QueueItem = {
+  id: string;
+  type: "photo_shoot" | "video_shoot" | "other";
+  url: string;
+  posted: boolean;
+  submittedAt: string;
+  creatorId: string;
+  creatorName: string;
+  agentName: string | null;
 };
 
-// Screen 8 — Review queue: clear the day's submissions in five minutes.
+const typeLabel: Record<string, string> = {
+  photo_shoot: "Photo Shoot",
+  video_shoot: "Video Shoot",
+  other: "Other",
+};
+
 export default function ReviewQueue() {
-  // Local mock state: decisions made this session.
-  const [decided, setDecided] = useState<Record<string, "approved" | "changes">>({});
+  const [items, setItems] = useState<QueueItem[] | null>(null);
   const [creatorFilter, setCreatorFilter] = useState<string | null>(null);
   const [selected, setSelected] = useState(0);
   const [comment, setComment] = useState("");
-  const [changesTarget, setChangesTarget] = useState<Deliverable | null>(null);
+  const [changesTarget, setChangesTarget] = useState<QueueItem | null>(null);
+  const [busy, setBusy] = useState(false);
   const [changesOpen, { open: openChanges, close: closeChanges }] =
     useDisclosure(false);
 
+  const reload = useCallback(() => {
+    fetch("/api/admin/review-queue")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setItems)
+      .catch(() =>
+        notifications.show({
+          title: "Couldn't load the queue",
+          message: "Try refreshing.",
+          color: "red",
+        })
+      );
+  }, []);
+  useEffect(reload, [reload]);
+
   const queue = useMemo(
     () =>
-      deliverables
-        .filter((d) => d.status === "pending" && !decided[d.id])
-        .filter((d) => !creatorFilter || d.creatorId === creatorFilter)
-        .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
-    [decided, creatorFilter]
+      (items ?? []).filter(
+        (d) => !creatorFilter || d.creatorId === creatorFilter
+      ),
+    [items, creatorFilter]
+  );
+  const creators = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const d of items ?? []) seen.set(d.creatorId, d.creatorName);
+    return [...seen].map(([value, label]) => ({ value, label }));
+  }, [items]);
+
+  const decide = useCallback(
+    async (d: QueueItem, action: "approve" | "request_changes", c?: string) => {
+      setBusy(true);
+      const res = await fetch(`/api/admin/deliverables/${d.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          action === "approve" ? { action } : { action, comment: c }
+        ),
+      });
+      setBusy(false);
+      if (!res.ok) {
+        notifications.show({ title: "Action failed", message: "Try again.", color: "red" });
+        return;
+      }
+      notifications.show({
+        title: action === "approve" ? "Approved" : "Changes requested",
+        message:
+          action === "approve"
+            ? `${d.creatorName}'s ${typeLabel[d.type].toLowerCase()} counts toward this month's KPIs.`
+            : "The creator sees your comment on their progress screen.",
+        color: action === "approve" ? "green" : "orange",
+      });
+      setItems((cur) => (cur ?? []).filter((x) => x.id !== d.id));
+    },
+    []
   );
 
-  const approve = (d: Deliverable) => {
-    setDecided((m) => ({ ...m, [d.id]: "approved" }));
-    notifications.show({
-      title: "Approved",
-      message: `${creatorById(d.creatorId)?.name}'s ${typeLabel[d.type].toLowerCase()} counts toward this month's KPIs.`,
-      color: "green",
-    });
-  };
+  const askChanges = useCallback(
+    (d: QueueItem) => {
+      setChangesTarget(d);
+      setComment("");
+      openChanges();
+    },
+    [openChanges]
+  );
 
-  const askChanges = (d: Deliverable) => {
-    setChangesTarget(d);
-    setComment("");
-    openChanges();
-  };
-
-  const confirmChanges = () => {
-    if (changesTarget) {
-      setDecided((m) => ({ ...m, [changesTarget.id]: "changes" }));
-      notifications.show({
-        title: "Changes requested",
-        message: "The creator sees your comment immediately.",
-        color: "orange",
-      });
-    }
-    closeChanges();
-  };
-
-  // Selection clamps as the queue shrinks (approvals remove rows).
   const sel = Math.min(selected, Math.max(queue.length - 1, 0));
 
-  // Keyboard shortcuts: J/K move, A approve, R request changes.
   useEffect(() => {
     if (changesOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === "INPUT") return;
       if (e.key === "j") setSelected(Math.min(sel + 1, queue.length - 1));
       if (e.key === "k") setSelected(Math.max(sel - 1, 0));
-      if (e.key === "a" && queue[sel]) approve(queue[sel]);
+      if (e.key === "a" && queue[sel]) decide(queue[sel], "approve");
       if (e.key === "r" && queue[sel]) askChanges(queue[sel]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queue, sel, changesOpen]);
+  }, [queue, sel, changesOpen, decide, askChanges]);
 
   return (
     <Stack gap="lg">
@@ -132,94 +160,83 @@ export default function ReviewQueue() {
         placeholder="Filter by creator"
         clearable
         maw={280}
-        data={creators
-          .filter((c) => c.active)
-          .map((c) => ({ value: c.id, label: c.name }))}
+        data={creators}
         value={creatorFilter}
         onChange={setCreatorFilter}
       />
 
-      {queue.length === 0 ? (
+      {items === null ? (
+        <Skeleton height={260} radius="lg" />
+      ) : queue.length === 0 ? (
         <Alert variant="light" color="green">
           Queue is clear — nothing waiting for review.
         </Alert>
       ) : (
         <Stack gap="xs">
-          {queue.map((d, i) => {
-            const creator = creatorById(d.creatorId)!;
-            const agent = d.agentId ? agentById(d.agentId) : null;
-            const isSelected = i === sel;
-            return (
-              <Card
-                key={d.id}
-                padding="sm"
-                onClick={() => setSelected(i)}
-                style={{
-                  cursor: "pointer",
-                  borderColor: isSelected
-                    ? "var(--mantine-color-brand-6)"
-                    : undefined,
-                }}
-              >
-                <Group justify="space-between" wrap="nowrap">
-                  <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-                    <Badge variant="light" size="sm" miw={72}>
-                      {typeLabel[d.type]}
-                    </Badge>
-                    <div style={{ minWidth: 0 }}>
-                      <Text size="sm" fw={600} truncate>
-                        {creator.name}
-                        {agent ? ` · for ${agent.name}` : ""}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        submitted {dayjs(d.submittedAt).format("ddd D MMM HH:mm")}
-                        {d.posted ? " · posted" : ""}
-                      </Text>
-                    </div>
-                  </Group>
-                  <Group gap="xs" wrap="nowrap">
-                    <Tooltip label="Open in new tab">
-                      <ActionIcon
-                        variant="default"
-                        component="a"
-                        href={d.url}
-                        target="_blank"
-                        aria-label="Open deliverable"
-                      >
-                        <IconExternalLink size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Button
-                      size="xs"
-                      color="green"
-                      leftSection={<IconCheck size={14} />}
-                      onClick={() => approve(d)}
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="light"
-                      color="orange"
-                      leftSection={<IconMessage size={14} />}
-                      onClick={() => askChanges(d)}
-                    >
-                      Request changes
-                    </Button>
-                  </Group>
+          {queue.map((d, i) => (
+            <Card
+              key={d.id}
+              padding="sm"
+              onClick={() => setSelected(i)}
+              style={{
+                cursor: "pointer",
+                borderColor: i === sel ? "var(--mantine-color-brand-6)" : undefined,
+              }}
+            >
+              <Group justify="space-between" wrap="nowrap">
+                <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+                  <Badge variant="light" size="sm" miw={100}>
+                    {typeLabel[d.type]}
+                  </Badge>
+                  <div style={{ minWidth: 0 }}>
+                    <Text size="sm" fw={600} truncate>
+                      {d.creatorName}
+                      {d.agentName ? ` · for ${d.agentName}` : ""}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      submitted {dayjs(d.submittedAt).format("ddd D MMM HH:mm")}
+                      {d.posted ? " · posted" : ""}
+                    </Text>
+                  </div>
                 </Group>
-              </Card>
-            );
-          })}
+                <Group gap="xs" wrap="nowrap">
+                  <Tooltip label="Open in new tab">
+                    <ActionIcon
+                      variant="default"
+                      component="a"
+                      href={d.url}
+                      target="_blank"
+                      aria-label="Open deliverable"
+                    >
+                      <IconExternalLink size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Button
+                    size="xs"
+                    color="green"
+                    leftSection={<IconCheck size={14} />}
+                    loading={busy}
+                    onClick={() => decide(d, "approve")}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="orange"
+                    leftSection={<IconMessage size={14} />}
+                    onClick={() => askChanges(d)}
+                  >
+                    Request changes
+                  </Button>
+                </Group>
+              </Group>
+            </Card>
+          ))}
         </Stack>
       )}
 
-      <Modal
-        opened={changesOpen}
-        onClose={closeChanges}
-        title="Request changes"
-        centered
-      >
+      <Modal opened={changesOpen} onClose={closeChanges} title="Request changes" centered>
         <Stack gap="md">
           <Textarea
             label="Comment for the creator"
@@ -237,8 +254,14 @@ export default function ReviewQueue() {
             </Button>
             <Button
               color="orange"
-              disabled={comment.trim() === ""}
-              onClick={confirmChanges}
+              disabled={comment.trim().length < 3}
+              loading={busy}
+              onClick={async () => {
+                if (changesTarget) {
+                  await decide(changesTarget, "request_changes", comment);
+                }
+                closeChanges();
+              }}
             >
               Send to creator
             </Button>

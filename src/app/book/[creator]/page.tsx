@@ -20,6 +20,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { DatePicker } from "@mantine/dates";
+import { notifications } from "@mantine/notifications";
 import { IconCalendarOff, IconInfoCircle } from "@tabler/icons-react";
 import { useCreatorProfile } from "@/lib/use-creator";
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
@@ -117,6 +118,7 @@ function PickTime() {
   }
 
   const rescheduleId = searchParams.get("reschedule");
+  const rtoken = searchParams.get("rtoken");
   const days = Array.from({ length: 14 }, (_, i) =>
     dayjs().startOf("day").add(i, "day")
   );
@@ -124,13 +126,37 @@ function PickTime() {
   const activeDay = selectedDay ?? firstAvailable;
   const daySlots = activeDay ? (slotsByDate.get(activeDay) ?? []) : [];
 
-  const pickSlot = (slot: Slot) => {
+  const pickSlot = async (slot: Slot) => {
+    // Reschedule (§B12.1): atomic re-book — same booking, new times.
+    if (rescheduleId && rtoken) {
+      const res = await fetch(`/api/bookings/${rescheduleId}/reschedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: rtoken, shootType, start: slot.start }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notifications.show({
+          title: "Couldn't reschedule",
+          message: body.error ?? "Please try another slot.",
+          color: res.status === 409 ? "orange" : "red",
+        });
+        return;
+      }
+      notifications.show({
+        title: "Booking rescheduled",
+        message: "Everyone's calendar has been updated.",
+        color: "green",
+      });
+      router.push(`/booking/${rescheduleId}?token=${encodeURIComponent(rtoken)}`);
+      return;
+    }
+
     const params = new URLSearchParams({
       start: slot.start,
       end: slot.end,
       type: shootType,
     });
-    if (rescheduleId) params.set("reschedule", rescheduleId);
     router.push(`/book/${creator.slug}/details?${params.toString()}`);
   };
 
