@@ -71,10 +71,12 @@ export const users = pgTable("users", {
   webhookResourceId: text("webhook_resource_id"),
   webhookExpiresAt: timestamp("webhook_expires_at", { withTimezone: true }),
   calendarSyncToken: text("calendar_sync_token"),
+  // Default booking windows: split day 10:30–13:30 and 16:00–19:00
+  // (company-wide default; the manager adjusts per week in /admin/schedule).
   workingHours: jsonb("working_hours")
     .$type<WorkingHours>()
     .default(
-      sql`'{"mon":[["09:00","18:00"]],"tue":[["09:00","18:00"]],"wed":[["09:00","18:00"]],"thu":[["09:00","18:00"]],"fri":[["09:00","18:00"]]}'::jsonb`
+      sql`'{"mon":[["10:30","13:30"],["16:00","19:00"]],"tue":[["10:30","13:30"],["16:00","19:00"]],"wed":[["10:30","13:30"],["16:00","19:00"]],"thu":[["10:30","13:30"],["16:00","19:00"]],"fri":[["10:30","13:30"],["16:00","19:00"]]}'::jsonb`
     ),
   shootDurations: jsonb("shoot_durations")
     .$type<ShootDurations>()

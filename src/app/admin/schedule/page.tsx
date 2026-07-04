@@ -18,11 +18,10 @@ import {
   Skeleton,
   Stack,
   Switch,
-  Table,
   Text,
   Title,
 } from "@mantine/core";
-import { TimeInput } from "@mantine/dates";
+import { WeekHoursEditor, type Hours } from "@/components/WeekHoursEditor";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
@@ -32,13 +31,6 @@ import {
   IconDeviceFloppy,
 } from "@tabler/icons-react";
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
-
-const WEEKDAYS = [
-  ["mon", "Mon"], ["tue", "Tue"], ["wed", "Wed"], ["thu", "Thu"],
-  ["fri", "Fri"], ["sat", "Sat"], ["sun", "Sun"],
-] as const;
-type DayKey = (typeof WEEKDAYS)[number][0];
-type Hours = Partial<Record<DayKey, [string, string][]>>;
 
 type PlanRow = {
   creatorId: string;
@@ -265,17 +257,6 @@ function PlanRowCard({
   const custom = row.workingHours !== null;
   const hours = row.workingHours ?? row.defaultHours;
 
-  const setDay = (key: DayKey, on: boolean, from?: string, to?: string) => {
-    const next: Hours = { ...hours };
-    if (!on) {
-      delete next[key];
-    } else {
-      const cur = next[key]?.[0] ?? ["09:00", "18:00"];
-      next[key] = [[from ?? cur[0], to ?? cur[1]]];
-    }
-    onChange({ workingHours: next });
-  };
-
   return (
     <Card padding="sm">
       <Group justify="space-between" wrap="wrap" gap="sm">
@@ -325,45 +306,12 @@ function PlanRowCard({
       </Group>
 
       <Collapse expanded={row.planned && custom}>
-        <Table verticalSpacing={4} mt="sm">
-          <Table.Tbody>
-            {WEEKDAYS.map(([key, label]) => {
-              const ranges = hours[key] ?? [];
-              const on = ranges.length > 0;
-              return (
-                <Table.Tr key={key}>
-                  <Table.Td w={90}>
-                    <Switch
-                      size="xs"
-                      label={label}
-                      checked={on}
-                      onChange={(e) => setDay(key, e.currentTarget.checked)}
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    {on && (
-                      <Group gap="xs" wrap="nowrap">
-                        <TimeInput
-                          size="xs"
-                          value={ranges[0][0]}
-                          onChange={(e) => setDay(key, true, e.currentTarget.value, undefined)}
-                        />
-                        <Text size="xs" c="dimmed">
-                          to
-                        </Text>
-                        <TimeInput
-                          size="xs"
-                          value={ranges[ranges.length - 1][1]}
-                          onChange={(e) => setDay(key, true, undefined, e.currentTarget.value)}
-                        />
-                      </Group>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
+        <div style={{ marginTop: 8 }}>
+          <WeekHoursEditor
+            value={hours}
+            onChange={(next) => onChange({ workingHours: next })}
+          />
+        </div>
       </Collapse>
     </Card>
   );

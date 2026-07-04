@@ -18,13 +18,12 @@ import {
   SimpleGrid,
   Skeleton,
   Stack,
-  Switch,
-  Table,
-  Text,
+    Text,
   TextInput,
   Title,
 } from "@mantine/core";
-import { DatePickerInput, TimeInput } from "@mantine/dates";
+import { DatePickerInput } from "@mantine/dates";
+import { WeekHoursEditor, type Hours } from "@/components/WeekHoursEditor";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
@@ -34,18 +33,12 @@ import {
 } from "@tabler/icons-react";
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
 
-const WEEKDAYS = [
-  ["mon", "Mon"], ["tue", "Tue"], ["wed", "Wed"], ["thu", "Thu"],
-  ["fri", "Fri"], ["sat", "Sat"], ["sun", "Sun"],
-] as const;
-type DayKey = (typeof WEEKDAYS)[number][0];
-
 type TimeOffEntry = { id: string; from: string; to: string; reason: string | null };
 type CreatorRow = {
   id: string;
   name: string;
   isActive: boolean;
-  workingHours: Partial<Record<DayKey, [string, string][]>>;
+  workingHours: Hours;
   shootDurations: { photo: number; video: number; photo_video: number };
   bufferMinutes: number;
   minNoticeHours: number;
@@ -61,12 +54,10 @@ type Conflict = {
   agentName: string | null;
 };
 
-type DayHours = { on: boolean; from: string; to: string };
-
 export default function CreatorSettings() {
   const [creators, setCreators] = useState<CreatorRow[] | null>(null);
   const [creatorId, setCreatorId] = useState<string | null>(null);
-  const [hours, setHours] = useState<Record<DayKey, DayHours> | null>(null);
+  const [hours, setHours] = useState<Hours | null>(null);
   const [rules, setRules] = useState({
     photo: 90, video: 150, photo_video: 180,
     buffer: 30, notice: 24, horizon: 28, maxPerDay: 3,
@@ -79,16 +70,7 @@ export default function CreatorSettings() {
   const creator = (creators ?? []).find((c) => c.id === creatorId) ?? null;
 
   const loadIntoForm = useCallback((c: CreatorRow) => {
-    const h = {} as Record<DayKey, DayHours>;
-    for (const [key] of WEEKDAYS) {
-      const ranges = c.workingHours[key] ?? [];
-      h[key] = {
-        on: ranges.length > 0,
-        from: ranges[0]?.[0] ?? "09:00",
-        to: ranges[ranges.length - 1]?.[1] ?? "18:00",
-      };
-    }
-    setHours(h);
+    setHours({ ...c.workingHours });
     setRules({
       photo: c.shootDurations.photo,
       video: c.shootDurations.video,
@@ -143,15 +125,11 @@ export default function CreatorSettings() {
   const saveSettings = async () => {
     if (!creator || !hours) return;
     setSaving(true);
-    const workingHours: Partial<Record<DayKey, [string, string][]>> = {};
-    for (const [key] of WEEKDAYS) {
-      if (hours[key].on) workingHours[key] = [[hours[key].from, hours[key].to]];
-    }
     const res = await fetch(`/api/admin/creators/${creator.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        workingHours,
+        workingHours: hours,
         shootDurations: {
           photo: rules.photo,
           video: rules.video,
@@ -293,55 +271,7 @@ export default function CreatorSettings() {
         <Card>
           <Stack gap="sm">
             <Text fw={600}>Working hours</Text>
-            <Table verticalSpacing={6}>
-              <Table.Tbody>
-                {WEEKDAYS.map(([key, label]) => (
-                  <Table.Tr key={key}>
-                    <Table.Td w={90}>
-                      <Switch
-                        label={label}
-                        checked={hours[key].on}
-                        onChange={(e) =>
-                          setHours({
-                            ...hours,
-                            [key]: { ...hours[key], on: e.currentTarget.checked },
-                          })
-                        }
-                      />
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs" wrap="nowrap">
-                        <TimeInput
-                          size="xs"
-                          value={hours[key].from}
-                          disabled={!hours[key].on}
-                          onChange={(e) =>
-                            setHours({
-                              ...hours,
-                              [key]: { ...hours[key], from: e.currentTarget.value },
-                            })
-                          }
-                        />
-                        <Text size="xs" c="dimmed">
-                          to
-                        </Text>
-                        <TimeInput
-                          size="xs"
-                          value={hours[key].to}
-                          disabled={!hours[key].on}
-                          onChange={(e) =>
-                            setHours({
-                              ...hours,
-                              [key]: { ...hours[key], to: e.currentTarget.value },
-                            })
-                          }
-                        />
-                      </Group>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+            <WeekHoursEditor value={hours} onChange={setHours} />
           </Stack>
         </Card>
 
