@@ -44,3 +44,4 @@ next-env.d.ts
 Agent list.csv
 seed-data/
 google-service-account.local.json
+github-token.local.txt
