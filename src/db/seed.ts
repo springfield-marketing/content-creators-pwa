@@ -59,7 +59,11 @@ function loadRealAgents(): { name: string; phone: string; email: string }[] | nu
     .filter(Boolean)
     .map((line) => {
       const [name, phone, email] = line.split(",").map((s) => s.trim());
-      return { name, phone: phone.startsWith("+") ? phone : `+${phone}`, email };
+      return {
+        name,
+        phone: phone ? (phone.startsWith("+") ? phone : `+${phone}`) : "",
+        email,
+      };
     });
 }
 
