@@ -168,16 +168,19 @@ async function main() {
     allCreatorIds = rows.map((r) => r.id);
   }
 
-  // Weekly plans (strict availability): open the current + next week for
-  // everyone with default hours so the booking page works out of the box.
-  console.log("Week plans…");
-  const monday = dayjs().subtract((dayjs().day() + 6) % 7, "day");
-  await db.insert(t.creatorWeekSchedules).values(
-    allCreatorIds.flatMap((id) => [
-      { creatorId: id, weekStart: monday.format("YYYY-MM-DD"), role: "all" as const },
-      { creatorId: id, weekStart: monday.add(7, "day").format("YYYY-MM-DD"), role: "all" as const },
-    ])
-  );
+  if (seedDemo) {
+    // Dev convenience: open current + next week so slots exist immediately.
+    // Production (SEED_DEMO=0) starts unplanned — the manager opens weeks
+    // in /admin/schedule, which is the real workflow.
+    console.log("Week plans…");
+    const monday = dayjs().subtract((dayjs().day() + 6) % 7, "day");
+    await db.insert(t.creatorWeekSchedules).values(
+      allCreatorIds.flatMap((id) => [
+        { creatorId: id, weekStart: monday.format("YYYY-MM-DD"), role: "all" as const },
+        { creatorId: id, weekStart: monday.add(7, "day").format("YYYY-MM-DD"), role: "all" as const },
+      ])
+    );
+  }
 
   const [manager] = await db
     .insert(t.users)
@@ -185,7 +188,10 @@ async function main() {
       // Managers get real account emails so Google sign-in maps to these rows.
       { email: "zed@springfield-re.com", fullName: "Zed", role: "manager" as const },
       { email: "nihaal@springfield-re.com", fullName: "Nihaal", role: "manager" as const },
-      { email: "exec@springfield-re.com", fullName: "Exec Viewer", role: "executive" as const },
+      // Placeholder executive account is dev-demo only.
+      ...(seedDemo
+        ? [{ email: "exec@springfield-re.com", fullName: "Exec Viewer", role: "executive" as const }]
+        : []),
     ])
     .returning({ id: t.users.id });
 
@@ -221,12 +227,14 @@ async function main() {
         }))
       )
       .returning({ id: t.agents.id });
-    // One fictional pending registration so the approval inbox is demoable.
-    await db.insert(t.agents).values({
-      fullName: "Lena Fischer (demo)",
-      email: "lena.demo@example.invalid",
-      isApproved: false,
-    });
+    if (seedDemo) {
+      // One fictional pending registration so the approval inbox is demoable.
+      await db.insert(t.agents).values({
+        fullName: "Lena Fischer (demo)",
+        email: "lena.demo@example.invalid",
+        isApproved: false,
+      });
+    }
     // Demo bookings/deliverables reference fictional agents — re-point, cycling.
     agentId = new Map(
       mockAgents.map((a, i) => [a.id, rows[i % rows.length].id])
@@ -254,17 +262,9 @@ async function main() {
   }
 
   if (!seedDemo) {
-    console.log("Targets (defaults for all creators)…");
-    await db.insert(t.kpiTargets).values(
-      allCreatorIds.map((id) => ({
-        creatorId: id,
-        month: `${currentMonth}-01`,
-        targetShoots: 20,
-        targetDeliverables: 24,
-        targetPosted: 12,
-      }))
+    console.log(
+      "Seed complete (production-clean: real creators, agents, managers only — no plans, targets, bookings, or deliverables)."
     );
-    console.log("Seed complete (clean slate — no demo bookings/deliverables).");
     process.exit(0);
   }
 
