@@ -75,6 +75,7 @@ function BookingDetails() {
 
   const submit = async () => {
     setSubmitting(true);
+    let agentId = agent?.id ?? null;
     let agentName = agent?.name ?? "";
 
     if (registering) {
@@ -99,16 +100,57 @@ function BookingDetails() {
         setSubmitting(false);
         return;
       }
-      agentName = `${newAgent.name} (new)`;
+      const created = await res.json();
+      agentId = created.id;
+      agentName = newAgent.name;
     }
 
+    // The real booking: server re-validates the slot, writes the calendar
+    // event, and emails the invite. 409 = someone took the slot first.
+    const res = await fetch("/api/bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        creatorSlug: creator.slug,
+        shootType,
+        start: slot.toISOString(),
+        agentId,
+        projectName,
+        locationType: locationKind === "onsite" ? "on_site" : "office",
+        propertyAddress: locationKind === "onsite" ? address : undefined,
+        notes: notes.trim() || undefined,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        notifications.show({
+          title: "Slot no longer available",
+          message: body.error ?? "Someone just booked this time — please pick another slot.",
+          color: "orange",
+        });
+        router.push(`/book/${creator.slug}`);
+      } else {
+        notifications.show({
+          title: "Booking failed",
+          message: body.error ?? "Please try again.",
+          color: "red",
+        });
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    const booking = await res.json();
     const params = new URLSearchParams({
-      start: slot.toISOString(),
-      end: slotEnd.toISOString(),
+      start: booking.start,
+      end: booking.end,
       type: shootType,
       agent: agentName,
       project: projectName,
       location: locationKind === "onsite" ? address : "Office",
+      manage: booking.manageUrl,
     });
     if (rescheduleId) params.set("reschedule", rescheduleId);
     router.push(`/book/${creator.slug}/confirmed?${params.toString()}`);

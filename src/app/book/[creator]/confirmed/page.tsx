@@ -37,6 +37,7 @@ function Confirmed() {
   const agent = searchParams.get("agent") ?? "";
   const project = searchParams.get("project") ?? "";
   const location = searchParams.get("location") ?? "";
+  const manageUrl = searchParams.get("manage");
   const wasReschedule = searchParams.get("reschedule") !== null;
 
   if (state === "loading") {
@@ -104,15 +105,16 @@ function Confirmed() {
 
       <Center>
         <Group>
-          {/* Mock secure manage link — in production this is a signed, expiring URL */}
-          <Button
-            variant="default"
-            component={Link}
-            href="/booking/b6"
-            leftSection={<IconCalendarCheck size={18} />}
-          >
-            Manage this booking
-          </Button>
+          {manageUrl && (
+            <Button
+              variant="default"
+              component="a"
+              href={manageUrl}
+              leftSection={<IconCalendarCheck size={18} />}
+            >
+              Manage this booking
+            </Button>
+          )}
           <Button component={Link} href="/book" variant="light">
             Book another shoot
           </Button>

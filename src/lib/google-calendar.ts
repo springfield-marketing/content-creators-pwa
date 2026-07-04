@@ -34,6 +34,54 @@ export function calendarFor(userEmail: string) {
   return google.calendar({ version: "v3", auth });
 }
 
+// Creates the booking event on the creator's calendar (§B5.2). The agent is
+// an attendee and sendUpdates=all, so Google emails them a standard invite
+// that works across Google/Outlook/Apple. Returns the Google event id.
+export async function insertBookingEvent(params: {
+  creatorEmail: string;
+  bookingId: string;
+  summary: string;
+  description: string;
+  location: string;
+  startIso: string;
+  endIso: string;
+  agentEmail: string | null;
+  timeZone: string;
+}): Promise<string> {
+  const calendar = calendarFor(params.creatorEmail);
+  const res = await calendar.events.insert({
+    calendarId: "primary",
+    sendUpdates: "all",
+    requestBody: {
+      summary: params.summary,
+      location: params.location,
+      description: params.description,
+      start: { dateTime: params.startIso, timeZone: params.timeZone },
+      end: { dateTime: params.endIso, timeZone: params.timeZone },
+      attendees: params.agentEmail ? [{ email: params.agentEmail }] : [],
+      extendedProperties: {
+        private: { bookingId: params.bookingId, app: "contentapp" },
+      },
+      reminders: { useDefault: true },
+    },
+  });
+  if (!res.data.id) throw new Error("Calendar event created without an id");
+  return res.data.id;
+}
+
+// Removes a booking's event (cancellation); attendees are notified by Google.
+export async function deleteBookingEvent(
+  creatorEmail: string,
+  eventId: string
+): Promise<void> {
+  const calendar = calendarFor(creatorEmail);
+  await calendar.events.delete({
+    calendarId: "primary",
+    eventId,
+    sendUpdates: "all",
+  });
+}
+
 // Busy blocks for one user over a window (§B5.1 step 1).
 export async function freeBusy(
   userEmail: string,
