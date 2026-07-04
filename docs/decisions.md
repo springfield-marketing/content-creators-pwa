@@ -19,12 +19,12 @@ spec's §B13 open questions. Update this file when a decision is made or changed
 | 11 | Agent email verification (§B13 Q3) | **Self-registered agents only** — known agents book instantly; new registrants confirm via emailed link before the booking is finalized | 2026-07-04 |
 | 12 | Creator cancellation (§B13 Q5) | **Direct** — takes effect immediately (event deleted, agent notified, slot freed), manager informed; attributed to the creator in KPI cancellation stats | 2026-07-04 |
 | 13 | Agent cancellation cutoff (§B13 Q8) | **24h confirmed**; within 24h, manager **or** the affected creator can approve/decline (first to act) | 2026-07-04 |
+| 14 | Weekly schedules & roles | `creator_week_schedules`: per creator per week (Monday-keyed) the manager sets open/closed, role (all / photo_only / video_only / company_only), and optional hours override. **STRICT: unplanned weeks are not bookable.** Weekly plan screen at /admin/schedule with copy-previous-week; role changes conflicting with existing bookings must be resolved first. | 2026-07-04 |
+| 15 | Booking horizon | Calendars open ~a week in advance (per product owner), not 28 days: default max_horizon_days=7, and the strict weekly plan is the real gate. | 2026-07-04 |
+| 16 | Company shoots | Manager-only "Company shoot" booking on /admin/bookings: no agent, source='company', free-form time (overlap-guarded), calendar event on the creator's calendar. The only booking path during company_only weeks. | 2026-07-04 |
 
 ## Open §B13 questions (awaiting product owner)
 
 - Q6: Migrate historical Google Sheets data? How far back?
 - Q7: Executive view-only role in Phase 3, or CSV export enough initially?
 - Q9: Can creators enter their own time off (with approval), or manager-entry only?
-| 14 | Weekly schedules & roles | `creator_week_schedules`: per creator per week (Monday-keyed) the manager sets open/closed, role (all / photo_only / video_only / company_only), and optional hours override. **STRICT: unplanned weeks are not bookable.** Weekly plan screen at /admin/schedule with copy-previous-week; role changes conflicting with existing bookings must be resolved first. | 2026-07-04 |
-| 15 | Booking horizon | Calendars open ~a week in advance (per product owner), not 28 days: default max_horizon_days=7, and the strict weekly plan is the real gate. | 2026-07-04 |
-| 16 | Company shoots | Manager-only "Company shoot" booking on /admin/bookings: no agent, source='company', free-form time (overlap-guarded), calendar event on the creator's calendar. The only booking path during company_only weeks. | 2026-07-04 |
