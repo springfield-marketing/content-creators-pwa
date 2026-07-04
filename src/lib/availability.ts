@@ -8,9 +8,14 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, creatorTimeOff, users } from "@/db/schema";
+import {
+  bookings,
+  creatorTimeOff,
+  creatorWeekSchedules,
+  users,
+} from "@/db/schema";
 import type { ShootDurations, WorkingHours } from "@/db/schema";
 import { freeBusy } from "@/lib/google-calendar";
 
@@ -39,15 +44,35 @@ export type DateRange = { from: string; to: string }; // YYYY-MM-DD (inclusive)
 
 export type Slot = { start: string; end: string; date: string; label: string };
 
+export type WeekRole = "all" | "photo_only" | "video_only" | "company_only";
+
+// Weekly role gates which shoot types agents may book (company_only = none).
+export function roleAllows(role: WeekRole, shootType: DbShootType): boolean {
+  if (role === "all") return true;
+  if (role === "photo_only") return shootType === "photo";
+  if (role === "video_only") return shootType === "video";
+  return false;
+}
+
+// Monday (Dubai) of the week containing the given date string.
+export function weekStartOf(dateStr: string): string {
+  const d = dayjs.tz(dateStr, TZ);
+  return d.subtract((d.day() + 6) % 7, "day").format("YYYY-MM-DD");
+}
+
 export function computeSlots(params: {
   settings: CreatorSettings;
   shootType: DbShootType;
   timeOff: DateRange[];
   busy: Interval[]; // FreeBusy ∪ confirmed bookings, uninflated
   confirmedPerDay: Record<string, number>; // Dubai date → confirmed count
+  // Per-date working ranges, already filtered by the weekly plan (strict:
+  // dates without a planned week simply don't appear here).
+  rangesByDate: Record<string, [string, string][]>;
   now: dayjs.Dayjs;
 }): Slot[] {
-  const { settings, shootType, timeOff, busy, confirmedPerDay, now } = params;
+  const { settings, shootType, timeOff, busy, confirmedPerDay, rangesByDate, now } =
+    params;
   const duration = settings.shootDurations[shootType];
   if (!duration) return [];
 
@@ -75,8 +100,8 @@ export function computeSlots(params: {
     // 5. Skip days already at the per-day cap.
     if ((confirmedPerDay[dateStr] ?? 0) >= settings.maxShootsPerDay) continue;
 
-    // 3. Expand working-hours ranges into candidates (30-min step).
-    const ranges = settings.workingHours[DAY_KEYS[day.day()]] ?? [];
+    // 3. Expand this date's planned ranges into candidates (30-min step).
+    const ranges = rangesByDate[dateStr] ?? [];
     for (const [rangeStart, rangeEnd] of ranges) {
       const windowEnd = dayjs.tz(`${dateStr} ${rangeEnd}`, TZ);
       for (
@@ -141,6 +166,46 @@ export async function getAvailability(slug: string, shootType: DbShootType) {
     .add(settings.maxHorizonDays, "day")
     .toISOString();
 
+  // Weekly plans covering the window (STRICT: unplanned weeks yield nothing).
+  const horizonDate = dayjs(windowEnd).tz(TZ);
+  const mondays: string[] = [];
+  for (
+    let m = dayjs.tz(weekStartOf(now.tz(TZ).format("YYYY-MM-DD")), TZ);
+    !m.isAfter(horizonDate);
+    m = m.add(7, "day")
+  ) {
+    mondays.push(m.format("YYYY-MM-DD"));
+  }
+  const plans = await db
+    .select({
+      weekStart: creatorWeekSchedules.weekStart,
+      role: creatorWeekSchedules.role,
+      workingHours: creatorWeekSchedules.workingHours,
+    })
+    .from(creatorWeekSchedules)
+    .where(
+      and(
+        eq(creatorWeekSchedules.creatorId, creator.id),
+        inArray(creatorWeekSchedules.weekStart, mondays)
+      )
+    );
+  const planByWeek = new Map(plans.map((p) => [p.weekStart, p]));
+
+  const rangesByDate: Record<string, [string, string][]> = {};
+  for (
+    let day = now.tz(TZ).startOf("day");
+    !day.isAfter(horizonDate);
+    day = day.add(1, "day")
+  ) {
+    const dateStr = day.format("YYYY-MM-DD");
+    const plan = planByWeek.get(weekStartOf(dateStr));
+    if (!plan) continue; // unplanned week: not bookable
+    if (!roleAllows(plan.role, shootType)) continue;
+    const hours = plan.workingHours ?? settings.workingHours;
+    const ranges = hours[DAY_KEYS[day.day()] as keyof WorkingHours] ?? [];
+    if (ranges.length > 0) rangesByDate[dateStr] = ranges;
+  }
+
   const timeOff = await db
     .select({ from: creatorTimeOff.startsOn, to: creatorTimeOff.endsOn })
     .from(creatorTimeOff)
@@ -183,6 +248,7 @@ export async function getAvailability(slug: string, shootType: DbShootType) {
     settings,
     shootType,
     timeOff,
+    rangesByDate,
     busy: [
       ...googleBusy,
       ...confirmed.map((b) => ({

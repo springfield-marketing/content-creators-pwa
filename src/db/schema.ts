@@ -81,7 +81,9 @@ export const users = pgTable("users", {
     .default(sql`'{"photo":90,"video":150,"photo_video":180}'::jsonb`),
   bufferMinutes: integer("buffer_minutes").default(30),
   minNoticeHours: integer("min_notice_hours").default(24),
-  maxHorizonDays: integer("max_horizon_days").default(28),
+  // Calendars open only as far as the manager has planned weeks; this is a
+  // secondary ceiling (decision: one week in advance, not 28 days).
+  maxHorizonDays: integer("max_horizon_days").default(7),
   maxShootsPerDay: integer("max_shoots_per_day").default(3),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -179,6 +181,32 @@ export const deliverables = pgTable(
     index("deliverables_review").on(t.reviewStatus, t.createdAt),
     index("deliverables_creator_month").on(t.creatorId, t.workDate),
   ]
+);
+
+export const weekRole = pgEnum("week_role", [
+  "all",
+  "photo_only",
+  "video_only",
+  "company_only",
+]);
+
+// Weekly plan (manager-set, week by week). STRICT: a week without a row is
+// not bookable at all — calendars open only as far as the manager plans.
+export const creatorWeekSchedules = pgTable(
+  "creator_week_schedules",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    creatorId: uuid("creator_id")
+      .notNull()
+      .references(() => users.id),
+    weekStart: date("week_start").notNull(), // always a Monday
+    role: weekRole("role").notNull().default("all"),
+    // null = use the creator's default working_hours template
+    workingHours: jsonb("working_hours").$type<WorkingHours>(),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [uniqueIndex("week_schedule_creator_week").on(t.creatorId, t.weekStart)]
 );
 
 export const cancelRequestStatus = pgEnum("cancel_request_status", [

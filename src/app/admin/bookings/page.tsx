@@ -17,8 +17,10 @@ import {
   Select,
   Skeleton,
   Stack,
+  NumberInput,
   Table,
   Text,
+  TextInput,
   Textarea,
   Title,
   UnstyledButton,
@@ -29,7 +31,9 @@ import {
   IconAlertTriangle,
   IconChevronLeft,
   IconChevronRight,
+  IconPlus,
 } from "@tabler/icons-react";
+import { DatePickerInput, TimeInput } from "@mantine/dates";
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
 
 type AdminBooking = {
@@ -79,6 +83,17 @@ export default function BookingsOverview() {
   const [busy, setBusy] = useState(false);
   const [detailOpen, { open: openDetail, close: closeDetail }] =
     useDisclosure(false);
+  const [companyOpen, { open: openCompany, close: closeCompany }] =
+    useDisclosure(false);
+  const [draft, setDraft] = useState({
+    creatorId: null as string | null,
+    day: null as string | null,
+    time: "10:00",
+    duration: 120,
+    type: "photo_video" as DbShootType,
+    project: "",
+    notes: "",
+  });
 
   const days = Array.from({ length: 7 }, (_, i) => weekStart.add(i, "day"));
 
@@ -191,6 +206,23 @@ export default function BookingsOverview() {
           >
             <IconChevronRight size={18} />
           </ActionIcon>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              setDraft({
+                creatorId: null,
+                day: weekStart.format("YYYY-MM-DD"),
+                time: "10:00",
+                duration: 120,
+                type: "photo_video",
+                project: "",
+                notes: "",
+              });
+              openCompany();
+            }}
+          >
+            Company shoot
+          </Button>
         </Group>
       </Group>
 
@@ -317,6 +349,107 @@ export default function BookingsOverview() {
           </Text>
         </Group>
       </Group>
+
+      <Modal opened={companyOpen} onClose={closeCompany} title="New company shoot" centered>
+        <Stack gap="sm">
+          <Text size="xs" c="dimmed">
+            Manager-only: no agent, free-form time — overlaps are still blocked.
+          </Text>
+          <Select
+            label="Creator"
+            required
+            data={creators.map((c) => ({ value: c.id, label: c.name }))}
+            value={draft.creatorId}
+            onChange={(v) => setDraft({ ...draft, creatorId: v })}
+          />
+          <TextInput
+            label="Project name"
+            required
+            placeholder="What is the shoot about?"
+            value={draft.project}
+            onChange={(e) => setDraft({ ...draft, project: e.currentTarget.value })}
+          />
+          <Group grow>
+            <DatePickerInput
+              label="Day"
+              value={draft.day}
+              onChange={(v) => setDraft({ ...draft, day: v })}
+              minDate={dayjs().format("YYYY-MM-DD")}
+            />
+            <TimeInput
+              label="Start"
+              value={draft.time}
+              onChange={(e) => setDraft({ ...draft, time: e.currentTarget.value })}
+            />
+            <NumberInput
+              label="Duration (min)"
+              value={draft.duration}
+              onChange={(v) => setDraft({ ...draft, duration: Number(v) || 60 })}
+              min={15}
+              step={15}
+            />
+          </Group>
+          <Select
+            label="Shoot type"
+            data={(Object.keys(dbShootTypeLabel) as DbShootType[]).map((t) => ({
+              value: t,
+              label: dbShootTypeLabel[t],
+            }))}
+            value={draft.type}
+            onChange={(v) => setDraft({ ...draft, type: (v ?? "photo_video") as DbShootType })}
+          />
+          <Textarea
+            label="Notes"
+            autosize
+            minRows={2}
+            value={draft.notes}
+            onChange={(e) => setDraft({ ...draft, notes: e.currentTarget.value })}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeCompany}>
+              Cancel
+            </Button>
+            <Button
+              loading={busy}
+              disabled={!draft.creatorId || !draft.day || draft.project.trim() === ""}
+              onClick={async () => {
+                setBusy(true);
+                const [h, m] = draft.time.split(":").map(Number);
+                const res = await fetch("/api/admin/company-bookings", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    creatorId: draft.creatorId,
+                    shootType: draft.type,
+                    start: dayjs(draft.day).hour(h).minute(m).toISOString(),
+                    durationMinutes: draft.duration,
+                    projectName: draft.project,
+                    locationType: "office",
+                    notes: draft.notes.trim() || undefined,
+                  }),
+                });
+                setBusy(false);
+                const body = await res.json().catch(() => ({}));
+                notifications.show(
+                  res.ok
+                    ? {
+                        title: "Company shoot booked",
+                        message: "It's on the creator's calendar.",
+                        color: "green",
+                      }
+                    : { title: "Couldn't book", message: body.error ?? "Try again.", color: "red" }
+                );
+                if (res.ok) {
+                  closeCompany();
+                  reload();
+                }
+              }}
+            >
+              Book company shoot
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal opened={detailOpen} onClose={closeDetail} title="Booking details" centered>
         {selected && (

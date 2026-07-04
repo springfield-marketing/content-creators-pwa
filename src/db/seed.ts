@@ -168,6 +168,17 @@ async function main() {
     allCreatorIds = rows.map((r) => r.id);
   }
 
+  // Weekly plans (strict availability): open the current + next week for
+  // everyone with default hours so the booking page works out of the box.
+  console.log("Week plans…");
+  const monday = dayjs().subtract((dayjs().day() + 6) % 7, "day");
+  await db.insert(t.creatorWeekSchedules).values(
+    allCreatorIds.flatMap((id) => [
+      { creatorId: id, weekStart: monday.format("YYYY-MM-DD"), role: "all" as const },
+      { creatorId: id, weekStart: monday.add(7, "day").format("YYYY-MM-DD"), role: "all" as const },
+    ])
+  );
+
   const [manager] = await db
     .insert(t.users)
     .values([

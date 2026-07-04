@@ -13,6 +13,7 @@ import {
 import { UserMenu } from "@/components/UserMenu";
 import { useDisclosure } from "@mantine/hooks";
 import {
+  IconCalendarTime,
   IconCalendarWeek,
   IconChartBar,
   IconChecklist,
@@ -23,6 +24,7 @@ import {
 
 // Manager shell: desktop-first sidebar, collapsible on mobile.
 const links = [
+  { href: "/admin/schedule", label: "Weekly plan", icon: IconCalendarTime },
   { href: "/admin/review", label: "Review queue", icon: IconChecklist },
   { href: "/admin/kpis", label: "KPI dashboard", icon: IconChartBar },
   { href: "/admin/targets", label: "Targets", icon: IconTargetArrow },
