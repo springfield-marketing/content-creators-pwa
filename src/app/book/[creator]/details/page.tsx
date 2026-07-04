@@ -11,7 +11,6 @@ import {
   Group,
   Paper,
   Radio,
-  SegmentedControl,
   Skeleton,
   Stack,
   Text,
@@ -21,7 +20,7 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconCalendarEvent, IconInfoCircle } from "@tabler/icons-react";
-import { shootTypeLabel, type ShootType } from "@/lib/mock-data";
+import { dbShootTypeLabel, isDbShootType } from "@/lib/shoot-types";
 import { useCreatorProfile } from "@/lib/use-creator";
 import { AgentSearchSelect, type AgentHit } from "@/components/AgentSearchSelect";
 
@@ -33,13 +32,15 @@ function BookingDetails() {
   const { creator, state } = useCreatorProfile(slug);
 
   const start = searchParams.get("start");
+  const end = searchParams.get("end");
+  const typeParam = searchParams.get("type") ?? "";
+  const shootType = isDbShootType(typeParam) ? typeParam : null;
   const rescheduleId = searchParams.get("reschedule");
 
   const [agent, setAgent] = useState<AgentHit | null>(null);
   const [registering, setRegistering] = useState(false);
   const [newAgent, setNewAgent] = useState({ name: "", office: "", email: "", phone: "" });
   const [projectName, setProjectName] = useState("");
-  const [shootType, setShootType] = useState<ShootType>("photo");
   const [locationKind, setLocationKind] = useState<"onsite" | "office">("onsite");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
@@ -55,7 +56,7 @@ function BookingDetails() {
     );
   }
 
-  if (!creator || !start) {
+  if (!creator || !start || !end || !shootType) {
     return (
       <Alert color="red" variant="light">
         Missing booking details — start again from the booking page.
@@ -64,10 +65,7 @@ function BookingDetails() {
   }
 
   const slot = dayjs(start);
-  const duration =
-    shootType === "video"
-      ? creator.settings.videoDuration
-      : creator.settings.photoDuration;
+  const slotEnd = dayjs(end);
 
   const agentOk = registering
     ? newAgent.name.trim() !== "" && newAgent.email.trim() !== ""
@@ -106,6 +104,7 @@ function BookingDetails() {
 
     const params = new URLSearchParams({
       start: slot.toISOString(),
+      end: slotEnd.toISOString(),
       type: shootType,
       agent: agentName,
       project: projectName,
@@ -127,8 +126,8 @@ function BookingDetails() {
               {creator.name} · {slot.format("dddd, MMMM D")}
             </Text>
             <Text size="sm" c="dimmed">
-              {slot.format("HH:mm")}–{slot.add(duration, "minute").format("HH:mm")} (
-              {shootTypeLabel[shootType]}, {duration} min)
+              {slot.format("HH:mm")}–{slotEnd.format("HH:mm")} ·{" "}
+              {dbShootTypeLabel[shootType]}
             </Text>
           </div>
         </Group>
@@ -211,22 +210,6 @@ function BookingDetails() {
             value={projectName}
             onChange={(e) => setProjectName(e.currentTarget.value)}
           />
-
-          <div>
-            <Text size="sm" fw={500} mb={4}>
-              Shoot type
-            </Text>
-            <SegmentedControl
-              fullWidth
-              value={shootType}
-              onChange={(v) => setShootType(v as ShootType)}
-              data={[
-                { label: "Photo", value: "photo" },
-                { label: "Video", value: "video" },
-                { label: "Both", value: "both" },
-              ]}
-            />
-          </div>
 
           <Radio.Group
             label="Location"

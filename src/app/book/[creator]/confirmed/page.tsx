@@ -21,7 +21,7 @@ import {
   IconCircleCheck,
   IconMail,
 } from "@tabler/icons-react";
-import { shootTypeLabel, type ShootType } from "@/lib/mock-data";
+import { dbShootTypeLabel, isDbShootType } from "@/lib/shoot-types";
 import { useCreatorProfile } from "@/lib/use-creator";
 
 // Screen 4 — Confirmation: summary + "it's in your calendar".
@@ -31,7 +31,9 @@ function Confirmed() {
   const { creator, state } = useCreatorProfile(slug);
 
   const start = searchParams.get("start");
-  const type = (searchParams.get("type") ?? "photo") as ShootType;
+  const end = searchParams.get("end");
+  const typeParam = searchParams.get("type") ?? "";
+  const type = isDbShootType(typeParam) ? typeParam : null;
   const agent = searchParams.get("agent") ?? "";
   const project = searchParams.get("project") ?? "";
   const location = searchParams.get("location") ?? "";
@@ -41,7 +43,7 @@ function Confirmed() {
     return null;
   }
 
-  if (!creator || !start) {
+  if (!creator || !start || !end || !type) {
     return (
       <Alert color="red" variant="light">
         Nothing to confirm — start again from the booking page.
@@ -50,21 +52,15 @@ function Confirmed() {
   }
 
   const slot = dayjs(start);
-  const duration =
-    type === "video"
-      ? creator.settings.videoDuration
-      : creator.settings.photoDuration;
+  const slotEnd = dayjs(end);
 
   const rows = [
     ["Project", project],
     ["Creator", creator.name],
     ["Agent", agent],
     ["Date", slot.format("dddd, MMMM D YYYY")],
-    [
-      "Time",
-      `${slot.format("HH:mm")}–${slot.add(duration, "minute").format("HH:mm")}`,
-    ],
-    ["Shoot type", shootTypeLabel[type]],
+    ["Time", `${slot.format("HH:mm")}–${slotEnd.format("HH:mm")}`],
+    ["Shoot type", dbShootTypeLabel[type]],
     ["Location", location],
   ];
 

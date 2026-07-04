@@ -1,8 +1,6 @@
 "use client";
 
-// Client data layer for the public booking flow: fetches real creators from
-// the API and adapts them to the Creator shape the slot generator uses
-// (mock-slots stays untouched until real availability arrives in step 6).
+// Client data layer for the public booking flow.
 
 import { useEffect, useState } from "react";
 import type { Creator } from "./mock-data";
