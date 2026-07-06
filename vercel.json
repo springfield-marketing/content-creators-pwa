@@ -1,5 +1,5 @@
 {
-  "regions": ["fra1"],
+  "regions": ["sin1"],
   "crons": [
     { "path": "/api/cron/complete-past-bookings", "schedule": "0 17 * * *" },
     { "path": "/api/cron/kpi-snapshot", "schedule": "30 20 * * *" },
