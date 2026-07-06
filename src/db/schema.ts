@@ -64,6 +64,7 @@ export const users = pgTable("users", {
   role: userRole("role").notNull(),
   slug: text("slug").unique(), // creators only; used in /book/[creator]
   photoUrl: text("photo_url"), // creator card photo (spec screen 1)
+  sortOrder: integer("sort_order"), // booking-page display order (nulls last)
   branch: text("branch").default("Dubai"), // company branch, shown on booking cards
   googleCalendarId: text("google_calendar_id"),
   googleRefreshToken: text("google_refresh_token"), // Option B only; unused under Workspace delegation

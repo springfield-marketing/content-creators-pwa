@@ -116,11 +116,12 @@ async function main() {
     const rows = await db
       .insert(t.users)
       .values(
-        realCreators.map((c) => ({
+        realCreators.map((c, i) => ({
           email: c.email,
           fullName: c.name,
           role: "creator" as const,
           slug: slugify(c.name),
+          sortOrder: i + 1,
           photoUrl: c.photo ?? null,
           branch: c.branch ?? "Dubai",
           googleCalendarId: c.email,

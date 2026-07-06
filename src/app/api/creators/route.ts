@@ -2,7 +2,7 @@
 // §B12.2: creators currently on leave are hidden entirely, not shown-but-full.
 
 import { NextResponse } from "next/server";
-import { and, asc, eq, gte, lte, notExists } from "drizzle-orm";
+import { and, asc, eq, gte, lte, notExists, sql } from "drizzle-orm";
 import dayjs from "dayjs";
 import { db } from "@/db";
 import { creatorTimeOff, users } from "@/db/schema";
@@ -37,7 +37,7 @@ export async function GET() {
         )
       )
     )
-    .orderBy(asc(users.fullName));
+    .orderBy(sql`${users.sortOrder} NULLS LAST`, asc(users.fullName));
 
   return NextResponse.json(rows);
 }
