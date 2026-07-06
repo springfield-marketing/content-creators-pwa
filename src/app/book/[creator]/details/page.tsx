@@ -23,6 +23,7 @@ import { IconCalendarEvent, IconInfoCircle } from "@tabler/icons-react";
 import { dbShootTypeLabel, isDbShootType } from "@/lib/shoot-types";
 import { useCreatorProfile } from "@/lib/use-creator";
 import { AgentSearchSelect, type AgentHit } from "@/components/AgentSearchSelect";
+import { ShootingGuidelines } from "@/components/ShootingGuidelines";
 
 // Screen 3 — Booking details: one screen, under two minutes.
 function BookingDetails() {
@@ -174,6 +175,8 @@ function BookingDetails() {
           </div>
         </Group>
       </Paper>
+
+      <ShootingGuidelines variant="accordion" />
 
       <Card>
         <Stack gap="md">

@@ -22,6 +22,7 @@ import {
   IconMail,
 } from "@tabler/icons-react";
 import { dbShootTypeLabel, isDbShootType } from "@/lib/shoot-types";
+import { ShootingGuidelines } from "@/components/ShootingGuidelines";
 import { useCreatorProfile } from "@/lib/use-creator";
 
 // Screen 4 — Confirmation: summary + "it's in your calendar".
@@ -102,6 +103,8 @@ function Confirmed() {
           </Group>
         </Stack>
       </Card>
+
+      <ShootingGuidelines variant="card" />
 
       <Center>
         <Group>
