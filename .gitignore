@@ -45,3 +45,4 @@ Agent list.csv
 seed-data/
 google-service-account.local.json
 github-token.local.txt
+vercel-env.local.txt
