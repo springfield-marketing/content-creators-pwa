@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import {
+  ActionIcon,
   Badge,
   Button,
   Card,
@@ -13,7 +14,6 @@ import {
   SegmentedControl,
   Skeleton,
   Stack,
-  Switch,
   Text,
   TextInput,
   Title,
@@ -23,6 +23,8 @@ import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import {
   IconBrandDropbox,
+  IconPlus,
+  IconX,
   IconBrandGoogleDrive,
   IconBrandInstagram,
   IconBrandTiktok,
@@ -65,8 +67,7 @@ export default function LogDeliverable() {
   const [noShoot, setNoShoot] = useState(false);
   const [agent, setAgent] = useState<AgentHit | null>(null);
   const [type, setType] = useState("photo_shoot");
-  const [url, setUrl] = useState("");
-  const [posted, setPosted] = useState(false);
+  const [links, setLinks] = useState<string[]>([""]);
   const [workDate, setWorkDate] = useState<string | null>(
     dayjs().format("YYYY-MM-DD")
   );
@@ -90,47 +91,55 @@ export default function LogDeliverable() {
       .catch(() => setRecent([]));
   }, []);
 
-  const platform = useMemo(() => detectPlatform(url), [url]);
-  const PlatformIcon = platform ? platformMeta[platform].icon : IconLink;
+  const platforms = useMemo(() => links.map(detectPlatform), [links]);
   const shootOk = noShoot ? agent !== null : shootId !== null;
-  const canSubmit = shootOk && platform !== null && !!workDate;
+  const canSubmit =
+    shootOk &&
+    !!workDate &&
+    links.length > 0 &&
+    platforms.every((pf) => pf !== null);
 
   const submit = async () => {
     setSubmitting(true);
-    const res = await fetch("/api/me/deliverables", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        bookingId: noShoot ? undefined : shootId,
-        agentId: noShoot ? agent?.id : undefined,
-        type,
-        url,
-        platform,
-        posted,
-        workDate,
-      }),
-    });
+    // One deliverable per link — each reviewed and counted individually.
+    let ok = 0;
+    for (let i = 0; i < links.length; i++) {
+      const res = await fetch("/api/me/deliverables", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId: noShoot ? undefined : shootId,
+          agentId: noShoot ? agent?.id : undefined,
+          type,
+          url: links[i],
+          platform: platforms[i],
+          workDate,
+        }),
+      });
+      if (res.ok) ok++;
+    }
     setSubmitting(false);
-    if (!res.ok) {
-      const b = await res.json().catch(() => ({}));
+    if (ok === 0) {
       notifications.show({
         title: "Couldn't submit",
-        message: b.error ?? "Check the link and try again.",
+        message: "Check the links and try again.",
         color: "red",
       });
       return;
     }
     notifications.show({
-      title: "Deliverable submitted",
-      message: "It's in the manager's review queue.",
-      color: "green",
+      title: ok === 1 ? "Deliverable submitted" : `${ok} deliverables submitted`,
+      message:
+        ok < links.length
+          ? `${links.length - ok} failed — check those links and resubmit them.`
+          : "In the manager's review queue. Mark them posted from Progress once approved.",
+      color: ok < links.length ? "orange" : "green",
     });
     setShootId(null);
     setNoShoot(false);
     setAgent(null);
     setType("photo_shoot");
-    setUrl("");
-    setPosted(false);
+    setLinks([""]);
     setWorkDate(dayjs().format("YYYY-MM-DD"));
   };
 
@@ -228,7 +237,11 @@ export default function LogDeliverable() {
         <SegmentedControl
           fullWidth
           value={type}
-          onChange={setType}
+          onChange={(v) => {
+            setType(v);
+            // Photos are one batch — a single folder link.
+            if (v === "photo_shoot") setLinks((l) => [l[0] ?? ""]);
+          }}
           data={[
             { label: "Photo Shoot", value: "photo_shoot" },
             { label: "Video Shoot", value: "video_shoot" },
@@ -236,36 +249,69 @@ export default function LogDeliverable() {
         />
       </div>
 
-      <TextInput
-        label="Link"
-        placeholder="Paste the Instagram / TikTok / Drive / Dropbox link"
-        value={url}
-        onChange={(e) => setUrl(e.currentTarget.value)}
-        leftSection={<PlatformIcon size={18} />}
-        rightSection={
-          platform && (
-            <Badge size="xs" variant="light" mr="md">
-              {platformMeta[platform].label}
-            </Badge>
-          )
-        }
-        rightSectionWidth={platform ? 110 : undefined}
-      />
+      <div>
+        <Text size="sm" fw={500} mb={6}>
+          {type === "photo_shoot" ? "Link (photo batch)" : "Links"}
+        </Text>
+        <Stack gap="xs">
+          {links.map((url, i) => {
+            const pf = platforms[i];
+            const PlatformIcon = pf ? platformMeta[pf].icon : IconLink;
+            return (
+              <Group key={i} gap="xs" wrap="nowrap">
+                <TextInput
+                  style={{ flex: 1 }}
+                  placeholder="Paste the Instagram / TikTok / Drive / Dropbox link"
+                  value={url}
+                  onChange={(e) => {
+                    const v = e.currentTarget.value;
+                    setLinks((l) => l.map((x, j) => (j === i ? v : x)));
+                  }}
+                  leftSection={<PlatformIcon size={18} />}
+                  rightSection={
+                    pf && (
+                      <Badge size="xs" variant="light" mr="md">
+                        {platformMeta[pf].label}
+                      </Badge>
+                    )
+                  }
+                  rightSectionWidth={pf ? 110 : undefined}
+                />
+                {links.length > 1 && (
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    aria-label="Remove link"
+                    onClick={() =>
+                      setLinks((l) => l.filter((_, j) => j !== i))
+                    }
+                  >
+                    <IconX size={16} />
+                  </ActionIcon>
+                )}
+              </Group>
+            );
+          })}
+          {type === "video_shoot" && (
+            <Button
+              variant="light"
+              size="xs"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => setLinks((l) => [...l, ""])}
+              w="fit-content"
+            >
+              Add another video
+            </Button>
+          )}
+        </Stack>
+      </div>
 
-      <Group grow align="center">
-        <DatePickerInput
-          label="Work date"
-          value={workDate}
-          onChange={setWorkDate}
-          maxDate={dayjs().format("YYYY-MM-DD")}
-        />
-        <Switch
-          label="Already posted?"
-          checked={posted}
-          onChange={(e) => setPosted(e.currentTarget.checked)}
-          mt={22}
-        />
-      </Group>
+      <DatePickerInput
+        label="Work date"
+        value={workDate}
+        onChange={setWorkDate}
+        maxDate={dayjs().format("YYYY-MM-DD")}
+      />
 
       <Button size="md" disabled={!canSubmit} loading={submitting} onClick={submit}>
         Submit for review

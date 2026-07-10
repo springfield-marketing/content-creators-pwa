@@ -31,6 +31,12 @@ type MyKpis = {
   targetDeliverables: number;
   targetPosted: number;
 };
+type ToPost = {
+  id: string;
+  type: "photo_shoot" | "video_shoot";
+  url: string;
+  workDate: string;
+};
 type Revision = {
   id: string;
   type: "photo_shoot" | "video_shoot";
@@ -39,8 +45,12 @@ type Revision = {
 };
 
 export default function MyProgress() {
-  const [data, setData] = useState<{ kpis: MyKpis | null; revisions: Revision[] } | null>(null);
-  const [resubmitting, setResubmitting] = useState<string | null>(null);
+  const [data, setData] = useState<{
+    kpis: MyKpis | null;
+    revisions: Revision[];
+    toPost: ToPost[];
+  } | null>(null);
+  const [acting, setActing] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     fetch("/api/me/kpis")
@@ -56,14 +66,21 @@ export default function MyProgress() {
   }, []);
   useEffect(reload, [reload]);
 
-  const resubmit = async (id: string) => {
-    setResubmitting(id);
-    const res = await fetch(`/api/me/deliverables/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: "{}" });
-    setResubmitting(null);
+  const act = async (id: string, action: "resubmit" | "mark_posted") => {
+    setActing(id);
+    const res = await fetch(`/api/me/deliverables/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    setActing(null);
     if (res.ok) {
       notifications.show({
-        title: "Resubmitted",
-        message: "Back in the manager's review queue.",
+        title: action === "resubmit" ? "Resubmitted" : "Marked as posted",
+        message:
+          action === "resubmit"
+            ? "Back in the manager's review queue."
+            : "Counted toward your posted KPI.",
         color: "green",
       });
       reload();
@@ -134,8 +151,8 @@ export default function MyProgress() {
                 size="xs"
                 color="orange"
                 leftSection={<IconRefresh size={14} />}
-                loading={resubmitting === d.id}
-                onClick={() => resubmit(d.id)}
+                loading={acting === d.id}
+                onClick={() => act(d.id, "resubmit")}
               >
                 Fix &amp; resubmit
               </Button>
@@ -143,6 +160,35 @@ export default function MyProgress() {
           </Stack>
         </Card>
       ))}
+
+      {data.toPost.length > 0 && (
+        <Card>
+          <Stack gap="xs">
+            <Text fw={600} size="sm">
+              Approved — ready to post ({data.toPost.length})
+            </Text>
+            {data.toPost.map((d) => (
+              <Group key={d.id} justify="space-between" wrap="nowrap">
+                <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+                  <Badge size="sm" variant="light" color="green">
+                    {d.type === "photo_shoot" ? "Photo Shoot" : "Video Shoot"}
+                  </Badge>
+                  <Anchor size="xs" href={d.url} target="_blank" truncate>
+                    {d.url}
+                  </Anchor>
+                </Group>
+                <Button
+                  size="compact-xs"
+                  loading={acting === d.id}
+                  onClick={() => act(d.id, "mark_posted")}
+                >
+                  Mark as posted
+                </Button>
+              </Group>
+            ))}
+          </Stack>
+        </Card>
+      )}
 
       <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md">
         {stats.map((s) => {

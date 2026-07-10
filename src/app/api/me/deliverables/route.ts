@@ -16,7 +16,6 @@ const schema = z.object({
   type: z.enum(["photo_shoot", "video_shoot"]),
   url: z.string().url().max(2000),
   platform: z.enum(["instagram", "tiktok", "drive", "dropbox", "other"]),
-  posted: z.boolean(),
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
@@ -53,8 +52,9 @@ export async function POST(req: Request) {
       type: input.type,
       platform: input.platform,
       url: input.url,
-      isPosted: input.posted,
-      postedAt: input.posted ? new Date() : null,
+      // Workflow: posting happens AFTER approval; creators mark it from
+      // their progress screen once the manager approves.
+      isPosted: false,
       workDate: input.workDate,
     })
     .returning({ id: deliverables.id });

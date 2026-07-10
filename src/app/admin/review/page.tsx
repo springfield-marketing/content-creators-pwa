@@ -195,7 +195,6 @@ export default function ReviewQueue() {
                     </Text>
                     <Text size="xs" c="dimmed">
                       submitted {dayjs(d.submittedAt).format("ddd D MMM HH:mm")}
-                      {d.posted ? " · posted" : ""}
                     </Text>
                   </div>
                 </Group>

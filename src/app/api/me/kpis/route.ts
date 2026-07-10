@@ -20,6 +20,22 @@ export async function GET(req: Request) {
   const all = await computeKpis(month);
   const mine = all.find((k) => k.creatorId === session.user.id) ?? null;
 
+  const toPost = await db
+    .select({
+      id: deliverables.id,
+      type: deliverables.type,
+      url: deliverables.url,
+      workDate: deliverables.workDate,
+    })
+    .from(deliverables)
+    .where(
+      and(
+        eq(deliverables.creatorId, session.user.id),
+        eq(deliverables.reviewStatus, "approved"),
+        eq(deliverables.isPosted, false)
+      )
+    );
+
   const revisions = await db
     .select({
       id: deliverables.id,
@@ -35,5 +51,5 @@ export async function GET(req: Request) {
       )
     );
 
-  return NextResponse.json({ month, kpis: mine, revisions });
+  return NextResponse.json({ month, kpis: mine, revisions, toPost });
 }
