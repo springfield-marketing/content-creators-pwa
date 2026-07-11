@@ -169,7 +169,7 @@ function BookingDetails() {
               {creator.name} · {slot.format("dddd, MMMM D")}
             </Text>
             <Text size="sm" c="dimmed">
-              {slot.format("HH:mm")}–{slotEnd.format("HH:mm")} ·{" "}
+              {slot.format("h:mm A")}–{slotEnd.format("h:mm A")} ·{" "}
               {dbShootTypeLabel[shootType]}
             </Text>
           </div>

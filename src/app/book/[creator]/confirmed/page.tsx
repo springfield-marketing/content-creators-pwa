@@ -61,7 +61,7 @@ function Confirmed() {
     ["Creator", creator.name],
     ["Agent", agent],
     ["Date", slot.format("dddd, MMMM D YYYY")],
-    ["Time", `${slot.format("HH:mm")}–${slotEnd.format("HH:mm")}`],
+    ["Time", `${slot.format("h:mm A")}–${slotEnd.format("h:mm A")}`],
     ["Shoot type", dbShootTypeLabel[type]],
     ["Location", location],
   ];

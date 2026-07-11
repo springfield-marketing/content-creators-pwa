@@ -176,7 +176,7 @@ export async function POST(req: Request) {
 
   const origin = new URL(req.url).origin;
   const manageUrl = `${origin}/booking/${bookingId}?token=${manageToken}`;
-  const whenText = `${dayjs(slot.start).tz(TZ).format("dddd D MMMM, HH:mm")}–${dayjs(slot.end).tz(TZ).format("HH:mm")}`;
+  const whenText = `${dayjs(slot.start).tz(TZ).format("dddd D MMMM, h:mm A")}–${dayjs(slot.end).tz(TZ).format("h:mm A")}`;
 
   if (agent.email) {
     await sendBookingConfirmation({

@@ -120,7 +120,7 @@ export function computeSlots(params: {
           start: start.toISOString(),
           end: end.toISOString(),
           date: dateStr,
-          label: start.tz(TZ).format("HH:mm"),
+          label: start.tz(TZ).format("h:mm A"),
         });
       }
     }

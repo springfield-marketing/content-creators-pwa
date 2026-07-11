@@ -144,7 +144,7 @@ function ManageBooking() {
               <Text fw={600}>{booking.projectName}</Text>
               <Text size="sm">{start.format("dddd, MMMM D YYYY")}</Text>
               <Text size="sm" c="dimmed">
-                {start.format("HH:mm")}–{end.format("HH:mm")} ·{" "}
+                {start.format("h:mm A")}–{end.format("h:mm A")} ·{" "}
                 {dbShootTypeLabel[booking.shootType]}
               </Text>
             </div>
