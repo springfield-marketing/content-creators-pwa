@@ -73,8 +73,10 @@ const putSchema = z.object({
         creatorId: z.string().uuid(),
         planned: z.boolean(),
         role: z.enum(["all", "photo_only", "video_only", "company_only"]),
+        // partialRecord: days off are simply absent — a plain record would
+        // demand all seven weekdays and reject every real week plan.
         workingHours: z
-          .record(
+          .partialRecord(
             z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
             z.array(timeRange).max(4)
           )

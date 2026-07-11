@@ -16,7 +16,7 @@ const timeRange = z.tuple([
 ]);
 const schema = z
   .object({
-    workingHours: z.record(
+    workingHours: z.partialRecord(
       z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
       z.array(timeRange).max(4)
     ),
