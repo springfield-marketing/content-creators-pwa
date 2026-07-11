@@ -22,6 +22,7 @@ spec's §B13 open questions. Update this file when a decision is made or changed
 | 14 | Weekly schedules & roles | `creator_week_schedules`: per creator per week (Monday-keyed) the manager sets open/closed, role (all / photo_only / video_only / company_only), and optional hours override. **STRICT: unplanned weeks are not bookable.** Weekly plan screen at /admin/schedule with copy-previous-week; role changes conflicting with existing bookings must be resolved first. | 2026-07-04 |
 | 15 | Booking horizon | Calendars open ~a week in advance (per product owner), not 28 days: default max_horizon_days=7, and the strict weekly plan is the real gate. | 2026-07-04 |
 | 16 | Company shoots | Manager-only "Company shoot" booking on /admin/bookings: no agent, source='company', free-form time (overlap-guarded), calendar event on the creator's calendar. The only booking path during company_only weeks. | 2026-07-04 |
+| 17 | Slot model | **Whole-block slots**: each working-hours range is one bookable slot (default: morning 10:30–1:30, evening 4–7). A booking reserves the entire block; any calendar conflict removes the block. Shoot-type durations no longer size slots. | 2026-07-11 |
 
 ## Open §B13 questions (awaiting product owner)
 

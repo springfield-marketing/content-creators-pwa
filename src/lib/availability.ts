@@ -24,7 +24,6 @@ dayjs.extend(timezone);
 
 // §B10: store UTC, render Asia/Dubai; working hours are Dubai-local.
 export const TZ = "Asia/Dubai";
-const SLOT_STEP_MIN = 30;
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
@@ -71,10 +70,8 @@ export function computeSlots(params: {
   rangesByDate: Record<string, [string, string][]>;
   now: dayjs.Dayjs;
 }): Slot[] {
-  const { settings, shootType, timeOff, busy, confirmedPerDay, rangesByDate, now } =
+  const { settings, timeOff, busy, confirmedPerDay, rangesByDate, now } =
     params;
-  const duration = settings.shootDurations[shootType];
-  if (!duration) return [];
 
   // 1. Clamp to [now + min notice, today + horizon].
   const clampStart = now.add(settings.minNoticeHours, "hour");
@@ -100,29 +97,26 @@ export function computeSlots(params: {
     // 5. Skip days already at the per-day cap.
     if ((confirmedPerDay[dateStr] ?? 0) >= settings.maxShootsPerDay) continue;
 
-    // 3. Expand this date's planned ranges into candidates (30-min step).
+    // 3. Each working-hours range is ONE bookable slot (e.g. the morning
+    // block 10:30–1:30 and the evening block 4–7). A booking takes the
+    // whole block — one shoot per half-day.
     const ranges = rangesByDate[dateStr] ?? [];
     for (const [rangeStart, rangeEnd] of ranges) {
-      const windowEnd = dayjs.tz(`${dateStr} ${rangeEnd}`, TZ);
-      for (
-        let start = dayjs.tz(`${dateStr} ${rangeStart}`, TZ);
-        !start.add(duration, "minute").isAfter(windowEnd);
-        start = start.add(SLOT_STEP_MIN, "minute")
-      ) {
-        const end = start.add(duration, "minute");
-        if (start.isBefore(clampStart)) continue; // 1. notice clamp
-        // 4. Drop candidates intersecting an inflated busy block.
-        const collides = inflated.some(
-          (b) => start.isBefore(b.end) && end.isAfter(b.start)
-        );
-        if (collides) continue;
-        slots.push({
-          start: start.toISOString(),
-          end: end.toISOString(),
-          date: dateStr,
-          label: start.tz(TZ).format("h:mm A"),
-        });
-      }
+      const start = dayjs.tz(`${dateStr} ${rangeStart}`, TZ);
+      const end = dayjs.tz(`${dateStr} ${rangeEnd}`, TZ);
+      if (!end.isAfter(start)) continue;
+      if (start.isBefore(clampStart)) continue; // 1. notice clamp
+      // 4. Any overlap with an inflated busy block kills the whole slot.
+      const collides = inflated.some(
+        (b) => start.isBefore(b.end) && end.isAfter(b.start)
+      );
+      if (collides) continue;
+      slots.push({
+        start: start.toISOString(),
+        end: end.toISOString(),
+        date: dateStr,
+        label: `${start.tz(TZ).format("h:mm A")} – ${end.tz(TZ).format("h:mm A")}`,
+      });
     }
   }
   return slots;
@@ -263,7 +257,6 @@ export async function getAvailability(slug: string, shootType: DbShootType) {
   return {
     timeZone: TZ,
     shootType,
-    durationMinutes: settings.shootDurations[shootType],
     horizonDays: settings.maxHorizonDays,
     slots,
   };

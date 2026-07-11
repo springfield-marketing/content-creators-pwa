@@ -35,13 +35,12 @@ const initials = (name: string) =>
 
 type Slot = { start: string; end: string; date: string; label: string };
 type Availability = {
-  durationMinutes: number;
   horizonDays: number;
   slots: Slot[];
 };
 
-// Screen 2 — Pick a time: live availability (§B12.3). The agent picks the
-// shoot type FIRST because slot length depends on it.
+// Screen 2 — Pick a time: live availability. Each working-hours range is
+// one whole bookable block (morning / evening); shoot type gates roles.
 function PickTime() {
   const { creator: slug } = useParams<{ creator: string }>();
   const searchParams = useSearchParams();
@@ -199,12 +198,10 @@ function PickTime() {
             label: dbShootTypeLabel[t],
           }))}
         />
-        {availability && (
-          <Text size="xs" c="dimmed" mt={4}>
-            {dbShootTypeLabel[shootType]} shoots with {creator.name.split(" ")[0]}{" "}
-            take {availability.durationMinutes} minutes.
-          </Text>
-        )}
+        <Text size="xs" c="dimmed" mt={4}>
+          Each day has a morning and an evening slot — your booking reserves
+          the whole slot.
+        </Text>
       </div>
 
       {loadState === "down" ? (
@@ -294,7 +291,7 @@ function PickTime() {
                   {dayjs(activeDay).format("dddd, MMMM D")}
                 </Text>
                 {daySlots.length > 0 ? (
-                  <SimpleGrid cols={{ base: 2, xs: 3 }} spacing="xs">
+                  <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
                     {daySlots.map((slot) => (
                       <Button
                         key={slot.start}
