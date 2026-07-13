@@ -19,6 +19,7 @@ import {
   IconChecklist,
   IconSettings,
   IconTargetArrow,
+  IconUserShield,
   IconUsers,
 } from "@tabler/icons-react";
 
@@ -31,6 +32,7 @@ const links = [
   { href: "/admin/agents", label: "Agents", icon: IconUsers },
   { href: "/admin/bookings", label: "Bookings", icon: IconCalendarWeek },
   { href: "/admin/creators", label: "Creators", icon: IconSettings },
+  { href: "/admin/team", label: "Team", icon: IconUserShield },
 ];
 
 export default function AdminLayout({
