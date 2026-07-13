@@ -10,14 +10,18 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Group,
+  Modal,
   Progress,
   SimpleGrid,
   Skeleton,
   Stack,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconAlertTriangle, IconRefresh } from "@tabler/icons-react";
 
@@ -51,6 +55,12 @@ export default function MyProgress() {
     toPost: ToPost[];
   } | null>(null);
   const [acting, setActing] = useState<string | null>(null);
+  // Resubmit dialog: correct the link + acknowledge the comment first.
+  const [resubmitTarget, setResubmitTarget] = useState<Revision | null>(null);
+  const [newUrl, setNewUrl] = useState("");
+  const [ack, setAck] = useState(false);
+  const [resubmitOpen, { open: openResubmit, close: closeResubmit }] =
+    useDisclosure(false);
 
   const reload = useCallback(() => {
     fetch("/api/me/kpis")
@@ -66,25 +76,60 @@ export default function MyProgress() {
   }, []);
   useEffect(reload, [reload]);
 
-  const act = async (id: string, action: "resubmit" | "mark_posted") => {
+  const markPosted = async (id: string) => {
     setActing(id);
     const res = await fetch(`/api/me/deliverables/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action: "mark_posted" }),
     });
     setActing(null);
     if (res.ok) {
       notifications.show({
-        title: action === "resubmit" ? "Resubmitted" : "Marked as posted",
-        message:
-          action === "resubmit"
-            ? "Back in the manager's review queue."
-            : "Counted toward your posted KPI.",
+        title: "Marked as posted",
+        message: "Counted toward your posted KPI.",
         color: "green",
       });
       reload();
     }
+  };
+
+  const startResubmit = (d: Revision) => {
+    setResubmitTarget(d);
+    setNewUrl(d.url);
+    setAck(false);
+    openResubmit();
+  };
+
+  const confirmResubmit = async () => {
+    if (!resubmitTarget) return;
+    setActing(resubmitTarget.id);
+    const changed = newUrl.trim() && newUrl.trim() !== resubmitTarget.url;
+    const res = await fetch(`/api/me/deliverables/${resubmitTarget.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "resubmit",
+        ...(changed ? { url: newUrl.trim() } : {}),
+      }),
+    });
+    setActing(null);
+    closeResubmit();
+    const body = await res.json().catch(() => ({}));
+    notifications.show(
+      res.ok
+        ? {
+            title: "Resubmitted",
+            message: "Back in the manager's review queue.",
+            color: "green",
+          }
+        : {
+            title: "Couldn't resubmit",
+            message: body.error ?? "Check the link and try again.",
+            color: "red",
+          }
+    );
+    if (res.ok) reload();
   };
 
   if (data === null) {
@@ -151,8 +196,7 @@ export default function MyProgress() {
                 size="xs"
                 color="orange"
                 leftSection={<IconRefresh size={14} />}
-                loading={acting === d.id}
-                onClick={() => act(d.id, "resubmit")}
+                onClick={() => startResubmit(d)}
               >
                 Fix &amp; resubmit
               </Button>
@@ -180,7 +224,7 @@ export default function MyProgress() {
                 <Button
                   size="compact-xs"
                   loading={acting === d.id}
-                  onClick={() => act(d.id, "mark_posted")}
+                  onClick={() => markPosted(d.id)}
                 >
                   Mark as posted
                 </Button>
@@ -225,6 +269,50 @@ export default function MyProgress() {
           approves it.
         </Alert>
       )}
+
+      <Modal
+        opened={resubmitOpen}
+        onClose={closeResubmit}
+        title="Fix & resubmit"
+        centered
+      >
+        {resubmitTarget && (
+          <Stack gap="md">
+            <Alert variant="light" color="orange" icon={<IconAlertTriangle size={18} />}>
+              <Text size="sm" fw={500} mb={4}>
+                What the manager asked for:
+              </Text>
+              <Text size="sm">
+                {resubmitTarget.comment ?? "No comment left."}
+              </Text>
+            </Alert>
+            <TextInput
+              label="Corrected link"
+              description="Paste the fixed version, or leave as-is if you re-exported to the same link."
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.currentTarget.value)}
+            />
+            <Checkbox
+              checked={ack}
+              onChange={(e) => setAck(e.currentTarget.checked)}
+              label="I've addressed the manager's comment"
+            />
+            <Group justify="flex-end">
+              <Button variant="default" onClick={closeResubmit}>
+                Cancel
+              </Button>
+              <Button
+                color="orange"
+                disabled={!ack || newUrl.trim() === ""}
+                loading={acting === resubmitTarget.id}
+                onClick={confirmResubmit}
+              >
+                Resubmit for review
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
     </Stack>
   );
 }
