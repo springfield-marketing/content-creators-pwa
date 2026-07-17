@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, arrayContains, arrayOverlaps, eq, ne } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -30,18 +30,23 @@ export async function PATCH(
       return jsonError(409, "You can't deactivate your own access");
     }
     const [target] = await db
-      .select({ role: users.role })
+      .select({ roles: users.roles })
       .from(users)
-      .where(and(eq(users.id, id), inArray(users.role, ["manager", "executive"])))
+      .where(
+        and(
+          eq(users.id, id),
+          arrayOverlaps(users.roles, ["manager", "executive"])
+        )
+      )
       .limit(1);
     if (!target) return jsonError(404, "Team member not found");
-    if (target.role === "manager") {
+    if (target.roles.includes("manager")) {
       const others = await db
         .select({ id: users.id })
         .from(users)
         .where(
           and(
-            eq(users.role, "manager"),
+            arrayContains(users.roles, ["manager"]),
             eq(users.isActive, true),
             ne(users.id, id)
           )
@@ -55,7 +60,9 @@ export async function PATCH(
   const [updated] = await db
     .update(users)
     .set({ isActive })
-    .where(and(eq(users.id, id), inArray(users.role, ["manager", "executive"])))
+    .where(
+      and(eq(users.id, id), arrayOverlaps(users.roles, ["manager", "executive"]))
+    )
     .returning({ id: users.id });
   if (!updated) return jsonError(404, "Team member not found");
 

@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { asc, eq, inArray } from "drizzle-orm";
+import { arrayOverlaps, asc, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -17,11 +17,11 @@ export async function GET() {
       id: users.id,
       name: users.fullName,
       email: users.email,
-      role: users.role,
+      roles: users.roles,
       isActive: users.isActive,
     })
     .from(users)
-    .where(inArray(users.role, ["manager", "executive"]))
+    .where(arrayOverlaps(users.roles, ["manager", "executive"]))
     .orderBy(asc(users.fullName));
   return NextResponse.json(rows);
 }
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
   const [created] = await db
     .insert(users)
-    .values({ email, fullName, role })
+    .values({ email, fullName, roles: [role] })
     .returning({ id: users.id });
 
   await logAudit({

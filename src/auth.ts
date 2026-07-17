@@ -8,13 +8,13 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 
-type Role = "creator" | "manager" | "executive";
+export type Role = "creator" | "team_lead" | "manager" | "executive";
 
 declare module "next-auth" {
   interface Session {
     user: {
       id: string;
-      role: Role;
+      roles: Role[];
       slug: string | null;
     } & DefaultSession["user"];
   }
@@ -24,7 +24,7 @@ async function staffByEmail(email: string) {
   const [row] = await db
     .select({
       id: users.id,
-      role: users.role,
+      roles: users.roles,
       name: users.fullName,
       slug: users.slug,
       isActive: users.isActive,
@@ -52,13 +52,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return !!staff && staff.isActive !== false;
     },
     async jwt({ token, user }) {
-      // On initial sign-in, embed the app role so the proxy can gate
+      // On initial sign-in, embed the app roles so the proxy can gate
       // routes without a database round-trip per request.
       if (user?.email) {
         const staff = await staffByEmail(user.email);
         if (staff) {
           token.userId = staff.id;
-          token.role = staff.role;
+          token.roles = staff.roles;
           token.slug = staff.slug;
           token.name = staff.name;
         }
@@ -67,7 +67,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       session.user.id = token.userId as string;
-      session.user.role = token.role as Role;
+      session.user.roles = (token.roles as Role[]) ?? [];
       session.user.slug = (token.slug as string | null) ?? null;
       if (token.name) session.user.name = token.name;
       return session;

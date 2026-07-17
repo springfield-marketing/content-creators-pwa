@@ -42,7 +42,7 @@ export async function computeKpis(month: string): Promise<CreatorKpis[]> {
     FROM users u
     LEFT JOIN bookings b ON b.creator_id = u.id
       AND date_trunc('month', b.starts_at AT TIME ZONE 'Asia/Dubai') = ${monthStart}::date
-    WHERE u.role = 'creator' AND u.is_active
+    WHERE 'creator' = ANY(u.roles) AND u.is_active
     GROUP BY u.id, u.full_name
     ORDER BY u.full_name
   `);

@@ -2,7 +2,7 @@
 
 import { NextResponse } from "next/server";
 import dayjs from "dayjs";
-import { asc, eq, gte } from "drizzle-orm";
+import { arrayContains, asc, gte } from "drizzle-orm";
 import { db } from "@/db";
 import { creatorTimeOff, users } from "@/db/schema";
 
@@ -22,7 +22,7 @@ export async function GET() {
       maxShootsPerDay: users.maxShootsPerDay,
     })
     .from(users)
-    .where(eq(users.role, "creator"))
+    .where(arrayContains(users.roles, ["creator"]))
     .orderBy(asc(users.fullName));
 
   const timeOff = await db

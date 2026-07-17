@@ -3,7 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, arrayContains, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -49,7 +49,7 @@ export async function PATCH(
   const [updated] = await db
     .update(users)
     .set(parsed.data)
-    .where(and(eq(users.id, id), eq(users.role, "creator")))
+    .where(and(eq(users.id, id), arrayContains(users.roles, ["creator"])))
     .returning({ id: users.id });
   if (!updated) return jsonError(404, "Creator not found");
 

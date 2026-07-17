@@ -8,7 +8,7 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import { and, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, arrayContains, eq, gte, inArray, lt } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bookings,
@@ -138,7 +138,7 @@ export async function getAvailability(slug: string, shootType: DbShootType) {
       maxShootsPerDay: users.maxShootsPerDay,
     })
     .from(users)
-    .where(and(eq(users.slug, slug), eq(users.role, "creator")))
+    .where(and(eq(users.slug, slug), arrayContains(users.roles, ["creator"])))
     .limit(1);
 
   if (!creator || !creator.isActive) return null;

@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import { and, eq } from "drizzle-orm";
+import { and, arrayContains, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, bookings, users } from "@/db/schema";
 import {
@@ -46,7 +46,12 @@ export async function POST(req: Request) {
       isActive: users.isActive,
     })
     .from(users)
-    .where(and(eq(users.slug, input.creatorSlug), eq(users.role, "creator")))
+    .where(
+      and(
+        eq(users.slug, input.creatorSlug),
+        arrayContains(users.roles, ["creator"])
+      )
+    )
     .limit(1);
   if (!creator || !creator.isActive || !creator.calendarEmail) {
     return jsonError(404, "Creator not found");

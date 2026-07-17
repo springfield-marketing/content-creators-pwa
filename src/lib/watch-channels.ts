@@ -2,7 +2,7 @@
 // within 48h of expiry. Requires a public HTTPS APP_URL + WEBHOOK_CHANNEL_TOKEN.
 
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { arrayContains, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { calendarFor } from "@/lib/google-calendar";
@@ -29,7 +29,7 @@ export async function renewWatchChannels(): Promise<{
       expires: users.webhookExpiresAt,
     })
     .from(users)
-    .where(eq(users.role, "creator"));
+    .where(arrayContains(users.roles, ["creator"]));
 
   const cutoff = Date.now() + 48 * 3600 * 1000;
   let opened = 0;

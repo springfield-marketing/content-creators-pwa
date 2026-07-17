@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Image from "next/image";
 import {
   AppShell,
@@ -42,6 +43,12 @@ export default function AdminLayout({
 }) {
   const [opened, { toggle, close }] = useDisclosure();
   const pathname = usePathname();
+  const { data: session } = useSession();
+  // A team_lead only reaches the review queue (see proxy.ts) — offering the
+  // rest of the sidebar would just bounce them back out.
+  const visibleLinks = session?.user?.roles?.includes("manager")
+    ? links
+    : links.filter((l) => l.href === "/admin/review");
 
   return (
     <AppShell
@@ -71,7 +78,7 @@ export default function AdminLayout({
       </AppShell.Header>
 
       <AppShell.Navbar p="xs">
-        {links.map((link) => (
+        {visibleLinks.map((link) => (
           <NavLink
             key={link.href}
             component={Link}

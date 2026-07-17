@@ -1,11 +1,19 @@
 // GET /api/admin/review-queue — submitted deliverables awaiting review.
+// Nobody signs off their own shoot: a team_lead who also creates never sees
+// their own work here. For managers the filter matches nothing, since they
+// have no deliverables of their own.
 
 import { NextResponse } from "next/server";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { auth } from "@/auth";
 import { db } from "@/db";
 import { agents, deliverables, users } from "@/db/schema";
+import { jsonError } from "@/lib/api";
 
 export async function GET() {
+  const session = await auth();
+  if (!session) return jsonError(401, "Not authenticated");
+
   const rows = await db
     .select({
       id: deliverables.id,
@@ -22,7 +30,12 @@ export async function GET() {
     .from(deliverables)
     .innerJoin(users, eq(users.id, deliverables.creatorId))
     .leftJoin(agents, eq(agents.id, deliverables.agentId))
-    .where(inArray(deliverables.reviewStatus, ["submitted", "under_review"]))
+    .where(
+      and(
+        inArray(deliverables.reviewStatus, ["submitted", "under_review"]),
+        ne(deliverables.creatorId, session.user.id)
+      )
+    )
     .orderBy(desc(deliverables.createdAt));
 
   return NextResponse.json(

@@ -31,11 +31,20 @@ export async function POST(
   const input = parsed.data;
 
   const [d] = await db
-    .select({ id: deliverables.id, status: deliverables.reviewStatus })
+    .select({
+      id: deliverables.id,
+      status: deliverables.reviewStatus,
+      creatorId: deliverables.creatorId,
+    })
     .from(deliverables)
     .where(eq(deliverables.id, id))
     .limit(1);
   if (!d) return jsonError(404, "Deliverable not found");
+  // Enforced here, not just hidden from the queue: reviewedBy has to name
+  // someone other than the creator for the audit trail to mean anything.
+  if (d.creatorId === session.user.id) {
+    return jsonError(403, "You can't review your own deliverable");
+  }
 
   await db
     .update(deliverables)

@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import dayjs from "dayjs";
-import { asc, eq } from "drizzle-orm";
+import { arrayContains, asc, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { kpiTargets, users } from "@/db/schema";
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   const creators = await db
     .select({ id: users.id, name: users.fullName })
     .from(users)
-    .where(eq(users.role, "creator"))
+    .where(arrayContains(users.roles, ["creator"]))
     .orderBy(asc(users.fullName));
 
   const targets = await db

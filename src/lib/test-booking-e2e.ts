@@ -49,7 +49,7 @@ async function main() {
     .values({
       email: `${SLUG}@example.invalid`,
       fullName: "E2E Test Studio",
-      role: "creator",
+      roles: ["creator"],
       slug: SLUG,
       googleCalendarId: DEV_EMAIL,
     })

@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import dayjs from "dayjs";
-import { and, asc, eq, gte, inArray, lt, ne } from "drizzle-orm";
+import { and, arrayContains, asc, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { agents, bookings, creatorWeekSchedules, users } from "@/db/schema";
@@ -30,7 +30,7 @@ export async function GET(req: Request) {
       defaultHours: users.workingHours,
     })
     .from(users)
-    .where(eq(users.role, "creator"))
+    .where(arrayContains(users.roles, ["creator"]))
     .orderBy(asc(users.fullName));
 
   const plans = await db

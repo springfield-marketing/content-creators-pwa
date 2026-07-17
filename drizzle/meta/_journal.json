@@ -78,6 +78,13 @@
       "when": 1783332462542,
       "tag": "0010_creator_sort_order",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784294982882,
+      "tag": "0011_user_roles_array",
+      "breakpoints": true
     }
   ]
 }

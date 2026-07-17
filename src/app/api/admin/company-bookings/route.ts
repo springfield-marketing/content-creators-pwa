@@ -5,7 +5,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import dayjs from "dayjs";
-import { and, eq } from "drizzle-orm";
+import { and, arrayContains, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { bookings, users } from "@/db/schema";
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     .where(
       and(
         eq(users.id, input.creatorId),
-        eq(users.role, "creator"),
+        arrayContains(users.roles, ["creator"]),
         eq(users.isActive, true)
       )
     )

@@ -2,7 +2,7 @@
 // settings that shape availability plus time off. No tokens or channel state.
 
 import { NextResponse } from "next/server";
-import { and, eq, gte } from "drizzle-orm";
+import { and, arrayContains, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
 import { creatorTimeOff, users } from "@/db/schema";
 import { jsonError } from "@/lib/api";
@@ -27,7 +27,7 @@ export async function GET(
       maxShootsPerDay: users.maxShootsPerDay,
     })
     .from(users)
-    .where(and(eq(users.slug, slug), eq(users.role, "creator")))
+    .where(and(eq(users.slug, slug), arrayContains(users.roles, ["creator"])))
     .limit(1);
 
   if (!creator || !creator.isActive) {

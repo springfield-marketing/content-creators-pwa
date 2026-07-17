@@ -9,6 +9,7 @@ import { sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -22,7 +23,14 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const userRole = pgEnum("user_role", ["creator", "manager", "executive"]);
+// Roles are a set, not a single value: a team leader shoots AND verifies, so
+// Ahmed is {creator,team_lead} and keeps every creator code path.
+export const userRole = pgEnum("user_role", [
+  "creator",
+  "team_lead",
+  "manager",
+  "executive",
+]);
 export const bookingStatus = pgEnum("booking_status", [
   "confirmed",
   "completed",
@@ -61,7 +69,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").unique().notNull(),
   fullName: text("full_name").notNull(),
-  role: userRole("role").notNull(),
+  roles: userRole("roles").array().notNull(),
   slug: text("slug").unique(), // creators only; used in /book/[creator]
   photoUrl: text("photo_url"), // creator card photo (spec screen 1)
   sortOrder: integer("sort_order"), // booking-page display order (nulls last)
@@ -90,7 +98,11 @@ export const users = pgTable("users", {
   maxShootsPerDay: integer("max_shoots_per_day").default(3),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+}, (t) => [
+  // A roleless user could sign in but reach nothing; fail loudly instead.
+  // cardinality, not array_length: the latter is NULL for '{}' and CHECK passes on NULL.
+  check("users_roles_not_empty", sql`cardinality(${t.roles}) >= 1`),
+]);
 
 export const creatorTimeOff = pgTable(
   "creator_time_off",

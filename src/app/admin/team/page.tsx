@@ -26,7 +26,7 @@ type Member = {
   id: string;
   name: string;
   email: string;
-  role: "manager" | "executive";
+  roles: ("creator" | "team_lead" | "manager" | "executive")[];
   isActive: boolean;
 };
 
@@ -139,13 +139,18 @@ export default function Team() {
                   </Table.Td>
                   <Table.Td>{m.email}</Table.Td>
                   <Table.Td>
-                    <Badge
-                      size="sm"
-                      variant="light"
-                      color={m.role === "manager" ? "brand" : "gray"}
-                    >
-                      {m.role}
-                    </Badge>
+                    <Group gap={4}>
+                      {m.roles.map((r) => (
+                        <Badge
+                          key={r}
+                          size="sm"
+                          variant="light"
+                          color={r === "manager" ? "brand" : "gray"}
+                        >
+                          {r}
+                        </Badge>
+                      ))}
+                    </Group>
                   </Table.Td>
                   <Table.Td>
                     <Badge

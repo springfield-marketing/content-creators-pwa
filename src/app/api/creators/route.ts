@@ -2,7 +2,7 @@
 // §B12.2: creators currently on leave are hidden entirely, not shown-but-full.
 
 import { NextResponse } from "next/server";
-import { and, asc, eq, gte, lte, notExists, sql } from "drizzle-orm";
+import { and, arrayContains, asc, eq, gte, lte, notExists, sql } from "drizzle-orm";
 import dayjs from "dayjs";
 import { db } from "@/db";
 import { creatorTimeOff, users } from "@/db/schema";
@@ -21,7 +21,7 @@ export async function GET() {
     .from(users)
     .where(
       and(
-        eq(users.role, "creator"),
+        arrayContains(users.roles, ["creator"]),
         eq(users.isActive, true),
         notExists(
           db

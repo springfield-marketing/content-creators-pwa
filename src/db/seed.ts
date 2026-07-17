@@ -119,7 +119,7 @@ async function main() {
         realCreators.map((c, i) => ({
           email: c.email,
           fullName: c.name,
-          role: "creator" as const,
+          roles: ["creator" as const],
           slug: slugify(c.name),
           sortOrder: i + 1,
           photoUrl: c.photo ?? null,
@@ -143,7 +143,7 @@ async function main() {
         mockCreators.map((c) => ({
           email: `${c.slug}@springfield-re.com`,
           fullName: c.name,
-          role: "creator" as const,
+          roles: ["creator" as const],
           slug: c.slug,
           googleCalendarId: `${c.slug}@springfield-re.com`,
           workingHours: hoursBySlug[c.slug],
@@ -187,11 +187,11 @@ async function main() {
     .insert(t.users)
     .values([
       // Managers get real account emails so Google sign-in maps to these rows.
-      { email: "zed@springfield-re.com", fullName: "Zed", role: "manager" as const },
-      { email: "nihaal@springfield-re.com", fullName: "Nihaal", role: "manager" as const },
+      { email: "zed@springfield-re.com", fullName: "Zed", roles: ["manager" as const] },
+      { email: "nihaal@springfield-re.com", fullName: "Nihaal", roles: ["manager" as const] },
       // Placeholder executive account is dev-demo only.
       ...(seedDemo
-        ? [{ email: "exec@springfield-re.com", fullName: "Exec Viewer", role: "executive" as const }]
+        ? [{ email: "exec@springfield-re.com", fullName: "Exec Viewer", roles: ["executive" as const] }]
         : []),
     ])
     .returning({ id: t.users.id });

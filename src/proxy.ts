@@ -1,33 +1,39 @@
 // Role gates (§B7): /admin + /api/admin → manager, /creator + /api/me →
 // creator, /reports + /api/reports → executive or manager. Public routes
 // (/book, /booking, public APIs) are not matched at all.
+//
+// Roles are a set, so a path can be reachable by several of them: team_lead
+// gets the review screen and nothing else under /admin.
 
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import type { Role } from "@/auth";
+import { homeFor } from "@/lib/roles";
 
-const roleHome: Record<string, string> = {
-  creator: "/creator",
-  manager: "/admin/review",
-  executive: "/reports",
-};
+// FIRST MATCH WINS — the review entries must stay above the general /admin
+// ones, or a team_lead is bounced from the only screen they're here for.
+const ROUTE_ROLES: [string, Role[]][] = [
+  ["/admin/review", ["manager", "team_lead"]],
+  ["/api/admin/review-queue", ["manager", "team_lead"]],
+  ["/api/admin/deliverables", ["manager", "team_lead"]],
+  ["/admin", ["manager"]],
+  ["/api/admin", ["manager"]],
+  ["/creator", ["creator"]],
+  ["/api/me", ["creator"]],
+  ["/reports", ["executive", "manager"]],
+  ["/api/reports", ["executive", "manager"]],
+];
 
-function allowed(pathname: string, role: string | undefined): boolean {
-  if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
-    return role === "manager";
-  }
-  if (pathname.startsWith("/creator") || pathname.startsWith("/api/me")) {
-    return role === "creator";
-  }
-  if (pathname.startsWith("/reports") || pathname.startsWith("/api/reports")) {
-    return role === "executive" || role === "manager";
-  }
-  return true;
+function allowed(pathname: string, roles: Role[]): boolean {
+  const rule = ROUTE_ROLES.find(([prefix]) => pathname.startsWith(prefix));
+  if (!rule) return true;
+  return rule[1].some((r) => roles.includes(r));
 }
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isApi = pathname.startsWith("/api");
-  const role = req.auth?.user?.role;
+  const roles = req.auth?.user?.roles ?? [];
 
   if (!req.auth) {
     if (isApi) {
@@ -38,13 +44,11 @@ export default auth((req) => {
     return NextResponse.redirect(login);
   }
 
-  if (!allowed(pathname, role)) {
+  if (!allowed(pathname, roles)) {
     if (isApi) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    return NextResponse.redirect(
-      new URL(roleHome[role ?? ""] ?? "/login", req.nextUrl)
-    );
+    return NextResponse.redirect(new URL(homeFor(roles), req.nextUrl));
   }
 
   return NextResponse.next();

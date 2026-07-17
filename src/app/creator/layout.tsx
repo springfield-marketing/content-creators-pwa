@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Box,
   Container,
@@ -14,6 +15,7 @@ import { UserMenu } from "@/components/UserMenu";
 import {
   IconCalendarEvent,
   IconChartBar,
+  IconChecklist,
   IconCirclePlus,
 } from "@tabler/icons-react";
 
@@ -24,6 +26,14 @@ const tabs = [
   { href: "/creator/progress", label: "Progress", icon: IconChartBar },
 ];
 
+// A team leader shoots like everyone else and verifies on the side, so the
+// review queue hangs off their own shell rather than sending them to /admin.
+const REVIEW_TAB = {
+  href: "/admin/review",
+  label: "Review",
+  icon: IconChecklist,
+};
+
 const TAB_BAR_HEIGHT = 64;
 
 export default function CreatorLayout({
@@ -32,6 +42,10 @@ export default function CreatorLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const visibleTabs = session?.user?.roles?.includes("team_lead")
+    ? [...tabs, REVIEW_TAB]
+    : tabs;
 
   return (
     <>
@@ -62,7 +76,7 @@ export default function CreatorLayout({
         }}
       >
         <Group grow h="100%" gap={0} maw={480} mx="auto">
-          {tabs.map((tab) => {
+          {visibleTabs.map((tab) => {
             const active =
               tab.href === "/creator"
                 ? pathname === "/creator"
