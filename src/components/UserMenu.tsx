@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Avatar, Group, Menu, Text, UnstyledButton } from "@mantine/core";
-import { IconLogout } from "@tabler/icons-react";
+import { IconCalendarEvent, IconChecklist, IconLogout } from "@tabler/icons-react";
 
 const initials = (name: string) =>
   name
@@ -13,9 +15,23 @@ const initials = (name: string) =>
     .toUpperCase();
 
 // Signed-in user chip with sign-out, shown in the creator/admin headers.
+//
+// Someone who both creates and verifies (a team leader) lives in two shells,
+// and the admin sidebar is filtered down to the review queue for them — so the
+// way back has to live here, in the one control both shells share.
 export function UserMenu({ showName = true }: { showName?: boolean }) {
   const { data: session } = useSession();
+  const pathname = usePathname();
   const name = session?.user?.name ?? "";
+
+  const roles = session?.user?.roles ?? [];
+  const wearsBothHats =
+    roles.includes("creator") &&
+    (roles.includes("team_lead") || roles.includes("manager"));
+  const inAdmin = pathname.startsWith("/admin");
+  const otherView = inAdmin
+    ? { href: "/creator", label: "My schedule", icon: IconCalendarEvent }
+    : { href: "/admin/review", label: "Review queue", icon: IconChecklist };
 
   return (
     <Menu position="bottom-end">
@@ -34,6 +50,19 @@ export function UserMenu({ showName = true }: { showName?: boolean }) {
         </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
+        {wearsBothHats && (
+          <>
+            <Menu.Label>Switch to</Menu.Label>
+            <Menu.Item
+              component={Link}
+              href={otherView.href}
+              leftSection={<otherView.icon size={14} />}
+            >
+              {otherView.label}
+            </Menu.Item>
+            <Menu.Divider />
+          </>
+        )}
         <Menu.Item
           leftSection={<IconLogout size={14} />}
           onClick={() => signOut({ callbackUrl: "/login" })}
