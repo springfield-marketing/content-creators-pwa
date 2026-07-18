@@ -57,6 +57,18 @@ type Outstanding = {
   submittedVideos: number;
 };
 
+// Mirror the server's URL rule so a scheme-less paste (e.g. "www.…") is caught
+// here with a clear hint, instead of failing submission with a vague error.
+function isValidLink(u: string): boolean {
+  if (!/^https?:\/\//i.test(u)) return false;
+  try {
+    new URL(u);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export default function MyProgress() {
   const [data, setData] = useState<{
     kpis: MyKpis | null;
@@ -341,6 +353,11 @@ export default function MyProgress() {
               description="Paste the fixed version, or leave as-is if you re-exported to the same link."
               value={newUrl}
               onChange={(e) => setNewUrl(e.currentTarget.value)}
+              error={
+                newUrl.trim() !== "" && !isValidLink(newUrl.trim())
+                  ? "Enter a full link starting with https://"
+                  : undefined
+              }
             />
             <Checkbox
               checked={ack}
@@ -353,7 +370,7 @@ export default function MyProgress() {
               </Button>
               <Button
                 color="orange"
-                disabled={!ack || newUrl.trim() === ""}
+                disabled={!ack || !isValidLink(newUrl.trim())}
                 loading={acting === resubmitTarget.id}
                 onClick={confirmResubmit}
               >
