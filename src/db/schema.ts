@@ -147,6 +147,10 @@ export const bookings = pgTable(
     projectName: text("project_name"),
     propertyAddress: text("property_address"),
     notes: text("notes"),
+    // How many videos this shoot should yield, declared by the creator on
+    // their first video submission. NULL = not a video shoot / not declared.
+    // Outstanding = expected_videos − count of video deliverables logged.
+    expectedVideos: integer("expected_videos"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     status: bookingStatus("status").notNull().default("confirmed"),

@@ -34,6 +34,8 @@ type QueueItem = {
   creatorId: string;
   creatorName: string;
   agentName: string | null;
+  expectedVideos: number | null;
+  shootVideos: number;
 };
 
 const typeLabel: Record<string, string> = {
@@ -188,6 +190,11 @@ export default function ReviewQueue() {
                   <Badge variant="light" size="sm" miw={100}>
                     {typeLabel[d.type]}
                   </Badge>
+                  {d.type === "video_shoot" && d.expectedVideos != null && (
+                    <Badge size="sm" variant="outline" color="gray">
+                      {d.shootVideos} of {d.expectedVideos} in shoot
+                    </Badge>
+                  )}
                   <div style={{ minWidth: 0 }}>
                     <Text size="sm" fw={600} truncate>
                       {d.creatorName}

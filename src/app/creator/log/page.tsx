@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   Group,
+  NumberInput,
   SegmentedControl,
   Skeleton,
   Stack,
@@ -59,6 +60,8 @@ type RecentShoot = {
   projectName: string | null;
   agentName: string | null;
   status: string;
+  expectedVideos: number | null;
+  submittedVideos: number;
 };
 
 export default function LogDeliverable() {
@@ -68,6 +71,7 @@ export default function LogDeliverable() {
   const [agent, setAgent] = useState<AgentHit | null>(null);
   const [type, setType] = useState("photo_shoot");
   const [links, setLinks] = useState<string[]>([""]);
+  const [expectedVideos, setExpectedVideos] = useState<number | string>("");
   const [workDate, setWorkDate] = useState<string | null>(
     dayjs().format("YYYY-MM-DD")
   );
@@ -84,8 +88,15 @@ export default function LogDeliverable() {
                 ["completed", "confirmed"].includes(b.status) &&
                 dayjs(b.start).isBefore(dayjs())
             )
-            .sort((a, b) => b.start.localeCompare(a.start))
-            .slice(0, 6)
+            // Shoots still owing videos float to the top so they stay easy to
+            // find days later; otherwise newest first.
+            .sort((a, b) => {
+              const aOut = a.expectedVideos != null && a.submittedVideos < a.expectedVideos;
+              const bOut = b.expectedVideos != null && b.submittedVideos < b.expectedVideos;
+              if (aOut !== bOut) return aOut ? -1 : 1;
+              return b.start.localeCompare(a.start);
+            })
+            .slice(0, 8)
         )
       )
       .catch(() => setRecent([]));
@@ -114,6 +125,10 @@ export default function LogDeliverable() {
           url: links[i],
           platform: platforms[i],
           workDate,
+          expectedVideos:
+            type === "video_shoot" && !noShoot && expectedVideos !== ""
+              ? Number(expectedVideos)
+              : undefined,
         }),
       });
       if (res.ok) ok++;
@@ -140,6 +155,7 @@ export default function LogDeliverable() {
     setAgent(null);
     setType("photo_shoot");
     setLinks([""]);
+    setExpectedVideos("");
     setWorkDate(dayjs().format("YYYY-MM-DD"));
   };
 
@@ -168,6 +184,10 @@ export default function LogDeliverable() {
                   onClick={() => {
                     setShootId(b.id);
                     setNoShoot(false);
+                    // Attribute the deliverable to the shoot's date, not today.
+                    setWorkDate(dayjs(b.start).format("YYYY-MM-DD"));
+                    setExpectedVideos(b.expectedVideos ?? "");
+                    if (b.expectedVideos != null) setType("video_shoot");
                   }}
                 >
                   <Card
@@ -189,7 +209,22 @@ export default function LogDeliverable() {
                           {b.projectName} · {b.agentName}
                         </Text>
                       </div>
-                      {selected && <Badge size="sm">Selected</Badge>}
+                      <Group gap="xs" wrap="nowrap">
+                        {b.expectedVideos != null && (
+                          <Badge
+                            size="sm"
+                            variant="light"
+                            color={
+                              b.submittedVideos >= b.expectedVideos
+                                ? "green"
+                                : "orange"
+                            }
+                          >
+                            {b.submittedVideos} of {b.expectedVideos} videos
+                          </Badge>
+                        )}
+                        {selected && <Badge size="sm">Selected</Badge>}
+                      </Group>
                     </Group>
                   </Card>
                 </UnstyledButton>
@@ -200,6 +235,8 @@ export default function LogDeliverable() {
               onClick={() => {
                 setNoShoot(true);
                 setShootId(null);
+                setExpectedVideos("");
+                setWorkDate(dayjs().format("YYYY-MM-DD"));
               }}
             >
               <Card
@@ -248,6 +285,18 @@ export default function LogDeliverable() {
           ]}
         />
       </div>
+
+      {type === "video_shoot" && !noShoot && shootId && (
+        <NumberInput
+          label="How many videos total from this shoot?"
+          description="Lets you and the manager see what's still outstanding — you can send the rest later and adjust this anytime."
+          min={1}
+          max={20}
+          value={expectedVideos}
+          onChange={setExpectedVideos}
+          w={300}
+        />
+      )}
 
       <div>
         <Text size="sm" fw={500} mb={6}>

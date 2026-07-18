@@ -2,10 +2,10 @@
 
 import { NextResponse } from "next/server";
 import dayjs from "dayjs";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { deliverables } from "@/db/schema";
+import { agents, bookings, deliverables } from "@/db/schema";
 import { computeKpis } from "@/lib/kpis";
 import { jsonError } from "@/lib/api";
 
@@ -51,5 +51,29 @@ export async function GET(req: Request) {
       )
     );
 
-  return NextResponse.json({ month, kpis: mine, revisions, toPost });
+  // Shoots that still owe videos — a reminder to finish submitting.
+  const outstandingRows = await db
+    .select({
+      id: bookings.id,
+      start: bookings.startsAt,
+      projectName: bookings.projectName,
+      agentName: agents.fullName,
+      expectedVideos: bookings.expectedVideos,
+      submittedVideos: sql<number>`(select count(*)::int from deliverables d where d.booking_id = ${bookings.id} and d.type = 'video_shoot')`,
+    })
+    .from(bookings)
+    .leftJoin(agents, eq(agents.id, bookings.agentId))
+    .where(
+      and(
+        eq(bookings.creatorId, session.user.id),
+        sql`${bookings.expectedVideos} > (select count(*) from deliverables d where d.booking_id = ${bookings.id} and d.type = 'video_shoot')`
+      )
+    )
+    .orderBy(bookings.startsAt);
+  const outstanding = outstandingRows.map((r) => ({
+    ...r,
+    start: r.start.toISOString(),
+  }));
+
+  return NextResponse.json({ month, kpis: mine, revisions, toPost, outstanding });
 }

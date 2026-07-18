@@ -85,6 +85,13 @@
       "when": 1784294982882,
       "tag": "0011_user_roles_array",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784370526334,
+      "tag": "0012_booking_expected_videos",
+      "breakpoints": true
     }
   ]
 }

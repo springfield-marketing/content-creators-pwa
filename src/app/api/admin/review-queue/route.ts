@@ -4,10 +4,10 @@
 // have no deliverables of their own.
 
 import { NextResponse } from "next/server";
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { agents, deliverables, users } from "@/db/schema";
+import { agents, bookings, deliverables, users } from "@/db/schema";
 import { jsonError } from "@/lib/api";
 
 export async function GET() {
@@ -26,10 +26,14 @@ export async function GET() {
       creatorId: deliverables.creatorId,
       creatorName: users.fullName,
       agentName: agents.fullName,
+      // Shoot completeness, so a video reads as "2 of 3 from this shoot".
+      expectedVideos: bookings.expectedVideos,
+      shootVideos: sql<number>`(select count(*)::int from deliverables d2 where d2.booking_id = ${deliverables.bookingId} and d2.type = 'video_shoot')`,
     })
     .from(deliverables)
     .innerJoin(users, eq(users.id, deliverables.creatorId))
     .leftJoin(agents, eq(agents.id, deliverables.agentId))
+    .leftJoin(bookings, eq(bookings.id, deliverables.bookingId))
     .where(
       and(
         inArray(deliverables.reviewStatus, ["submitted", "under_review"]),

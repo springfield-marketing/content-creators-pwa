@@ -3,7 +3,7 @@
 
 import { NextResponse } from "next/server";
 import dayjs from "dayjs";
-import { and, eq, gte, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, or, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { agents, bookings, cancellationRequests } from "@/db/schema";
@@ -27,13 +27,20 @@ export async function GET() {
       status: bookings.status,
       agentName: agents.fullName,
       agentDeclined: bookings.agentDeclined,
+      expectedVideos: bookings.expectedVideos,
+      submittedVideos: sql<number>`(select count(*)::int from deliverables d where d.booking_id = ${bookings.id} and d.type = 'video_shoot')`,
     })
     .from(bookings)
     .leftJoin(agents, eq(agents.id, bookings.agentId))
     .where(
       and(
         eq(bookings.creatorId, session.user.id),
-        gte(bookings.endsAt, dayjs().subtract(7, "day").toDate())
+        // Recent shoots, plus any shoot that still owes videos — so a
+        // partially-delivered shoot stays selectable past the 7-day window.
+        or(
+          gte(bookings.endsAt, dayjs().subtract(7, "day").toDate()),
+          sql`${bookings.expectedVideos} > (select count(*) from deliverables d where d.booking_id = ${bookings.id} and d.type = 'video_shoot')`
+        )
       )
     )
     .orderBy(bookings.startsAt);

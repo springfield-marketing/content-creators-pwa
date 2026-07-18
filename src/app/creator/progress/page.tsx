@@ -23,7 +23,8 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconAlertTriangle, IconRefresh } from "@tabler/icons-react";
+import Link from "next/link";
+import { IconAlertTriangle, IconRefresh, IconVideo } from "@tabler/icons-react";
 
 type MyKpis = {
   completed: number;
@@ -47,12 +48,21 @@ type Revision = {
   url: string;
   comment: string | null;
 };
+type Outstanding = {
+  id: string;
+  start: string;
+  projectName: string | null;
+  agentName: string | null;
+  expectedVideos: number;
+  submittedVideos: number;
+};
 
 export default function MyProgress() {
   const [data, setData] = useState<{
     kpis: MyKpis | null;
     revisions: Revision[];
     toPost: ToPost[];
+    outstanding: Outstanding[];
   } | null>(null);
   const [acting, setActing] = useState<string | null>(null);
   // Resubmit dialog: correct the link + acknowledge the comment first.
@@ -204,6 +214,46 @@ export default function MyProgress() {
           </Stack>
         </Card>
       ))}
+
+      {data.outstanding.length > 0 && (
+        <Card style={{ borderColor: "var(--mantine-color-blue-3)" }}>
+          <Stack gap="xs">
+            <Group gap="xs">
+              <IconVideo size={18} color="var(--mantine-color-blue-6)" />
+              <Text fw={600} size="sm">
+                Still to submit
+              </Text>
+            </Group>
+            {data.outstanding.map((s) => (
+              <Group key={s.id} justify="space-between" wrap="nowrap">
+                <div style={{ minWidth: 0 }}>
+                  <Text size="sm" fw={600} truncate>
+                    {s.projectName ?? "Shoot"}
+                    {s.agentName ? ` · ${s.agentName}` : ""}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {dayjs(s.start).format("ddd D MMM")} · {s.submittedVideos} of{" "}
+                    {s.expectedVideos} videos submitted
+                  </Text>
+                </div>
+                <Group gap="xs" wrap="nowrap">
+                  <Badge size="sm" color="orange" variant="light">
+                    {s.expectedVideos - s.submittedVideos} left
+                  </Badge>
+                  <Button
+                    size="compact-xs"
+                    variant="light"
+                    component={Link}
+                    href="/creator/log"
+                  >
+                    Add
+                  </Button>
+                </Group>
+              </Group>
+            ))}
+          </Stack>
+        </Card>
+      )}
 
       {data.toPost.length > 0 && (
         <Card>

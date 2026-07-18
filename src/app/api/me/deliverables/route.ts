@@ -17,6 +17,10 @@ const schema = z.object({
   url: z.string().url().max(2000),
   platform: z.enum(["instagram", "tiktok", "drive", "dropbox", "other"]),
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // Total videos this shoot should yield — declared on the first video submit,
+  // adjustable on later ones (last write wins). Only meaningful when tied to a
+  // shoot; ignored otherwise.
+  expectedVideos: z.number().int().min(1).max(20).optional(),
 });
 
 export async function POST(req: Request) {
@@ -41,6 +45,20 @@ export async function POST(req: Request) {
       .limit(1);
     if (!b) return jsonError(404, "Shoot not found");
     agentId = b.agentId; // shoot-tied deliverables inherit the agent
+
+    // Record how many videos this shoot should yield, so later submissions
+    // (and the manager) can see what's still outstanding.
+    if (input.type === "video_shoot" && input.expectedVideos != null) {
+      await db
+        .update(bookings)
+        .set({ expectedVideos: input.expectedVideos })
+        .where(
+          and(
+            eq(bookings.id, input.bookingId),
+            eq(bookings.creatorId, session.user.id)
+          )
+        );
+    }
   }
 
   const [created] = await db
