@@ -192,7 +192,9 @@ export default function ReviewQueue() {
                   </Badge>
                   {d.type === "video_shoot" && d.expectedVideos != null && (
                     <Badge size="sm" variant="outline" color="gray">
-                      {d.shootVideos} of {d.expectedVideos} in shoot
+                      {d.shootVideos <= d.expectedVideos
+                        ? `${d.shootVideos} of ${d.expectedVideos} in shoot`
+                        : `${d.shootVideos} videos in shoot`}
                     </Badge>
                   )}
                   <div style={{ minWidth: 0 }}>
