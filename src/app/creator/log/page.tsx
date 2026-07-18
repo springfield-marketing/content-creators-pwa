@@ -18,12 +18,14 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
   UnstyledButton,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import {
   IconBrandDropbox,
+  IconInfoCircle,
   IconPlus,
   IconX,
   IconBrandGoogleDrive,
@@ -288,13 +290,26 @@ export default function LogDeliverable() {
 
       {type === "video_shoot" && !noShoot && shootId && (
         <NumberInput
-          label="How many videos total from this shoot?"
-          description="Lets you and the manager see what's still outstanding — you can send the rest later and adjust this anytime."
+          label={
+            <Group gap={4} align="center" wrap="nowrap" component="span">
+              <span>How many videos total from this shoot?</span>
+              <Tooltip
+                multiline
+                w={240}
+                withArrow
+                label="Lets you and the manager see what's still outstanding — you can send the rest later and adjust this anytime."
+              >
+                <IconInfoCircle
+                  size={14}
+                  style={{ color: "var(--mantine-color-dimmed)", cursor: "help" }}
+                />
+              </Tooltip>
+            </Group>
+          }
           min={1}
           max={20}
           value={expectedVideos}
           onChange={setExpectedVideos}
-          w={300}
         />
       )}
 
