@@ -222,9 +222,7 @@ export default function LogDeliverable() {
                                 : "orange"
                             }
                           >
-                            {b.submittedVideos <= b.expectedVideos
-                              ? `${b.submittedVideos} of ${b.expectedVideos} videos`
-                              : `${b.submittedVideos} videos`}
+                            {b.submittedVideos} of {b.expectedVideos} videos
                           </Badge>
                         )}
                         {selected && <Badge size="sm">Selected</Badge>}
