@@ -3,10 +3,11 @@
 // Screen 6 — Log a deliverable, on real data: recent shoots from the API,
 // submission goes straight into the manager's review queue.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import {
   ActionIcon,
+  Anchor,
   Badge,
   Button,
   Card,
@@ -74,12 +75,13 @@ export default function LogDeliverable() {
   const [type, setType] = useState("photo_shoot");
   const [links, setLinks] = useState<string[]>([""]);
   const [expectedVideos, setExpectedVideos] = useState<number | string>("");
+  const [editExpected, setEditExpected] = useState(false);
   const [workDate, setWorkDate] = useState<string | null>(
     dayjs().format("YYYY-MM-DD")
   );
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  const loadRecent = useCallback(() => {
     fetch("/api/me/bookings")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((rows: RecentShoot[]) =>
@@ -103,14 +105,27 @@ export default function LogDeliverable() {
       )
       .catch(() => setRecent([]));
   }, []);
+  useEffect(() => {
+    loadRecent();
+  }, [loadRecent]);
 
   const platforms = useMemo(() => links.map(detectPlatform), [links]);
   const shootOk = noShoot ? agent !== null : shootId !== null;
+  const selectedShoot = shootId
+    ? recent?.find((s) => s.id === shootId) ?? null
+    : null;
+  // A shoot-tied video needs a declared total; it's asked once (when the shoot
+  // has none yet) and read-only thereafter.
+  const needsCount = type === "video_shoot" && !noShoot && !!shootId;
+  const alreadyDeclared = selectedShoot?.expectedVideos != null;
+  const countOk =
+    !needsCount || (expectedVideos !== "" && Number(expectedVideos) >= 1);
   const canSubmit =
     shootOk &&
     !!workDate &&
     links.length > 0 &&
-    platforms.every((pf) => pf !== null);
+    platforms.every((pf) => pf !== null) &&
+    countOk;
 
   const submit = async () => {
     setSubmitting(true);
@@ -158,7 +173,10 @@ export default function LogDeliverable() {
     setType("photo_shoot");
     setLinks([""]);
     setExpectedVideos("");
+    setEditExpected(false);
     setWorkDate(dayjs().format("YYYY-MM-DD"));
+    // Refresh so the just-set total and counts are current if they log another.
+    loadRecent();
   };
 
   return (
@@ -189,6 +207,7 @@ export default function LogDeliverable() {
                     // Attribute the deliverable to the shoot's date, not today.
                     setWorkDate(dayjs(b.start).format("YYYY-MM-DD"));
                     setExpectedVideos(b.expectedVideos ?? "");
+                    setEditExpected(false);
                     if (b.expectedVideos != null) setType("video_shoot");
                   }}
                 >
@@ -238,6 +257,7 @@ export default function LogDeliverable() {
                 setNoShoot(true);
                 setShootId(null);
                 setExpectedVideos("");
+                setEditExpected(false);
                 setWorkDate(dayjs().format("YYYY-MM-DD"));
               }}
             >
@@ -288,30 +308,50 @@ export default function LogDeliverable() {
         />
       </div>
 
-      {type === "video_shoot" && !noShoot && shootId && (
-        <NumberInput
-          label={
-            <Group gap={4} align="center" wrap="nowrap" component="span">
-              <span>How many videos total from this shoot?</span>
-              <Tooltip
-                multiline
-                w={240}
-                withArrow
-                label="Lets you and the manager see what's still outstanding — you can send the rest later and adjust this anytime."
-              >
-                <IconInfoCircle
-                  size={14}
-                  style={{ color: "var(--mantine-color-dimmed)", cursor: "help" }}
-                />
-              </Tooltip>
-            </Group>
-          }
-          min={1}
-          max={20}
-          value={expectedVideos}
-          onChange={setExpectedVideos}
-        />
-      )}
+      {needsCount &&
+        (alreadyDeclared && !editExpected ? (
+          // Declared once already — just show it, don't ask again.
+          <Group gap="xs">
+            <Text size="sm">
+              This shoot:{" "}
+              <Text span fw={600}>
+                {selectedShoot?.expectedVideos} videos
+              </Text>
+            </Text>
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              onClick={() => setEditExpected(true)}
+            >
+              Edit
+            </Anchor>
+          </Group>
+        ) : (
+          <NumberInput
+            label={
+              <Group gap={4} align="center" wrap="nowrap" component="span">
+                <span>How many videos total from this shoot?</span>
+                <Tooltip
+                  multiline
+                  w={240}
+                  withArrow
+                  label="Set this once for the shoot so you and the manager can see what's still outstanding. You can send the rest later."
+                >
+                  <IconInfoCircle
+                    size={14}
+                    style={{ color: "var(--mantine-color-dimmed)", cursor: "help" }}
+                  />
+                </Tooltip>
+              </Group>
+            }
+            required
+            min={1}
+            max={20}
+            value={expectedVideos}
+            onChange={setExpectedVideos}
+          />
+        ))}
 
       <div>
         <Text size="sm" fw={500} mb={6}>
