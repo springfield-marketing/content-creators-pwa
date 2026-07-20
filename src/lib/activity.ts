@@ -5,7 +5,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { auditLog, bookings, deliverables, users } from "@/db/schema";
+import { agents, auditLog, bookings, deliverables, users } from "@/db/schema";
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
 
 export type ActivityEvent = {
@@ -32,6 +32,8 @@ type Row = {
   entity: string;
   diff: unknown;
   dType: string | null;
+  dProject: string | null; // the deliverable's shoot project
+  dAgent: string | null; // the deliverable's agent
   bProject: string | null;
   bType: DbShootType | null;
 };
@@ -41,24 +43,26 @@ function describe(r: Row): { label: string; detail: string | null } {
   const d = (r.dType && deliverableWord[r.dType]) || "deliverable";
   const proj = r.bProject ? ` — ${r.bProject}` : "";
   const shoot = r.bType ? ` (${dbShootTypeLabel[r.bType]})` : "";
+  // Name the video/photo by its shoot, falling back to the agent it's for.
+  const named = r.dProject || r.dAgent ? ` — ${r.dProject || r.dAgent}` : "";
 
   if (r.entity === "deliverable") {
     switch (r.action) {
       case "create":
-        return { label: `Logged a ${d}`, detail: null };
+        return { label: `Logged a ${d}${named}`, detail: null };
       case "approve":
         return {
-          label: `Approved a ${d}`,
+          label: `Approved a ${d}${named}`,
           detail: str(diff.permitNumber) && `Permit ${str(diff.permitNumber)}`,
         };
       case "request_changes":
-        return { label: `Requested changes on a ${d}`, detail: str(diff.comment) };
+        return { label: `Requested changes on a ${d}${named}`, detail: str(diff.comment) };
       case "resubmit":
-        return { label: `Resubmitted a ${d}`, detail: null };
+        return { label: `Resubmitted a ${d}${named}`, detail: null };
       case "mark_posted":
-        return { label: `Marked a ${d} as posted`, detail: null };
+        return { label: `Marked a ${d}${named} as posted`, detail: null };
       case "delete":
-        return { label: `Removed a ${d}`, detail: null };
+        return { label: `Removed a ${d}${named}`, detail: null };
     }
   }
   if (r.entity === "booking") {
@@ -104,6 +108,8 @@ export async function getActivity(params: {
 }): Promise<ActivityEvent[]> {
   const actor = alias(users, "actor");
   const subject = alias(users, "subject");
+  const dBooking = alias(bookings, "d_booking"); // the deliverable's shoot
+  const dAgent = alias(agents, "d_agent"); // the deliverable's agent
 
   const rows = await db
     .select({
@@ -115,6 +121,8 @@ export async function getActivity(params: {
       subjectName: subject.fullName,
       dType: deliverables.type,
       dUrl: deliverables.url,
+      dProject: dBooking.projectName,
+      dAgent: dAgent.fullName,
       bProject: bookings.projectName,
       bType: bookings.shootType,
     })
@@ -125,6 +133,8 @@ export async function getActivity(params: {
       deliverables,
       and(eq(auditLog.entity, "deliverable"), eq(deliverables.id, auditLog.entityId))
     )
+    .leftJoin(dBooking, eq(dBooking.id, deliverables.bookingId))
+    .leftJoin(dAgent, eq(dAgent.id, deliverables.agentId))
     .leftJoin(
       bookings,
       and(eq(auditLog.entity, "booking"), eq(bookings.id, auditLog.entityId))
