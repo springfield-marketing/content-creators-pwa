@@ -291,12 +291,19 @@ export const kpiSnapshots = pgTable(
   (t) => [uniqueIndex("kpi_snapshots_creator_date").on(t.creatorId, t.snapshotDate)]
 );
 
-export const auditLog = pgTable("audit_log", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
-  actorId: uuid("actor_id"),
-  entity: text("entity").notNull(),
-  entityId: uuid("entity_id").notNull(),
-  action: text("action").notNull(),
-  diff: jsonb("diff"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    actorId: uuid("actor_id"),
+    entity: text("entity").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    action: text("action").notNull(),
+    diff: jsonb("diff"),
+    // The creator an event is about (the booking/deliverable owner), for the
+    // activity timeline. Null for events not tied to a single creator.
+    subjectCreatorId: uuid("subject_creator_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => [index("audit_subject_created").on(t.subjectCreatorId, t.createdAt)]
+);
