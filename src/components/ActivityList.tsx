@@ -1,9 +1,11 @@
 "use client";
 
-// Shared activity timeline rendering, grouped by day. Fed by /api/me/activity
-// (own) or /api/admin/activity (per-creator or global).
+// Shared activity timeline: a day-sectioned table (time · type · activity ·
+// who · link). Fed by /api/me/activity (own) or /api/admin/activity.
 
-import { Anchor, Badge, Group, Stack, Text } from "@mantine/core";
+import { Fragment } from "react";
+import { ActionIcon, Badge, Table, Text } from "@mantine/core";
+import { IconExternalLink } from "@tabler/icons-react";
 import dayjs from "dayjs";
 
 export type ActivityEvent = {
@@ -25,6 +27,7 @@ const actionColor: Record<string, string> = {
   cancel_requested: "red",
   mark_posted: "teal",
   reassign: "grape",
+  create: "gray",
 };
 
 export function ActivityList({
@@ -51,48 +54,84 @@ export function ActivityList({
   }
 
   return (
-    <Stack gap="lg">
-      {days.map(([day, evs]) => (
-        <div key={day}>
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb={8}>
-            {day}
-          </Text>
-          <Stack gap={10}>
-            {evs.map((e, i) => (
-              <Group key={i} gap="sm" wrap="nowrap" align="flex-start">
-                <Text size="xs" c="dimmed" w={44} style={{ flexShrink: 0 }}>
-                  {dayjs(e.at).format("HH:mm")}
-                </Text>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <Group gap={6} wrap="wrap">
+    <Table.ScrollContainer minWidth={560}>
+      <Table verticalSpacing="xs" horizontalSpacing="md" highlightOnHover>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th w={60}>Time</Table.Th>
+            <Table.Th w={132}>Type</Table.Th>
+            <Table.Th>Activity</Table.Th>
+            <Table.Th w={showSubject ? 190 : 150}>By</Table.Th>
+            <Table.Th w={44} />
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {days.map(([day, evs]) => (
+            <Fragment key={day}>
+              <Table.Tr bg="var(--mantine-color-default-hover)">
+                <Table.Td colSpan={5} py={6}>
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    {day}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+              {evs.map((e, i) => (
+                <Table.Tr key={`${day}-${i}`}>
+                  <Table.Td>
+                    <Text size="xs" c="dimmed" ff="monospace">
+                      {dayjs(e.at).format("HH:mm")}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
                     <Badge
-                      size="xs"
+                      size="sm"
                       variant="light"
                       color={actionColor[e.action] ?? "gray"}
                     >
                       {e.action.replace(/_/g, " ")}
                     </Badge>
-                    <Text size="sm" fw={500}>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" fw={500} lh={1.3}>
                       {e.label}
                     </Text>
-                  </Group>
-                  <Text size="xs" c="dimmed">
-                    {e.actor ?? "System"}
-                    {showSubject && e.subject ? ` · ${e.subject}` : ""}
-                    {e.detail ? ` · ${e.detail}` : ""}
-                  </Text>
-                </div>
-                {e.url && (
-                  <Anchor href={e.url} target="_blank" size="xs" style={{ flexShrink: 0 }}>
-                    open
-                  </Anchor>
-                )}
-              </Group>
-            ))}
-          </Stack>
-        </div>
-      ))}
-    </Stack>
+                    {e.detail && (
+                      <Text size="xs" c="dimmed" lh={1.3}>
+                        {e.detail}
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" lh={1.3}>
+                      {e.actor ?? "System"}
+                    </Text>
+                    {showSubject && e.subject && (
+                      <Text size="xs" c="dimmed" lh={1.3}>
+                        {e.subject}
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    {e.url && (
+                      <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        component="a"
+                        href={e.url}
+                        target="_blank"
+                        aria-label="Open deliverable"
+                      >
+                        <IconExternalLink size={16} />
+                      </ActionIcon>
+                    )}
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Fragment>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
   );
 }
 
