@@ -15,6 +15,7 @@ import {
   IconCalendarEvent,
   IconChartBar,
   IconCirclePlus,
+  IconHistory,
 } from "@tabler/icons-react";
 
 // Creator shell: phone-first app layout with a fixed bottom tab bar.
@@ -24,6 +25,7 @@ const tabs = [
   { href: "/creator", label: "Schedule", icon: IconCalendarEvent },
   { href: "/creator/log", label: "Log", icon: IconCirclePlus },
   { href: "/creator/progress", label: "Progress", icon: IconChartBar },
+  { href: "/creator/history", label: "History", icon: IconHistory },
 ];
 
 const TAB_BAR_HEIGHT = 64;
