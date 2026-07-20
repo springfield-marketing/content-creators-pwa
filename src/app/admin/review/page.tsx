@@ -18,6 +18,7 @@ import {
   Stack,
   Text,
   Textarea,
+  TextInput,
   Title,
   Tooltip,
 } from "@mantine/core";
@@ -50,8 +51,12 @@ export default function ReviewQueue() {
   const [selected, setSelected] = useState(0);
   const [comment, setComment] = useState("");
   const [changesTarget, setChangesTarget] = useState<QueueItem | null>(null);
+  const [approveTarget, setApproveTarget] = useState<QueueItem | null>(null);
+  const [permit, setPermit] = useState("");
   const [busy, setBusy] = useState(false);
   const [changesOpen, { open: openChanges, close: closeChanges }] =
+    useDisclosure(false);
+  const [approveOpen, { open: openApprove, close: closeApprove }] =
     useDisclosure(false);
 
   const reload = useCallback(() => {
@@ -82,18 +87,32 @@ export default function ReviewQueue() {
   }, [items]);
 
   const decide = useCallback(
-    async (d: QueueItem, action: "approve" | "request_changes", c?: string) => {
+    async (
+      d: QueueItem,
+      action: "approve" | "request_changes",
+      opts?: { comment?: string; permitNumber?: string }
+    ) => {
       setBusy(true);
       const res = await fetch(`/api/admin/deliverables/${d.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          action === "approve" ? { action } : { action, comment: c }
+          action === "approve"
+            ? {
+                action,
+                ...(opts?.permitNumber ? { permitNumber: opts.permitNumber } : {}),
+              }
+            : { action, comment: opts?.comment }
         ),
       });
       setBusy(false);
       if (!res.ok) {
-        notifications.show({ title: "Action failed", message: "Try again.", color: "red" });
+        const body = await res.json().catch(() => ({}));
+        notifications.show({
+          title: "Action failed",
+          message: body.error ?? "Try again.",
+          color: "red",
+        });
         return;
       }
       notifications.show({
@@ -118,20 +137,35 @@ export default function ReviewQueue() {
     [openChanges]
   );
 
+  // Videos need a permit number recorded, so approving one goes through a
+  // popup; photos approve in one click as before.
+  const startApprove = useCallback(
+    (d: QueueItem) => {
+      if (d.type === "video_shoot") {
+        setApproveTarget(d);
+        setPermit("");
+        openApprove();
+      } else {
+        decide(d, "approve");
+      }
+    },
+    [openApprove, decide]
+  );
+
   const sel = Math.min(selected, Math.max(queue.length - 1, 0));
 
   useEffect(() => {
-    if (changesOpen) return;
+    if (changesOpen || approveOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === "INPUT") return;
       if (e.key === "j") setSelected(Math.min(sel + 1, queue.length - 1));
       if (e.key === "k") setSelected(Math.max(sel - 1, 0));
-      if (e.key === "a" && queue[sel]) decide(queue[sel], "approve");
+      if (e.key === "a" && queue[sel]) startApprove(queue[sel]);
       if (e.key === "r" && queue[sel]) askChanges(queue[sel]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [queue, sel, changesOpen, decide, askChanges]);
+  }, [queue, sel, changesOpen, approveOpen, startApprove, askChanges]);
 
   return (
     <Stack gap="lg">
@@ -222,7 +256,7 @@ export default function ReviewQueue() {
                     color="green"
                     leftSection={<IconCheck size={14} />}
                     loading={busy}
-                    onClick={() => decide(d, "approve")}
+                    onClick={() => startApprove(d)}
                   >
                     Approve
                   </Button>
@@ -241,6 +275,44 @@ export default function ReviewQueue() {
           ))}
         </Stack>
       )}
+
+      <Modal opened={approveOpen} onClose={closeApprove} title="Approve video" centered>
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Record the permit number for {approveTarget?.creatorName}&apos;s video
+            after checking it.
+          </Text>
+          <TextInput
+            label="Permit number"
+            required
+            placeholder="e.g. 1234567890"
+            value={permit}
+            onChange={(e) => setPermit(e.currentTarget.value)}
+            data-autofocus
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeApprove}>
+              Cancel
+            </Button>
+            <Button
+              color="green"
+              leftSection={<IconCheck size={14} />}
+              disabled={permit.trim() === ""}
+              loading={busy}
+              onClick={async () => {
+                if (approveTarget) {
+                  await decide(approveTarget, "approve", {
+                    permitNumber: permit.trim(),
+                  });
+                }
+                closeApprove();
+              }}
+            >
+              Approve
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal opened={changesOpen} onClose={closeChanges} title="Request changes" centered>
         <Stack gap="md">
@@ -264,7 +336,7 @@ export default function ReviewQueue() {
               loading={busy}
               onClick={async () => {
                 if (changesTarget) {
-                  await decide(changesTarget, "request_changes", comment);
+                  await decide(changesTarget, "request_changes", { comment });
                 }
                 closeChanges();
               }}
