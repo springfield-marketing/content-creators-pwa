@@ -18,6 +18,7 @@ import {
   IconCalendarWeek,
   IconChartBar,
   IconChecklist,
+  IconGavel,
   IconHistory,
   IconSettings,
   IconTargetArrow,
@@ -29,6 +30,7 @@ import {
 const links = [
   { href: "/admin/schedule", label: "Weekly plan", icon: IconCalendarTime },
   { href: "/admin/review", label: "Review queue", icon: IconChecklist },
+  { href: "/admin/reviews", label: "Reviews", icon: IconGavel },
   { href: "/admin/activity", label: "Activity", icon: IconHistory },
   { href: "/admin/kpis", label: "KPI dashboard", icon: IconChartBar },
   { href: "/admin/targets", label: "Targets", icon: IconTargetArrow },
