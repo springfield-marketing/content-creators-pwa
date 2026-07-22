@@ -311,9 +311,9 @@ export const auditLog = pgTable(
 // ─── Review log (removable feature) ──────────────────────────────────────────
 // A durable, domain-modelled record of every review decision, for reviewer
 // accountability and feedback analysis. Self-contained — to remove the feature:
-// drop this table, delete src/lib/review-log.ts, the /api/admin/reviews route
-// and /admin/reviews screen, the nav link, and the recordReviewDecision() call
-// in src/app/api/admin/deliverables/[id]/route.ts.
+// drop this table, delete src/lib/review-log.ts, the /api/admin/review-log
+// route and /admin/review-log screen, the nav link, and the
+// recordReviewDecision() call in src/app/api/admin/deliverables/[id]/route.ts.
 export const reviewDecisions = pgTable(
   "review_decisions",
   {

@@ -1,7 +1,7 @@
 // Review log (removable feature). Records every review decision into the
 // review_decisions table for accountability/feedback analysis, and reads it
-// back for the /admin/reviews screen. Delete this file + the table + the
-// /reviews route/screen + the recordReviewDecision() call to remove the feature.
+// back for the /admin/review-log screen. Delete this file + the table + the
+// review-log route/screen + the recordReviewDecision() call to remove the feature.
 
 import { desc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -47,7 +47,7 @@ export async function recordReviewDecision(params: {
   }
 }
 
-// Every review decision for a Dubai-month, enriched for the /admin/reviews
+// Every review decision for a Dubai-month, enriched for the /admin/review-log
 // screen. The screen does its own filtering and reviewer-summary maths.
 export async function getReviewLog(month: string): Promise<ReviewRow[]> {
   const reviewer = alias(users, "reviewer");

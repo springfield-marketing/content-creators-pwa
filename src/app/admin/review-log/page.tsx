@@ -87,7 +87,7 @@ export default function ReviewsScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/admin/reviews?month=${month}`)
+    fetch(`/api/admin/review-log?month=${month}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => !cancelled && setData({ month, rows: d.rows }))
       .catch(() => !cancelled && setData({ month, rows: [] }));

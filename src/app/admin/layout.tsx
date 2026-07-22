@@ -26,18 +26,39 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 
-// Manager shell: desktop-first sidebar, collapsible on mobile.
-const links = [
-  { href: "/admin/schedule", label: "Weekly plan", icon: IconCalendarTime },
-  { href: "/admin/review", label: "Review queue", icon: IconChecklist },
-  { href: "/admin/reviews", label: "Reviews", icon: IconGavel },
-  { href: "/admin/activity", label: "Activity", icon: IconHistory },
-  { href: "/admin/kpis", label: "KPI dashboard", icon: IconChartBar },
-  { href: "/admin/targets", label: "Targets", icon: IconTargetArrow },
-  { href: "/admin/agents", label: "Agents", icon: IconUsers },
-  { href: "/admin/bookings", label: "Bookings", icon: IconCalendarWeek },
-  { href: "/admin/creators", label: "Creators", icon: IconSettings },
-  { href: "/admin/team", label: "Team", icon: IconUserShield },
+// Manager shell: desktop-first sidebar, grouped by function, collapsible on
+// mobile. A team_lead only reaches the review queue, so they see just that.
+const NAV_GROUPS = [
+  {
+    title: "Review",
+    links: [
+      { href: "/admin/review", label: "Queue", icon: IconChecklist },
+      { href: "/admin/review-log", label: "Review log", icon: IconGavel },
+    ],
+  },
+  {
+    title: "Schedule",
+    links: [
+      { href: "/admin/schedule", label: "Weekly plan", icon: IconCalendarTime },
+      { href: "/admin/bookings", label: "Bookings", icon: IconCalendarWeek },
+    ],
+  },
+  {
+    title: "Insights",
+    links: [
+      { href: "/admin/activity", label: "Activity", icon: IconHistory },
+      { href: "/admin/kpis", label: "KPIs", icon: IconChartBar },
+      { href: "/admin/targets", label: "Targets", icon: IconTargetArrow },
+    ],
+  },
+  {
+    title: "People",
+    links: [
+      { href: "/admin/creators", label: "Creators", icon: IconSettings },
+      { href: "/admin/agents", label: "Agents", icon: IconUsers },
+      { href: "/admin/team", label: "Team", icon: IconUserShield },
+    ],
+  },
 ];
 
 export default function AdminLayout({
@@ -50,9 +71,9 @@ export default function AdminLayout({
   const { data: session } = useSession();
   // A team_lead only reaches the review queue (see proxy.ts) — offering the
   // rest of the sidebar would just bounce them back out.
-  const visibleLinks = session?.user?.roles?.includes("manager")
-    ? links
-    : links.filter((l) => l.href === "/admin/review");
+  const isManager = !!session?.user?.roles?.includes("manager");
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <AppShell
@@ -82,18 +103,41 @@ export default function AdminLayout({
       </AppShell.Header>
 
       <AppShell.Navbar p="xs">
-        {visibleLinks.map((link) => (
-          <NavLink
-            key={link.href}
-            component={Link}
-            href={link.href}
-            label={link.label}
-            fw={500}
-            leftSection={<link.icon size={20} stroke={1.5} />}
-            active={pathname.startsWith(link.href)}
-            onClick={close}
-          />
-        ))}
+        {NAV_GROUPS.map((group) => {
+          const items = group.links.filter(
+            (l) => isManager || l.href === "/admin/review"
+          );
+          if (items.length === 0) return null;
+          return (
+            <div key={group.title}>
+              {isManager && (
+                <Text
+                  size="xs"
+                  fw={700}
+                  c="dimmed"
+                  tt="uppercase"
+                  px="sm"
+                  pt="md"
+                  pb={4}
+                >
+                  {group.title}
+                </Text>
+              )}
+              {items.map((link) => (
+                <NavLink
+                  key={link.href}
+                  component={Link}
+                  href={link.href}
+                  label={link.label}
+                  fw={500}
+                  leftSection={<link.icon size={20} stroke={1.5} />}
+                  active={isActive(link.href)}
+                  onClick={close}
+                />
+              ))}
+            </div>
+          );
+        })}
       </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>

@@ -1,4 +1,4 @@
-// GET /api/admin/reviews?month=YYYY-MM — every review decision for the month.
+// GET /api/admin/review-log?month=YYYY-MM — every review decision for the month.
 // Part of the removable review-log feature. The screen filters + summarises.
 
 import { NextResponse } from "next/server";
