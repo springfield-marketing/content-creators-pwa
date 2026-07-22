@@ -19,6 +19,8 @@ const geistSans = Geist({
 export const metadata: Metadata = {
   title: "Content Team Booking",
   description: "Book content creators, log deliverables, and track KPIs",
+  // Internal tool — never index any page. Inherited by every route.
+  robots: { index: false, follow: false },
   appleWebApp: {
     capable: true,
     title: "Content Team",
