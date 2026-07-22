@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
   <title>Creator Leaderboard</title>
-  <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
-  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet" />
   <style>
+    /* Self-hosted Poppins (same-origin) — no external font CDN dependency. */
+    @font-face{font-family:"Poppins";src:url(/fonts/poppins-300.woff2) format("woff2");font-weight:300;font-display:swap}
+    @font-face{font-family:"Poppins";src:url(/fonts/poppins-400.woff2) format("woff2");font-weight:400;font-display:swap}
+    @font-face{font-family:"Poppins";src:url(/fonts/poppins-500.woff2) format("woff2");font-weight:500;font-display:swap}
     :root{
       --bg:#0a0a0b;
       --ink:#f1f1f3;
@@ -27,7 +29,7 @@
         radial-gradient(70% 55% at 50% -8%, rgba(150,110,70,.10), transparent 60%),
         var(--bg);
       color:var(--ink);
-      font-family:"Satoshi",system-ui,sans-serif;
+      font-family:"Poppins",system-ui,sans-serif;
       overflow:hidden;
       -webkit-font-smoothing:antialiased;
     }
@@ -38,10 +40,10 @@
     }
     /* header */
     header{display:flex; align-items:baseline; justify-content:space-between; gap:16px}
-    .title{font-family:"Clash Display"; font-weight:700; font-size:clamp(22px,2.4vw,34px); letter-spacing:-.02em}
+    .title{font-family:"Poppins"; font-weight:400; font-size:clamp(24px,2.6vw,38px); letter-spacing:-.01em}
     .title span{color:var(--faint); font-weight:500}
     .meta{text-align:right; line-height:1.35}
-    .meta .m1{font-family:"Clash Display"; font-weight:600; font-size:clamp(14px,1.3vw,20px); letter-spacing:.14em; color:var(--ink)}
+    .meta .m1{font-family:"Poppins"; font-weight:400; font-size:clamp(14px,1.3vw,20px); letter-spacing:.14em; color:var(--ink)}
     .meta .m2{font-size:clamp(11px,.85vw,13px); color:var(--muted)}
     /* podium */
     .podium{display:flex; align-items:flex-end; justify-content:center; gap:clamp(16px,2.2vw,40px)}
@@ -50,9 +52,9 @@
       border-radius:22%; object-fit:cover; background:var(--surface-2);
       border:1px solid var(--line);
       display:flex; align-items:center; justify-content:center;
-      font-family:"Clash Display"; font-weight:700; color:var(--muted);
+      font-family:"Poppins"; font-weight:700; color:var(--muted);
     }
-    .stand .name{font-family:"Clash Display"; font-weight:600; font-size:clamp(16px,1.5vw,24px); margin:12px 0 10px; letter-spacing:-.01em}
+    .stand .name{font-family:"Poppins"; font-weight:400; font-size:clamp(16px,1.5vw,24px); margin:12px 0 10px; letter-spacing:-.01em}
     .ped{
       width:100%; border-radius:16px 16px 10px 10px;
       background:linear-gradient(180deg, var(--surface-2), var(--surface));
@@ -63,32 +65,32 @@
     .badge{
       width:clamp(30px,2.4vw,40px); height:clamp(30px,2.4vw,40px); border-radius:12px;
       display:flex; align-items:center; justify-content:center;
-      font-family:"Clash Display"; font-weight:800; font-size:clamp(14px,1.2vw,20px);
+      font-family:"Poppins"; font-weight:700; font-size:clamp(14px,1.2vw,20px);
       color:#0a0a0b; margin-bottom:12px;
     }
-    .big{font-family:"Clash Display"; font-weight:800; font-size:clamp(30px,3.4vw,52px); line-height:1; letter-spacing:-.02em}
-    .big small{font-size:.42em; font-weight:600; color:var(--muted); letter-spacing:0}
+    .big{font-family:"Poppins"; font-weight:400; font-size:clamp(32px,3.6vw,56px); line-height:1; letter-spacing:-.02em}
+    .big small{font-size:.42em; font-weight:400; color:var(--muted); letter-spacing:0}
     .subm{font-size:clamp(11px,.9vw,14px); color:var(--muted); margin-top:8px; padding-bottom:clamp(14px,1.6vh,22px)}
-    .subm b{color:var(--ink); font-weight:600}
+    .subm b{color:var(--ink); font-weight:400}
     /* board */
     .board{flex:1; min-height:0; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:clamp(10px,1.4vh,20px) clamp(14px,1.4vw,26px); display:flex; flex-direction:column}
-    .board h2{font-family:"Clash Display"; font-weight:600; font-size:clamp(14px,1.2vw,19px); color:var(--muted); margin-bottom:8px}
+    .board h2{font-family:"Poppins"; font-weight:400; font-size:clamp(14px,1.2vw,19px); color:var(--muted); margin-bottom:8px}
     .grid{display:grid; grid-template-columns:64px 1fr 120px 120px 140px 260px; gap:16px; align-items:center}
     .thead{padding:8px clamp(6px,.8vw,14px); color:var(--faint); font-size:clamp(10px,.75vw,12px); text-transform:uppercase; letter-spacing:.12em; border-bottom:1px solid var(--line)}
     .thead .r{text-align:right}
     .rows{flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-around}
     .row{padding:clamp(6px,.9vh,12px) clamp(6px,.8vw,14px); border-radius:12px}
     .row + .row{border-top:1px solid var(--line)}
-    .rank{font-family:"Clash Display"; font-weight:700; color:var(--muted); font-size:clamp(14px,1.1vw,18px)}
+    .rank{font-family:"Poppins"; font-weight:700; color:var(--muted); font-size:clamp(14px,1.1vw,18px)}
     .who{display:flex; align-items:center; gap:14px; min-width:0}
-    .who .a{width:clamp(30px,2.2vw,40px); height:clamp(30px,2.2vw,40px); border-radius:26%; object-fit:cover; background:var(--surface-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-family:"Clash Display"; font-weight:700; font-size:13px; color:var(--muted); flex:none}
-    .who .n{font-family:"Clash Display"; font-weight:600; font-size:clamp(15px,1.25vw,21px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-    .num{font-family:"Clash Display"; text-align:right; font-weight:700; font-size:clamp(16px,1.4vw,24px)}
+    .who .a{width:clamp(30px,2.2vw,40px); height:clamp(30px,2.2vw,40px); border-radius:26%; object-fit:cover; background:var(--surface-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-family:"Poppins"; font-weight:700; font-size:13px; color:var(--muted); flex:none}
+    .who .n{font-family:"Poppins"; font-weight:400; font-size:clamp(15px,1.25vw,21px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .num{font-family:"Poppins"; text-align:right; font-weight:700; font-size:clamp(16px,1.4vw,24px)}
     .num.sec{font-weight:500; color:var(--muted)}
     .tgt{display:flex; align-items:center; gap:12px}
     .track{flex:1; height:clamp(6px,.6vh,9px); border-radius:999px; background:rgba(255,255,255,.07); overflow:hidden}
     .fill{height:100%; border-radius:999px; background:var(--bar)}
-    .pct{font-family:"Clash Display"; font-weight:700; width:56px; text-align:right; font-size:clamp(14px,1.15vw,20px)}
+    .pct{font-family:"Poppins"; font-weight:700; width:56px; text-align:right; font-size:clamp(14px,1.15vw,20px)}
     .dim{color:var(--muted)}
   </style>
 </head>
