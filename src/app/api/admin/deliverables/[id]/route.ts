@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { deliverables } from "@/db/schema";
 import { jsonError, parseBody } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
+import { recordReviewDecision } from "@/lib/review-log";
 
 const schema = z.discriminatedUnion("action", [
   z.object({
@@ -83,6 +84,16 @@ export async function POST(
         : { permitNumber: input.permitNumber ?? null },
   });
   // TODO(Resend): notify the creator on request_changes.
+
+  // Review log (removable feature): durable record of this decision.
+  await recordReviewDecision({
+    deliverableId: id,
+    creatorId: d.creatorId,
+    reviewerId: session.user.id,
+    decision: input.action === "approve" ? "approved" : "changes_requested",
+    comment: input.action === "request_changes" ? input.comment : null,
+    permitNumber: input.action === "approve" ? (input.permitNumber ?? null) : null,
+  });
 
   return NextResponse.json({ ok: true });
 }

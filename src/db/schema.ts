@@ -307,3 +307,37 @@ export const auditLog = pgTable(
   },
   (t) => [index("audit_subject_created").on(t.subjectCreatorId, t.createdAt)]
 );
+
+// ─── Review log (removable feature) ──────────────────────────────────────────
+// A durable, domain-modelled record of every review decision, for reviewer
+// accountability and feedback analysis. Self-contained — to remove the feature:
+// drop this table, delete src/lib/review-log.ts, the /api/admin/reviews route
+// and /admin/reviews screen, the nav link, and the recordReviewDecision() call
+// in src/app/api/admin/deliverables/[id]/route.ts.
+export const reviewDecisions = pgTable(
+  "review_decisions",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    deliverableId: uuid("deliverable_id")
+      .notNull()
+      .references(() => deliverables.id),
+    creatorId: uuid("creator_id")
+      .notNull()
+      .references(() => users.id),
+    reviewerId: uuid("reviewer_id").references(() => users.id),
+    decision: text("decision").notNull(), // 'approved' | 'changes_requested'
+    comment: text("comment"),
+    permitNumber: text("permit_number"),
+    decidedAt: timestamp("decided_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("review_decisions_reviewer").on(t.reviewerId, t.decidedAt),
+    index("review_decisions_creator").on(t.creatorId, t.decidedAt),
+    check(
+      "review_decisions_decision",
+      sql`${t.decision} in ('approved','changes_requested')`
+    ),
+  ]
+);
