@@ -6,6 +6,9 @@ import { NextResponse } from "next/server";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+import { arrayContains } from "drizzle-orm";
+import { db } from "@/db";
+import { users } from "@/db/schema";
 import { computeKpis } from "@/lib/kpis";
 
 dayjs.extend(utc);
@@ -18,9 +21,16 @@ export async function GET() {
   const month = now.format("YYYY-MM");
   const kpis = await computeKpis(month);
 
+  const photos = await db
+    .select({ id: users.id, photo: users.photoUrl })
+    .from(users)
+    .where(arrayContains(users.roles, ["creator"]));
+  const photoById = new Map(photos.map((p) => [p.id, p.photo]));
+
   const rows = kpis
     .map((k) => ({
       name: k.creatorName,
+      photoUrl: photoById.get(k.creatorId) ?? null,
       approved: k.approved,
       posted: k.posted,
       turnaroundHours: k.avgTurnaroundHours, // null if no shoot-tied deliverables

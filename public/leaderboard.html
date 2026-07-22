@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Creator Leaderboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root{
+      --bg:#0a0a0b;
+      --ink:#f1f1f3;
+      --muted:#8b8b94;
+      --faint:#5c5c64;
+      --line:rgba(255,255,255,.07);
+      --surface:rgba(255,255,255,.025);
+      --surface-2:rgba(255,255,255,.045);
+      --gold:#d8b877; --silver:#c3c7cd; --bronze:#bd8a5f;
+      --bar:#c9a878;
+      --good:#7fb98f;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      background:
+        radial-gradient(70% 55% at 50% -8%, rgba(150,110,70,.10), transparent 60%),
+        var(--bg);
+      color:var(--ink);
+      font-family:"Inter",system-ui,sans-serif;
+      overflow:hidden;
+      -webkit-font-smoothing:antialiased;
+    }
+    .wrap{
+      height:100vh; max-width:1500px; margin:0 auto;
+      padding:clamp(20px,2.4vh,40px) clamp(24px,3vw,56px);
+      display:flex; flex-direction:column; gap:clamp(14px,2vh,28px);
+    }
+    /* header */
+    header{display:flex; align-items:baseline; justify-content:space-between; gap:16px}
+    .title{font-family:"Sora"; font-weight:700; font-size:clamp(22px,2.4vw,34px); letter-spacing:-.02em}
+    .title span{color:var(--faint); font-weight:500}
+    .meta{text-align:right; line-height:1.35}
+    .meta .m1{font-family:"Sora"; font-weight:600; font-size:clamp(14px,1.3vw,20px); letter-spacing:.14em; color:var(--ink)}
+    .meta .m2{font-size:clamp(11px,.85vw,13px); color:var(--muted)}
+    /* podium */
+    .podium{display:flex; align-items:flex-end; justify-content:center; gap:clamp(16px,2.2vw,40px)}
+    .stand{display:flex; flex-direction:column; align-items:center; width:clamp(180px,20vw,300px)}
+    .ava{
+      border-radius:22%; object-fit:cover; background:var(--surface-2);
+      border:1px solid var(--line);
+      display:flex; align-items:center; justify-content:center;
+      font-family:"Sora"; font-weight:700; color:var(--muted);
+    }
+    .stand .name{font-family:"Sora"; font-weight:600; font-size:clamp(16px,1.5vw,24px); margin:12px 0 10px; letter-spacing:-.01em}
+    .ped{
+      width:100%; border-radius:16px 16px 10px 10px;
+      background:linear-gradient(180deg, var(--surface-2), var(--surface));
+      border:1px solid var(--line); border-bottom:none;
+      padding:clamp(14px,1.6vh,22px) 18px 0; text-align:center;
+      display:flex; flex-direction:column; align-items:center;
+    }
+    .badge{
+      width:clamp(30px,2.4vw,40px); height:clamp(30px,2.4vw,40px); border-radius:12px;
+      display:flex; align-items:center; justify-content:center;
+      font-family:"Sora"; font-weight:800; font-size:clamp(14px,1.2vw,20px);
+      color:#0a0a0b; margin-bottom:12px;
+    }
+    .big{font-family:"Sora"; font-weight:800; font-size:clamp(30px,3.4vw,52px); line-height:1; letter-spacing:-.02em}
+    .big small{font-size:.42em; font-weight:600; color:var(--muted); letter-spacing:0}
+    .subm{font-size:clamp(11px,.9vw,14px); color:var(--muted); margin-top:8px; padding-bottom:clamp(14px,1.6vh,22px)}
+    .subm b{color:var(--ink); font-weight:600}
+    /* board */
+    .board{flex:1; min-height:0; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:clamp(10px,1.4vh,20px) clamp(14px,1.4vw,26px); display:flex; flex-direction:column}
+    .board h2{font-family:"Sora"; font-weight:600; font-size:clamp(14px,1.2vw,19px); color:var(--muted); margin-bottom:8px}
+    .grid{display:grid; grid-template-columns:64px 1fr 120px 120px 140px 260px; gap:16px; align-items:center}
+    .thead{padding:8px clamp(6px,.8vw,14px); color:var(--faint); font-size:clamp(10px,.75vw,12px); text-transform:uppercase; letter-spacing:.12em; border-bottom:1px solid var(--line)}
+    .thead .r{text-align:right}
+    .rows{flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-around}
+    .row{padding:clamp(6px,.9vh,12px) clamp(6px,.8vw,14px); border-radius:12px}
+    .row + .row{border-top:1px solid var(--line)}
+    .rank{font-family:"Sora"; font-weight:700; color:var(--muted); font-size:clamp(14px,1.1vw,18px)}
+    .who{display:flex; align-items:center; gap:14px; min-width:0}
+    .who .a{width:clamp(30px,2.2vw,40px); height:clamp(30px,2.2vw,40px); border-radius:26%; object-fit:cover; background:var(--surface-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-family:"Sora"; font-weight:700; font-size:13px; color:var(--muted); flex:none}
+    .who .n{font-family:"Sora"; font-weight:600; font-size:clamp(15px,1.25vw,21px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .num{font-family:"Sora"; text-align:right; font-weight:700; font-size:clamp(16px,1.4vw,24px)}
+    .num.sec{font-weight:500; color:var(--muted)}
+    .tgt{display:flex; align-items:center; gap:12px}
+    .track{flex:1; height:clamp(6px,.6vh,9px); border-radius:999px; background:rgba(255,255,255,.07); overflow:hidden}
+    .fill{height:100%; border-radius:999px; background:var(--bar)}
+    .pct{font-family:"Sora"; font-weight:700; width:56px; text-align:right; font-size:clamp(14px,1.15vw,20px)}
+    .dim{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title">Creator Leaderboard</div>
+      <div class="meta"><div class="m1" id="month">&nbsp;</div><div class="m2" id="updated">Loading…</div></div>
+    </header>
+    <section class="podium" id="podium"></section>
+    <section class="board">
+      <h2>Standings</h2>
+      <div class="grid thead">
+        <div>Rank</div><div>Creator</div><div class="r">Approved</div><div class="r">Posted</div><div class="r">Turnaround</div><div>Target</div>
+      </div>
+      <div class="rows" id="rows"></div>
+    </section>
+  </div>
+
+  <script>
+    var MEDAL = ["var(--gold)","var(--silver)","var(--bronze)"];
+    var PODIUM_ORDER = [1,0,2];        // 2nd, 1st, 3rd (1st centre)
+    var PODIUM_H = {0:1,1:.82,2:.72};  // relative pedestal heights by rank index
+
+    function initials(name){return name.split(/\s+/).map(function(w){return w[0]||""}).join("").slice(0,2).toUpperCase()}
+    function turn(h){if(h==null)return "—"; if(h<1)return "<1h"; if(h<48)return Math.round(h)+"h"; return Math.round(h/24)+"d"}
+    function pct(a){return a==null?null:Math.round(a*100)}
+    function esc(s){var d=document.createElement("div"); d.textContent=s; return d.innerHTML}
+
+    function avatar(r, cls, size){
+      if(r.photoUrl){return '<img class="'+cls+'" src="'+esc(r.photoUrl)+'" alt="" style="width:'+size+';height:'+size+'" onerror="this.replaceWith(mono(\''+esc(initials(r.name))+'\',\''+cls+'\',\''+size+'\'))">'}
+      return '<div class="'+cls+'" style="width:'+size+';height:'+size+'">'+esc(initials(r.name))+'</div>'
+    }
+
+    function renderPodium(rows){
+      var host=document.getElementById("podium"); host.innerHTML="";
+      PODIUM_ORDER.forEach(function(idx){
+        var r=rows[idx]; if(!r)return;
+        var p=pct(r.attainment);
+        var big=r.approved, av=idx===0?"clamp(96px,7vw,132px)":"clamp(74px,5.4vw,104px)";
+        var el=document.createElement("div"); el.className="stand";
+        el.innerHTML=
+          avatar(r,"ava",av)+
+          '<div class="name">'+esc(r.name)+'</div>'+
+          '<div class="ped" style="min-height:calc(('+(PODIUM_H[idx]*100)+'px + 8vh)*1.1)">'+
+            '<div class="badge" style="background:'+MEDAL[idx]+'">'+r.rank+'</div>'+
+            '<div class="big">'+big+' <small>approved</small></div>'+
+            '<div class="subm">'+(p==null?'<span class="dim">no target</span>':'<b>'+p+'%</b> of target')+'</div>'+
+          '</div>';
+        host.appendChild(el);
+      });
+    }
+
+    function renderRows(rows){
+      var host=document.getElementById("rows"); host.innerHTML="";
+      rows.slice(3).forEach(function(r){
+        var p=pct(r.attainment), w=r.attainment==null?0:Math.min(r.attainment,1)*100;
+        var el=document.createElement("div"); el.className="grid row";
+        el.innerHTML=
+          '<div class="rank">'+r.rank+'</div>'+
+          '<div class="who">'+avatar(r,"a","")+'<div class="n">'+esc(r.name)+'</div></div>'+
+          '<div class="num">'+r.approved+'</div>'+
+          '<div class="num sec'+(r.posted===0?' dim':'')+'">'+r.posted+'</div>'+
+          '<div class="num sec">'+turn(r.turnaroundHours)+'</div>'+
+          '<div class="tgt"><div class="track"><div class="fill" style="width:'+w+'%'+(p!=null&&p>=100?';background:var(--good)':'')+'"></div></div>'+
+            '<div class="pct'+(p==null?' dim':'')+'">'+(p==null?'—':p+'%')+'</div></div>';
+        host.appendChild(el);
+      });
+    }
+
+    function fmtMonth(m){var d=new Date(m+"-01T00:00:00"); return d.toLocaleDateString("en-US",{month:"long",year:"numeric"}).toUpperCase()}
+
+    function load(){
+      fetch("/api/leaderboard").then(function(r){return r.json()}).then(function(d){
+        document.getElementById("month").textContent=fmtMonth(d.month);
+        var t=new Date(d.updatedAt).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+        document.getElementById("updated").textContent="Updated "+t+" · ranked by target %";
+        renderPodium(d.rows); renderRows(d.rows);
+      }).catch(function(){});
+    }
+    // avatar img error fallback helper (referenced from inline onerror)
+    window.mono=function(txt,cls,size){var d=document.createElement("div"); d.className=cls; d.style.width=size; d.style.height=size; d.textContent=txt; return d};
+    load(); setInterval(load, 5*60*1000);
+  </script>
+</body>
+</html>
