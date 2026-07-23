@@ -43,8 +43,9 @@ function describe(r: Row): { label: string; detail: string | null } {
   const d = (r.dType && deliverableWord[r.dType]) || "deliverable";
   const proj = r.bProject ? ` — ${r.bProject}` : "";
   const shoot = r.bType ? ` (${dbShootTypeLabel[r.bType]})` : "";
-  // Name the video/photo by its shoot, falling back to the agent it's for.
-  const named = r.dProject || r.dAgent ? ` — ${r.dProject || r.dAgent}` : "";
+  // Name the video/photo by its shoot and the agent it's for.
+  const nameParts = [r.dProject, r.dAgent].filter(Boolean).join(" · ");
+  const named = nameParts ? ` — ${nameParts}` : "";
 
   if (r.entity === "deliverable") {
     switch (r.action) {

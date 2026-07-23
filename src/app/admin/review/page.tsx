@@ -35,6 +35,7 @@ type QueueItem = {
   creatorId: string;
   creatorName: string;
   agentName: string | null;
+  projectName: string | null;
   expectedVideos: number | null;
   shootVideos: number;
 };
@@ -234,6 +235,11 @@ export default function ReviewQueue() {
                       {d.creatorName}
                       {d.agentName ? ` · for ${d.agentName}` : ""}
                     </Text>
+                    {d.projectName && (
+                      <Text size="xs" fw={500} truncate>
+                        {d.projectName}
+                      </Text>
+                    )}
                     <Text size="xs" c="dimmed">
                       submitted {dayjs(d.submittedAt).format("ddd D MMM HH:mm")}
                     </Text>

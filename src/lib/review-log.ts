@@ -88,7 +88,7 @@ export async function getReviewLog(month: string): Promise<ReviewRow[]> {
     comment: r.comment,
     permit: r.permit,
     type: r.type,
-    videoName: r.project || r.agentName || null,
+    videoName: [r.project, r.agentName].filter(Boolean).join(" · ") || null,
     url: r.url,
   }));
 }
