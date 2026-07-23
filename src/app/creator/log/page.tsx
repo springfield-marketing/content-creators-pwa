@@ -72,6 +72,7 @@ export default function LogDeliverable() {
   const [shootId, setShootId] = useState<string | null>(null);
   const [noShoot, setNoShoot] = useState(false);
   const [agent, setAgent] = useState<AgentHit | null>(null);
+  const [title, setTitle] = useState("");
   const [type, setType] = useState("photo_shoot");
   const [links, setLinks] = useState<string[]>([""]);
   const [expectedVideos, setExpectedVideos] = useState<number | string>("");
@@ -120,12 +121,15 @@ export default function LogDeliverable() {
   const alreadyDeclared = selectedShoot?.expectedVideos != null;
   const countOk =
     !needsCount || (expectedVideos !== "" && Number(expectedVideos) >= 1);
+  // Not tied to a shoot → a title is required to identify it in review.
+  const titleOk = !noShoot || title.trim() !== "";
   const canSubmit =
     shootOk &&
     !!workDate &&
     links.length > 0 &&
     platforms.every((pf) => pf !== null) &&
-    countOk;
+    countOk &&
+    titleOk;
 
   const submit = async () => {
     setSubmitting(true);
@@ -138,6 +142,7 @@ export default function LogDeliverable() {
         body: JSON.stringify({
           bookingId: noShoot ? undefined : shootId,
           agentId: noShoot ? agent?.id : undefined,
+          title: noShoot ? title.trim() : undefined,
           type,
           url: links[i],
           platform: platforms[i],
@@ -170,6 +175,7 @@ export default function LogDeliverable() {
     setShootId(null);
     setNoShoot(false);
     setAgent(null);
+    setTitle("");
     setType("photo_shoot");
     setLinks([""]);
     setExpectedVideos("");
@@ -279,11 +285,20 @@ export default function LogDeliverable() {
             </UnstyledButton>
 
             {noShoot && (
-              <AgentSearchSelect
-                placeholder="Search the agent it's for"
-                value={agent}
-                onChange={setAgent}
-              />
+              <>
+                <AgentSearchSelect
+                  placeholder="Search the agent it's for"
+                  value={agent}
+                  onChange={setAgent}
+                />
+                <TextInput
+                  label="Title"
+                  description="Name this deliverable so it's identifiable in review — required when it's not tied to a shoot."
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.currentTarget.value)}
+                />
+              </>
             )}
           </Stack>
         )}

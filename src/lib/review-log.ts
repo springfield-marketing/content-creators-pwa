@@ -65,6 +65,7 @@ export async function getReviewLog(month: string): Promise<ReviewRow[]> {
       permit: reviewDecisions.permitNumber,
       type: deliverables.type,
       project: bookings.projectName,
+      title: deliverables.title,
       agentName: dAgent.fullName,
       url: deliverables.url,
     })
@@ -88,7 +89,8 @@ export async function getReviewLog(month: string): Promise<ReviewRow[]> {
     comment: r.comment,
     permit: r.permit,
     type: r.type,
-    videoName: [r.project, r.agentName].filter(Boolean).join(" · ") || null,
+    videoName:
+      [r.project ?? r.title, r.agentName].filter(Boolean).join(" · ") || null,
     url: r.url,
   }));
 }

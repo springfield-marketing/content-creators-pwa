@@ -187,6 +187,9 @@ export const deliverables = pgTable(
     type: deliverableType("type").notNull(),
     platform: platform("platform"),
     url: text("url").notNull(),
+    // Creator-supplied name, required when the deliverable isn't tied to a
+    // shoot (a shoot-tied one is identified by its booking's project instead).
+    title: text("title"),
     isPosted: boolean("is_posted").default(false),
     postedAt: timestamp("posted_at", { withTimezone: true }),
     workDate: date("work_date").notNull(),

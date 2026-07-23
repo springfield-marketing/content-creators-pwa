@@ -27,6 +27,7 @@ export async function GET() {
       creatorName: users.fullName,
       agentName: agents.fullName,
       projectName: bookings.projectName, // the shoot this deliverable is from
+      title: deliverables.title, // creator-supplied, for untied deliverables
       // Shoot completeness, so a video reads as "2 of 3 from this shoot".
       expectedVideos: bookings.expectedVideos,
       shootVideos: sql<number>`(select count(*)::int from deliverables d2 where d2.booking_id = ${deliverables.bookingId} and d2.type = 'video_shoot')`,

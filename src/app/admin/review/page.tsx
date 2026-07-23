@@ -36,6 +36,7 @@ type QueueItem = {
   creatorName: string;
   agentName: string | null;
   projectName: string | null;
+  title: string | null;
   expectedVideos: number | null;
   shootVideos: number;
 };
@@ -235,9 +236,9 @@ export default function ReviewQueue() {
                       {d.creatorName}
                       {d.agentName ? ` · for ${d.agentName}` : ""}
                     </Text>
-                    {d.projectName && (
+                    {(d.projectName ?? d.title) && (
                       <Text size="xs" fw={500} truncate>
-                        {d.projectName}
+                        {d.projectName ?? d.title}
                       </Text>
                     )}
                     <Text size="xs" c="dimmed">

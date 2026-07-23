@@ -21,6 +21,9 @@ const schema = z.object({
   // adjustable on later ones (last write wins). Only meaningful when tied to a
   // shoot; ignored otherwise.
   expectedVideos: z.number().int().min(1).max(20).optional(),
+  // A name for the deliverable, required when it isn't tied to a shoot (a
+  // shoot-tied one is identified by its booking's project).
+  title: z.string().trim().min(1).max(200).optional(),
 });
 
 export async function POST(req: Request) {
@@ -30,6 +33,11 @@ export async function POST(req: Request) {
   const parsed = await parseBody(req, schema);
   if ("error" in parsed) return parsed.error;
   const input = parsed.data;
+
+  // Not tied to a shoot → it has no project to name it, so a title is required.
+  if (!input.bookingId && !input.title) {
+    return jsonError(422, "A title is required when not tied to a shoot");
+  }
 
   let agentId = input.agentId ?? null;
   if (input.bookingId) {
@@ -70,6 +78,7 @@ export async function POST(req: Request) {
       type: input.type,
       platform: input.platform,
       url: input.url,
+      title: input.title ?? null,
       // Workflow: posting happens AFTER approval; creators mark it from
       // their progress screen once the manager approves.
       isPosted: false,

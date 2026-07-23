@@ -33,6 +33,7 @@ type Row = {
   diff: unknown;
   dType: string | null;
   dProject: string | null; // the deliverable's shoot project
+  dTitle: string | null; // creator-supplied title (untied deliverables)
   dAgent: string | null; // the deliverable's agent
   bProject: string | null;
   bType: DbShootType | null;
@@ -43,8 +44,8 @@ function describe(r: Row): { label: string; detail: string | null } {
   const d = (r.dType && deliverableWord[r.dType]) || "deliverable";
   const proj = r.bProject ? ` — ${r.bProject}` : "";
   const shoot = r.bType ? ` (${dbShootTypeLabel[r.bType]})` : "";
-  // Name the video/photo by its shoot and the agent it's for.
-  const nameParts = [r.dProject, r.dAgent].filter(Boolean).join(" · ");
+  // Name the video/photo by its shoot (or title) and the agent it's for.
+  const nameParts = [r.dProject ?? r.dTitle, r.dAgent].filter(Boolean).join(" · ");
   const named = nameParts ? ` — ${nameParts}` : "";
 
   if (r.entity === "deliverable") {
@@ -122,6 +123,7 @@ export async function getActivity(params: {
       subjectName: subject.fullName,
       dType: deliverables.type,
       dUrl: deliverables.url,
+      dTitle: deliverables.title,
       dProject: dBooking.projectName,
       dAgent: dAgent.fullName,
       bProject: bookings.projectName,
