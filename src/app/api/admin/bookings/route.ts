@@ -2,7 +2,7 @@
 
 import { NextResponse } from "next/server";
 import dayjs from "dayjs";
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, eq, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, bookings, users } from "@/db/schema";
 import { jsonError } from "@/lib/api";
@@ -35,6 +35,9 @@ export async function GET(req: Request) {
     .leftJoin(agents, eq(agents.id, bookings.agentId))
     .where(
       and(
+        // Cancelled bookings free their slot — keep them off the week grid so
+        // the cell reads as available. History lives in the booking's audit.
+        ne(bookings.status, "cancelled"),
         gte(bookings.startsAt, dayjs(from).toDate()),
         lt(bookings.startsAt, dayjs(to).add(1, "day").toDate())
       )
