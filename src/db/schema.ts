@@ -91,7 +91,7 @@ export const users = pgTable("users", {
     .$type<ShootDurations>()
     .default(sql`'{"photo":90,"video":150,"photo_video":180}'::jsonb`),
   bufferMinutes: integer("buffer_minutes").default(30),
-  minNoticeHours: integer("min_notice_hours").default(24),
+  minNoticeHours: integer("min_notice_hours").default(3),
   // Calendars open only as far as the manager has planned weeks; this is a
   // secondary ceiling (decision: one week in advance, not 28 days).
   maxHorizonDays: integer("max_horizon_days").default(7),
