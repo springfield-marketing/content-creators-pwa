@@ -12,7 +12,9 @@ import {
   Button,
   Card,
   Divider,
+  FileInput,
   Group,
+  Modal,
   NumberInput,
   Select,
   SimpleGrid,
@@ -23,6 +25,7 @@ import {
   Title,
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
+import { useDisclosure } from "@mantine/hooks";
 import { WeekHoursEditor, type Hours } from "@/components/WeekHoursEditor";
 import { notifications } from "@mantine/notifications";
 import {
@@ -66,6 +69,13 @@ export default function CreatorSettings() {
   const [leaveReason, setLeaveReason] = useState("");
   const [conflicts, setConflicts] = useState<Conflict[] | null>(null);
   const [saving, setSaving] = useState(false);
+  const [addOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false);
+  const [addForm, setAddForm] = useState({ name: "", email: "", branch: "Dubai" });
+  const [addPhoto, setAddPhoto] = useState<File | null>(null);
+  const [adding, setAdding] = useState(false);
+  // Set when the email belongs to a deactivated creator, so the modal can
+  // offer reactivation instead of dead-ending on the 409.
+  const [reactivateId, setReactivateId] = useState<string | null>(null);
 
   const creator = (creators ?? []).find((c) => c.id === creatorId) ?? null;
 
@@ -235,6 +245,68 @@ export default function CreatorSettings() {
     }
   };
 
+  const resetAddForm = () => {
+    setAddForm({ name: "", email: "", branch: "Dubai" });
+    setAddPhoto(null);
+    setReactivateId(null);
+  };
+
+  const addCreator = async () => {
+    setAdding(true);
+    setReactivateId(null);
+    const body = new FormData();
+    body.append("fullName", addForm.name);
+    body.append("email", addForm.email);
+    body.append("branch", addForm.branch);
+    if (addPhoto) body.append("photo", addPhoto);
+
+    const res = await fetch("/api/admin/creators", { method: "POST", body });
+    setAdding(false);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (data.reactivateId) setReactivateId(data.reactivateId);
+      notifications.show({
+        title: "Couldn't add creator",
+        message: data.error ?? (data.issues?.[0]?.message || "Check the details."),
+        color: "red",
+      });
+      return;
+    }
+    notifications.show({
+      title: "Creator added",
+      message: data.calendarOk
+        ? `${addForm.name} is now on the booking page.`
+        : `${addForm.name} was added, but their Google Calendar isn't reachable — check domain-wide delegation before they take bookings.`,
+      color: data.calendarOk ? "green" : "yellow",
+    });
+    closeAdd();
+    resetAddForm();
+    reload();
+  };
+
+  const reactivateCreator = async () => {
+    if (!reactivateId) return;
+    setAdding(true);
+    const res = await fetch(`/api/admin/creators/${reactivateId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: true }),
+    });
+    setAdding(false);
+    if (!res.ok) {
+      notifications.show({ title: "Couldn't reactivate", message: "Try again.", color: "red" });
+      return;
+    }
+    notifications.show({
+      title: "Creator reactivated",
+      message: `${addForm.email} is back on the booking page.`,
+      color: "green",
+    });
+    closeAdd();
+    resetAddForm();
+    reload();
+  };
+
   if (creators === null || !creator || !hours) {
     return (
       <Stack gap="md">
@@ -255,17 +327,88 @@ export default function CreatorSettings() {
             Shapes the bookable slots — creators never see or edit this.
           </Text>
         </div>
-        <Select
-          data={creators.map((c) => ({
-            value: c.id,
-            label: c.isActive ? c.name : `${c.name} (deactivated)`,
-          }))}
-          value={creatorId}
-          onChange={switchCreator}
-          allowDeselect={false}
-          maw={220}
-        />
+        <Group gap="sm" align="flex-end">
+          <Select
+            data={creators.map((c) => ({
+              value: c.id,
+              label: c.isActive ? c.name : `${c.name} (deactivated)`,
+            }))}
+            value={creatorId}
+            onChange={switchCreator}
+            allowDeselect={false}
+            maw={220}
+          />
+          <Button leftSection={<IconPlus size={16} />} onClick={openAdd}>
+            Add creator
+          </Button>
+        </Group>
       </Group>
+
+      <Modal
+        opened={addOpen}
+        onClose={() => {
+          closeAdd();
+          resetAddForm();
+        }}
+        title="Add creator"
+        centered
+      >
+        <Stack gap="sm">
+          <TextInput
+            label="Full name"
+            placeholder="Jericho Ramos"
+            value={addForm.name}
+            onChange={(e) => setAddForm({ ...addForm, name: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Google Workspace email"
+            description="Also used as their booking calendar."
+            placeholder="media11@springfield-re.com"
+            value={addForm.email}
+            onChange={(e) => setAddForm({ ...addForm, email: e.currentTarget.value })}
+          />
+          <Select
+            label="Branch"
+            data={["Dubai", "Abu Dhabi"]}
+            value={addForm.branch}
+            onChange={(v) => setAddForm({ ...addForm, branch: v ?? "Dubai" })}
+            allowDeselect={false}
+          />
+          <FileInput
+            label="Photo"
+            description="Optional — shown on the booking card. Max 5MB."
+            placeholder="Choose an image"
+            accept="image/*"
+            clearable
+            value={addPhoto}
+            onChange={setAddPhoto}
+          />
+          <Text size="xs" c="dimmed">
+            Booking hours and shoot durations start from the company defaults —
+            adjust them on this screen after adding.
+          </Text>
+
+          {reactivateId && (
+            <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
+              <Stack gap="xs">
+                <Text size="sm">
+                  This email belongs to a deactivated creator. Reactivating keeps
+                  their existing history and settings.
+                </Text>
+                <Button size="xs" color="yellow" loading={adding} onClick={reactivateCreator}>
+                  Reactivate instead
+                </Button>
+              </Stack>
+            </Alert>
+          )}
+
+          <Group justify="flex-end">
+            <Button loading={adding} onClick={addCreator}>
+              Add creator
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
         <Card>
