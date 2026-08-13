@@ -24,6 +24,9 @@ const schema = z.object({
   // A name for the deliverable, required when it isn't tied to a shoot (a
   // shoot-tied one is identified by its booking's project).
   title: z.string().trim().min(1).max(200).optional(),
+  // Media permit, supplied per video by the creator who filmed it. Required
+  // for videos (enforced below); free text — real permits vary in format.
+  permitNumber: z.string().trim().min(1).max(100).optional(),
 });
 
 export async function POST(req: Request) {
@@ -37,6 +40,9 @@ export async function POST(req: Request) {
   // Not tied to a shoot → it has no project to name it, so a title is required.
   if (!input.bookingId && !input.title) {
     return jsonError(422, "A title is required when not tied to a shoot");
+  }
+  if (input.type === "video_shoot" && !input.permitNumber) {
+    return jsonError(422, "A permit number is required for videos");
   }
 
   let agentId = input.agentId ?? null;
@@ -79,6 +85,7 @@ export async function POST(req: Request) {
       platform: input.platform,
       url: input.url,
       title: input.title ?? null,
+      permitNumber: input.permitNumber ?? null,
       // Workflow: posting happens AFTER approval; creators mark it from
       // their progress screen once the manager approves.
       isPosted: false,
@@ -91,7 +98,12 @@ export async function POST(req: Request) {
     entityId: created.id,
     action: "create",
     actorId: session.user.id,
-    diff: { type: input.type, url: input.url, bookingId: input.bookingId },
+    diff: {
+      type: input.type,
+      url: input.url,
+      bookingId: input.bookingId,
+      permitNumber: input.permitNumber ?? null,
+    },
   });
 
   return NextResponse.json({ id: created.id }, { status: 201 });

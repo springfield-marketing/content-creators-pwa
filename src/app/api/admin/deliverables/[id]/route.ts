@@ -12,12 +12,7 @@ import { logAudit } from "@/lib/audit";
 import { recordReviewDecision } from "@/lib/review-log";
 
 const schema = z.discriminatedUnion("action", [
-  z.object({
-    action: z.literal("approve"),
-    // Recorded on video approvals; required for videos (enforced below once
-    // we know the deliverable type).
-    permitNumber: z.string().trim().min(1).max(100).optional(),
-  }),
+  z.object({ action: z.literal("approve") }),
   z.object({
     action: z.literal("request_changes"),
     comment: z.string().trim().min(3).max(2000),
@@ -42,6 +37,7 @@ export async function POST(
       status: deliverables.reviewStatus,
       type: deliverables.type,
       creatorId: deliverables.creatorId,
+      permitNumber: deliverables.permitNumber,
     })
     .from(deliverables)
     .where(eq(deliverables.id, id))
@@ -52,22 +48,11 @@ export async function POST(
   if (d.creatorId === session.user.id) {
     return jsonError(403, "You can't review your own deliverable");
   }
-  // A video can't be approved without recording its permit number.
-  if (
-    input.action === "approve" &&
-    d.type === "video_shoot" &&
-    !input.permitNumber
-  ) {
-    return jsonError(422, "Permit number is required to approve a video");
-  }
-
   await db
     .update(deliverables)
     .set({
       reviewStatus: input.action === "approve" ? "approved" : "needs_revision",
       reviewComment: input.action === "request_changes" ? input.comment : null,
-      permitNumber:
-        input.action === "approve" ? (input.permitNumber ?? null) : undefined,
       reviewedBy: session.user.id,
       reviewedAt: new Date(),
     })
@@ -81,7 +66,7 @@ export async function POST(
     diff:
       input.action === "request_changes"
         ? { comment: input.comment }
-        : { permitNumber: input.permitNumber ?? null },
+        : { permitNumber: d.permitNumber },
   });
   // TODO(Resend): notify the creator on request_changes.
 
@@ -92,7 +77,9 @@ export async function POST(
     reviewerId: session.user.id,
     decision: input.action === "approve" ? "approved" : "changes_requested",
     comment: input.action === "request_changes" ? input.comment : null,
-    permitNumber: input.action === "approve" ? (input.permitNumber ?? null) : null,
+    // Copied from the deliverable (creator-supplied) so the review log keeps
+    // reporting permit coverage on approvals.
+    permitNumber: input.action === "approve" ? d.permitNumber : null,
   });
 
   return NextResponse.json({ ok: true });

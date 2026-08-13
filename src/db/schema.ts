@@ -195,8 +195,8 @@ export const deliverables = pgTable(
     workDate: date("work_date").notNull(),
     reviewStatus: reviewStatus("review_status").notNull().default("submitted"),
     reviewComment: text("review_comment"),
-    // Permit number the reviewer records when approving a video, so the
-    // verification is on the record (checked for correctness separately).
+    // Permit number the creator supplies when logging a video, so the number
+    // comes from whoever filmed it. The reviewer sees it but can't edit it.
     permitNumber: text("permit_number"),
     reviewedBy: uuid("reviewed_by").references(() => users.id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),

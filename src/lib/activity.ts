@@ -51,7 +51,10 @@ function describe(r: Row): { label: string; detail: string | null } {
   if (r.entity === "deliverable") {
     switch (r.action) {
       case "create":
-        return { label: `Logged a ${d}${named}`, detail: null };
+        return {
+          label: `Logged a ${d}${named}`,
+          detail: str(diff.permitNumber) && `Permit ${str(diff.permitNumber)}`,
+        };
       case "approve":
         return {
           label: `Approved a ${d}${named}`,

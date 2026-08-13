@@ -47,6 +47,7 @@ type Revision = {
   type: "photo_shoot" | "video_shoot";
   url: string;
   comment: string | null;
+  permit: string | null;
 };
 type Outstanding = {
   id: string;
@@ -80,6 +81,7 @@ export default function MyProgress() {
   // Resubmit dialog: correct the link + acknowledge the comment first.
   const [resubmitTarget, setResubmitTarget] = useState<Revision | null>(null);
   const [newUrl, setNewUrl] = useState("");
+  const [newPermit, setNewPermit] = useState("");
   const [ack, setAck] = useState(false);
   const [resubmitOpen, { open: openResubmit, close: closeResubmit }] =
     useDisclosure(false);
@@ -119,6 +121,7 @@ export default function MyProgress() {
   const startResubmit = (d: Revision) => {
     setResubmitTarget(d);
     setNewUrl(d.url);
+    setNewPermit(d.permit ?? "");
     setAck(false);
     openResubmit();
   };
@@ -133,6 +136,9 @@ export default function MyProgress() {
       body: JSON.stringify({
         action: "resubmit",
         ...(changed ? { url: newUrl.trim() } : {}),
+        ...(resubmitTarget.type === "video_shoot" && newPermit.trim()
+          ? { permitNumber: newPermit.trim() }
+          : {}),
       }),
     });
     setActing(null);
@@ -359,6 +365,15 @@ export default function MyProgress() {
                   : undefined
               }
             />
+            {resubmitTarget.type === "video_shoot" && (
+              <TextInput
+                label="Permit number"
+                description="Required for videos — correct it here if that's what the manager flagged."
+                required
+                value={newPermit}
+                onChange={(e) => setNewPermit(e.currentTarget.value)}
+              />
+            )}
             <Checkbox
               checked={ack}
               onChange={(e) => setAck(e.currentTarget.checked)}
@@ -370,7 +385,12 @@ export default function MyProgress() {
               </Button>
               <Button
                 color="orange"
-                disabled={!ack || !isValidLink(newUrl.trim())}
+                disabled={
+                  !ack ||
+                  !isValidLink(newUrl.trim()) ||
+                  (resubmitTarget.type === "video_shoot" &&
+                    newPermit.trim() === "")
+                }
                 loading={acting === resubmitTarget.id}
                 onClick={confirmResubmit}
               >

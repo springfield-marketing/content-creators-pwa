@@ -15,6 +15,7 @@ const schema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("resubmit"),
     url: z.string().url().max(2000).optional(),
+    permitNumber: z.string().trim().min(1).max(100).optional(),
   }),
   z.object({ action: z.literal("mark_posted") }),
 ]);
@@ -35,6 +36,8 @@ export async function PATCH(
       id: deliverables.id,
       status: deliverables.reviewStatus,
       isPosted: deliverables.isPosted,
+      type: deliverables.type,
+      permitNumber: deliverables.permitNumber,
     })
     .from(deliverables)
     .where(
@@ -64,12 +67,24 @@ export async function PATCH(
   if (d.status !== "needs_revision") {
     return jsonError(409, "Only deliverables sent back for revision can be resubmitted");
   }
+  // A video must carry a permit by the time it goes back for review — either
+  // one it already had, or one supplied with this resubmit.
+  if (
+    d.type === "video_shoot" &&
+    !parsed.data.permitNumber &&
+    !d.permitNumber
+  ) {
+    return jsonError(422, "A permit number is required for videos");
+  }
 
   await db
     .update(deliverables)
     .set({
       reviewStatus: "submitted",
       ...(parsed.data.url ? { url: parsed.data.url } : {}),
+      ...(parsed.data.permitNumber
+        ? { permitNumber: parsed.data.permitNumber }
+        : {}),
     })
     .where(eq(deliverables.id, id));
 

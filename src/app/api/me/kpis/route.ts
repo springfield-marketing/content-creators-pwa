@@ -42,6 +42,7 @@ export async function GET(req: Request) {
       type: deliverables.type,
       url: deliverables.url,
       comment: deliverables.reviewComment,
+      permit: deliverables.permitNumber, // editable on resubmit; required on videos
     })
     .from(deliverables)
     .where(

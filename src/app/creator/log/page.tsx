@@ -75,6 +75,8 @@ export default function LogDeliverable() {
   const [title, setTitle] = useState("");
   const [type, setType] = useState("photo_shoot");
   const [links, setLinks] = useState<string[]>([""]);
+  // Kept index-aligned with links — each video carries its own permit number.
+  const [permits, setPermits] = useState<string[]>([""]);
   const [expectedVideos, setExpectedVideos] = useState<number | string>("");
   const [editExpected, setEditExpected] = useState(false);
   const [workDate, setWorkDate] = useState<string | null>(
@@ -123,13 +125,18 @@ export default function LogDeliverable() {
     !needsCount || (expectedVideos !== "" && Number(expectedVideos) >= 1);
   // Not tied to a shoot → a title is required to identify it in review.
   const titleOk = !noShoot || title.trim() !== "";
+  // Every video needs its own permit number before it can be submitted.
+  const permitsOk =
+    type !== "video_shoot" ||
+    links.every((_, i) => (permits[i] ?? "").trim() !== "");
   const canSubmit =
     shootOk &&
     !!workDate &&
     links.length > 0 &&
     platforms.every((pf) => pf !== null) &&
     countOk &&
-    titleOk;
+    titleOk &&
+    permitsOk;
 
   const submit = async () => {
     setSubmitting(true);
@@ -147,6 +154,8 @@ export default function LogDeliverable() {
           url: links[i],
           platform: platforms[i],
           workDate,
+          permitNumber:
+            type === "video_shoot" ? (permits[i] ?? "").trim() : undefined,
           expectedVideos:
             type === "video_shoot" && !noShoot && expectedVideos !== ""
               ? Number(expectedVideos)
@@ -178,6 +187,7 @@ export default function LogDeliverable() {
     setTitle("");
     setType("photo_shoot");
     setLinks([""]);
+    setPermits([""]);
     setExpectedVideos("");
     setEditExpected(false);
     setWorkDate(dayjs().format("YYYY-MM-DD"));
@@ -314,7 +324,10 @@ export default function LogDeliverable() {
           onChange={(v) => {
             setType(v);
             // Photos are one batch — a single folder link.
-            if (v === "photo_shoot") setLinks((l) => [l[0] ?? ""]);
+            if (v === "photo_shoot") {
+              setLinks((l) => [l[0] ?? ""]);
+              setPermits((p) => [p[0] ?? ""]);
+            }
           }}
           data={[
             { label: "Photo Shoot", value: "photo_shoot" },
@@ -377,33 +390,49 @@ export default function LogDeliverable() {
             const pf = platforms[i];
             const PlatformIcon = pf ? platformMeta[pf].icon : IconLink;
             return (
-              <Group key={i} gap="xs" wrap="nowrap">
-                <TextInput
-                  style={{ flex: 1 }}
-                  placeholder="Paste the Instagram / TikTok / Drive / Dropbox link"
-                  value={url}
-                  onChange={(e) => {
-                    const v = e.currentTarget.value;
-                    setLinks((l) => l.map((x, j) => (j === i ? v : x)));
-                  }}
-                  leftSection={<PlatformIcon size={18} />}
-                  rightSection={
-                    pf && (
-                      <Badge size="xs" variant="light" mr="md">
-                        {platformMeta[pf].label}
-                      </Badge>
-                    )
-                  }
-                  rightSectionWidth={pf ? 110 : undefined}
-                />
+              <Group key={i} gap="xs" wrap="nowrap" align="flex-start">
+                <Stack gap={4} style={{ flex: 1 }}>
+                  <TextInput
+                    placeholder="Paste the Instagram / TikTok / Drive / Dropbox link"
+                    value={url}
+                    onChange={(e) => {
+                      const v = e.currentTarget.value;
+                      setLinks((l) => l.map((x, j) => (j === i ? v : x)));
+                    }}
+                    leftSection={<PlatformIcon size={18} />}
+                    rightSection={
+                      pf && (
+                        <Badge size="xs" variant="light" mr="md">
+                          {platformMeta[pf].label}
+                        </Badge>
+                      )
+                    }
+                    rightSectionWidth={pf ? 110 : undefined}
+                  />
+                  {type === "video_shoot" && (
+                    <TextInput
+                      placeholder="Permit number for this video"
+                      value={permits[i] ?? ""}
+                      onChange={(e) => {
+                        const v = e.currentTarget.value;
+                        setPermits((p) => {
+                          const next = [...p];
+                          next[i] = v;
+                          return next;
+                        });
+                      }}
+                    />
+                  )}
+                </Stack>
                 {links.length > 1 && (
                   <ActionIcon
                     variant="subtle"
                     color="gray"
                     aria-label="Remove link"
-                    onClick={() =>
-                      setLinks((l) => l.filter((_, j) => j !== i))
-                    }
+                    onClick={() => {
+                      setLinks((l) => l.filter((_, j) => j !== i));
+                      setPermits((p) => p.filter((_, j) => j !== i));
+                    }}
                   >
                     <IconX size={16} />
                   </ActionIcon>
@@ -416,7 +445,10 @@ export default function LogDeliverable() {
               variant="light"
               size="xs"
               leftSection={<IconPlus size={14} />}
-              onClick={() => setLinks((l) => [...l, ""])}
+              onClick={() => {
+                setLinks((l) => [...l, ""]);
+                setPermits((p) => [...p, ""]);
+              }}
               w="fit-content"
             >
               Add another video
