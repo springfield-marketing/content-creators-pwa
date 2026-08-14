@@ -10,6 +10,7 @@ import { deliverables } from "@/db/schema";
 import { jsonError, parseBody } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { recordReviewDecision } from "@/lib/review-log";
+import { hidesGeneralPermits, isGeneralPermit } from "@/lib/general-permits";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve") }),
@@ -47,6 +48,14 @@ export async function POST(
   // someone other than the creator for the audit trail to mean anything.
   if (d.creatorId === session.user.id) {
     return jsonError(403, "You can't review your own deliverable");
+  }
+  // Same reasoning: general-permit work is filtered out of a team lead's queue,
+  // but the queue isn't the only way to reach this endpoint.
+  if (
+    hidesGeneralPermits(session.user.roles) &&
+    (await isGeneralPermit(d.permitNumber))
+  ) {
+    return jsonError(403, "General-permit work is reviewed by a manager");
   }
   await db
     .update(deliverables)

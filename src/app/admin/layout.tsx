@@ -20,6 +20,7 @@ import {
   IconChecklist,
   IconGavel,
   IconHistory,
+  IconLicense,
   IconSettings,
   IconTargetArrow,
   IconUserShield,
@@ -34,6 +35,7 @@ const NAV_GROUPS = [
     links: [
       { href: "/admin/review", label: "Queue", icon: IconChecklist },
       { href: "/admin/review-log", label: "Review log", icon: IconGavel },
+      { href: "/admin/permits", label: "General permits", icon: IconLicense },
     ],
   },
   {

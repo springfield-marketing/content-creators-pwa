@@ -344,3 +344,21 @@ export const reviewDecisions = pgTable(
     ),
   ]
 );
+
+// General media permits: codes that cover routine company content (HR videos,
+// activations, social posts) rather than one client project. Work logged under
+// one of these is routed away from team leads — only managers review it.
+// `code` holds digits only; permits are typed as free text and the same permit
+// arrives spelled several ways ("PERMIT NUMBER 0275066700", "General QR code
+// 2113748196"), so both sides are reduced to digits before comparing.
+export const generalPermits = pgTable("general_permits", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(),
+  label: text("label").notNull(), // what the permit covers, for the admin list
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  // A blank code would match every permit with no digits ("N/A", "No permit").
+  check("general_permits_code_digits", sql`${t.code} ~ '^[0-9]+$'`),
+]);

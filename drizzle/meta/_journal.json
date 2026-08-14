@@ -127,6 +127,13 @@
       "when": 1784797093832,
       "tag": "0017_deliverable_title",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786693489193,
+      "tag": "0018_general_permits",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,8 @@
 // Nobody signs off their own shoot: a team_lead who also creates never sees
 // their own work here. For managers the filter matches nothing, since they
 // have no deliverables of their own.
+// Work under a general permit is a manager's to review, so it's filtered out
+// for team leads — see lib/general-permits.
 
 import { NextResponse } from "next/server";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
@@ -9,6 +11,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { agents, bookings, deliverables, users } from "@/db/schema";
 import { jsonError } from "@/lib/api";
+import { hidesGeneralPermits, notGeneralPermit } from "@/lib/general-permits";
 
 export async function GET() {
   const session = await auth();
@@ -40,7 +43,8 @@ export async function GET() {
     .where(
       and(
         inArray(deliverables.reviewStatus, ["submitted", "under_review"]),
-        ne(deliverables.creatorId, session.user.id)
+        ne(deliverables.creatorId, session.user.id),
+        ...(hidesGeneralPermits(session.user.roles) ? [notGeneralPermit()] : [])
       )
     )
     .orderBy(desc(deliverables.createdAt));
