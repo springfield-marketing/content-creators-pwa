@@ -32,6 +32,7 @@ export async function GET() {
       projectName: bookings.projectName, // the shoot this deliverable is from
       title: deliverables.title, // creator-supplied, for untied deliverables
       permitNumber: deliverables.permitNumber, // creator-supplied; shown for checking
+      imageCount: deliverables.imageCount, // photo volume, shown on the confirm step
       // Shoot completeness, so a video reads as "2 of 3 from this shoot".
       expectedVideos: bookings.expectedVideos,
       shootVideos: sql<number>`(select count(*)::int from deliverables d2 where d2.booking_id = ${deliverables.bookingId} and d2.type = 'video_shoot')`,
