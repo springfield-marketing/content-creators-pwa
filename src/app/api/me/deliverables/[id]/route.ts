@@ -16,6 +16,7 @@ const schema = z.discriminatedUnion("action", [
     action: z.literal("resubmit"),
     url: z.string().url().max(2000).optional(),
     permitNumber: z.string().trim().min(1).max(100).optional(),
+    imageCount: z.number().int().min(0).max(10000).optional(),
   }),
   z.object({ action: z.literal("mark_posted") }),
 ]);
@@ -38,6 +39,7 @@ export async function PATCH(
       isPosted: deliverables.isPosted,
       type: deliverables.type,
       permitNumber: deliverables.permitNumber,
+      imageCount: deliverables.imageCount,
     })
     .from(deliverables)
     .where(
@@ -76,6 +78,14 @@ export async function PATCH(
   ) {
     return jsonError(422, "A permit number is required for videos");
   }
+  // Same for a photo's image count: it must be there by the time review sees it.
+  if (
+    d.type === "photo_shoot" &&
+    parsed.data.imageCount == null &&
+    d.imageCount == null
+  ) {
+    return jsonError(422, "An image count is required for photo shoots");
+  }
 
   await db
     .update(deliverables)
@@ -84,6 +94,9 @@ export async function PATCH(
       ...(parsed.data.url ? { url: parsed.data.url } : {}),
       ...(parsed.data.permitNumber
         ? { permitNumber: parsed.data.permitNumber }
+        : {}),
+      ...(parsed.data.imageCount != null
+        ? { imageCount: parsed.data.imageCount }
         : {}),
     })
     .where(eq(deliverables.id, id));

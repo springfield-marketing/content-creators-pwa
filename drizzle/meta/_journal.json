@@ -134,6 +134,20 @@
       "when": 1786693489193,
       "tag": "0018_general_permits",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786710616592,
+      "tag": "0019_photo_image_count",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786715950467,
+      "tag": "0020_creator_craft",
+      "breakpoints": true
     }
   ]
 }

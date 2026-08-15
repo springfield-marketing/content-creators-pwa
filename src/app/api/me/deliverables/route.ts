@@ -27,6 +27,9 @@ const schema = z.object({
   // Media permit, supplied per video by the creator who filmed it. Required
   // for videos (enforced below); free text — real permits vary in format.
   permitNumber: z.string().trim().min(1).max(100).optional(),
+  // How many images the folder holds. Required for photos (enforced below) —
+  // it's the only measure of photo volume, since a shoot is one folder link.
+  imageCount: z.number().int().min(0).max(10000).optional(),
 });
 
 export async function POST(req: Request) {
@@ -43,6 +46,9 @@ export async function POST(req: Request) {
   }
   if (input.type === "video_shoot" && !input.permitNumber) {
     return jsonError(422, "A permit number is required for videos");
+  }
+  if (input.type === "photo_shoot" && input.imageCount == null) {
+    return jsonError(422, "An image count is required for photo shoots");
   }
 
   let agentId = input.agentId ?? null;
@@ -86,6 +92,7 @@ export async function POST(req: Request) {
       url: input.url,
       title: input.title ?? null,
       permitNumber: input.permitNumber ?? null,
+      imageCount: input.imageCount ?? null,
       // Workflow: posting happens AFTER approval; creators mark it from
       // their progress screen once the manager approves.
       isPosted: false,
@@ -103,6 +110,7 @@ export async function POST(req: Request) {
       url: input.url,
       bookingId: input.bookingId,
       permitNumber: input.permitNumber ?? null,
+      imageCount: input.imageCount ?? null,
     },
   });
 

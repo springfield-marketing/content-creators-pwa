@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   if (!month) return jsonError(400, "Invalid month");
 
   const creators = await db
-    .select({ id: users.id, name: users.fullName })
+    .select({ id: users.id, name: users.fullName, craft: users.craft })
     .from(users)
     .where(arrayContains(users.roles, ["creator"]))
     .orderBy(asc(users.fullName));
@@ -39,9 +39,12 @@ export async function GET(req: Request) {
       return {
         creatorId: c.id,
         creatorName: c.name,
+        craft: c.craft, // which tab this creator appears in
+
         shoots: t?.targetShoots ?? 0,
         deliverables: t?.targetDeliverables ?? 0,
         posted: t?.targetPosted ?? 0,
+        images: t?.targetImages ?? 0,
       };
     }),
   });
@@ -56,6 +59,9 @@ const putSchema = z.object({
         shoots: z.number().int().min(0).max(1000),
         deliverables: z.number().int().min(0).max(1000),
         posted: z.number().int().min(0).max(1000),
+        // Images run far higher than clip counts — a single shoot can deliver
+        // hundreds, so this ceiling is an order of magnitude above the others.
+        images: z.number().int().min(0).max(100000),
       })
     )
     .min(1),
@@ -79,6 +85,7 @@ export async function PUT(req: Request) {
         targetShoots: r.shoots,
         targetDeliverables: r.deliverables,
         targetPosted: r.posted,
+        targetImages: r.images,
       })
       .onConflictDoUpdate({
         target: [kpiTargets.creatorId, kpiTargets.month],
@@ -86,6 +93,7 @@ export async function PUT(req: Request) {
           targetShoots: r.shoots,
           targetDeliverables: r.deliverables,
           targetPosted: r.posted,
+          targetImages: r.images,
         },
       });
   }

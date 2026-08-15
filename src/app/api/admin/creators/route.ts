@@ -20,6 +20,7 @@ export async function GET() {
       name: users.fullName,
       slug: users.slug,
       branch: users.branch,
+      craft: users.craft,
       isActive: users.isActive,
       workingHours: users.workingHours,
       shootDurations: users.shootDurations,

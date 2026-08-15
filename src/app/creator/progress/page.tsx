@@ -13,6 +13,7 @@ import {
   Checkbox,
   Group,
   Modal,
+  NumberInput,
   Progress,
   SimpleGrid,
   Skeleton,
@@ -27,14 +28,17 @@ import Link from "next/link";
 import { IconAlertTriangle, IconRefresh, IconVideo } from "@tabler/icons-react";
 
 type MyKpis = {
+  craft: "video" | "photo" | "both";
   completed: number;
   approved: number;
   submitted: number;
   posted: number;
   overtimeMinutes: number;
+  imagesDelivered: number;
   targetShoots: number;
   targetDeliverables: number;
   targetPosted: number;
+  targetImages: number;
 };
 type ToPost = {
   id: string;
@@ -48,6 +52,7 @@ type Revision = {
   url: string;
   comment: string | null;
   permit: string | null;
+  imageCount: number | null;
 };
 type Outstanding = {
   id: string;
@@ -82,6 +87,7 @@ export default function MyProgress() {
   const [resubmitTarget, setResubmitTarget] = useState<Revision | null>(null);
   const [newUrl, setNewUrl] = useState("");
   const [newPermit, setNewPermit] = useState("");
+  const [newImageCount, setNewImageCount] = useState<number | string>("");
   const [ack, setAck] = useState(false);
   const [resubmitOpen, { open: openResubmit, close: closeResubmit }] =
     useDisclosure(false);
@@ -122,6 +128,7 @@ export default function MyProgress() {
     setResubmitTarget(d);
     setNewUrl(d.url);
     setNewPermit(d.permit ?? "");
+    setNewImageCount(d.imageCount ?? "");
     setAck(false);
     openResubmit();
   };
@@ -138,6 +145,9 @@ export default function MyProgress() {
         ...(changed ? { url: newUrl.trim() } : {}),
         ...(resubmitTarget.type === "video_shoot" && newPermit.trim()
           ? { permitNumber: newPermit.trim() }
+          : {}),
+        ...(resubmitTarget.type === "photo_shoot" && newImageCount !== ""
+          ? { imageCount: Number(newImageCount) }
           : {}),
       }),
     });
@@ -178,16 +188,31 @@ export default function MyProgress() {
       target: k?.targetShoots ?? 0,
       hint: (k?.overtimeMinutes ?? 0) > 0 ? `${k!.overtimeMinutes}m overtime recorded` : null,
     },
-    {
-      label: "Deliverables approved",
-      value: k?.approved ?? 0,
-      target: k?.targetDeliverables ?? 0,
-      hint:
-        (k?.submitted ?? 0) - (k?.approved ?? 0) > 0
-          ? `${k!.submitted - k!.approved} awaiting review`
-          : null,
-    },
+    ...(k?.craft !== "photo"
+      ? [
+          {
+            label: "Deliverables approved",
+            value: k?.approved ?? 0,
+            target: k?.targetDeliverables ?? 0,
+            hint:
+              (k?.submitted ?? 0) - (k?.approved ?? 0) > 0
+                ? `${k!.submitted - k!.approved} awaiting review`
+                : null,
+          },
+        ]
+      : []),
     { label: "Posted", value: k?.posted ?? 0, target: k?.targetPosted ?? 0, hint: null },
+    // Photo side, shown to photographers and to anyone doing both.
+    ...(k && k.craft !== "video"
+      ? [
+          {
+            label: "Images delivered",
+            value: k.imagesDelivered,
+            target: k.targetImages,
+            hint: null,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -374,6 +399,17 @@ export default function MyProgress() {
                 onChange={(e) => setNewPermit(e.currentTarget.value)}
               />
             )}
+            {resubmitTarget.type === "photo_shoot" && (
+              <NumberInput
+                label="Images in this folder"
+                description="Required for photo shoots — correct it here if that's what the manager flagged."
+                required
+                min={0}
+                max={10000}
+                value={newImageCount}
+                onChange={setNewImageCount}
+              />
+            )}
             <Checkbox
               checked={ack}
               onChange={(e) => setAck(e.currentTarget.checked)}
@@ -389,7 +425,9 @@ export default function MyProgress() {
                   !ack ||
                   !isValidLink(newUrl.trim()) ||
                   (resubmitTarget.type === "video_shoot" &&
-                    newPermit.trim() === "")
+                    newPermit.trim() === "") ||
+                  (resubmitTarget.type === "photo_shoot" &&
+                    newImageCount === "")
                 }
                 loading={acting === resubmitTarget.id}
                 onClick={confirmResubmit}

@@ -30,6 +30,7 @@ const schema = z
     maxHorizonDays: z.number().int().min(1).max(365),
     maxShootsPerDay: z.number().int().min(1).max(20),
     branch: z.string().trim().max(60),
+    craft: z.enum(["video", "photo", "both"]),
     isActive: z.boolean(),
   })
   .partial()

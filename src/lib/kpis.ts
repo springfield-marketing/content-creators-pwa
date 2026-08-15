@@ -10,6 +10,10 @@ import { db } from "@/db";
 export type CreatorKpis = {
   creatorId: string;
   creatorName: string;
+  // Which targets apply. Before this existed, discipline was inferred from
+  // whichever target was non-zero — which mis-scored a photographer carrying a
+  // leftover deliverables target from before the split.
+  craft: "video" | "photo" | "both";
   booked: number;
   completed: number;
   cancelled: number;
@@ -22,16 +26,20 @@ export type CreatorKpis = {
   needsRevision: number;
   posted: number;
   avgTurnaroundHours: number | null;
+  // Photo volume: a photo shoot is one folder link, so deliverable counts
+  // undervalue it against per-clip videos. Summed over approved photo work.
+  imagesDelivered: number;
   targetShoots: number;
   targetDeliverables: number;
   targetPosted: number;
+  targetImages: number;
 };
 
 export async function computeKpis(month: string): Promise<CreatorKpis[]> {
   const monthStart = `${month}-01`;
 
   const bookingAgg = await db.execute(sql`
-    SELECT u.id AS creator_id, u.full_name,
+    SELECT u.id AS creator_id, u.full_name, u.craft,
       COUNT(b.id)::int AS booked,
       COUNT(*) FILTER (WHERE b.status = 'completed')::int AS completed,
       COUNT(*) FILTER (WHERE b.status = 'cancelled')::int AS cancelled,
@@ -43,7 +51,7 @@ export async function computeKpis(month: string): Promise<CreatorKpis[]> {
     LEFT JOIN bookings b ON b.creator_id = u.id
       AND date_trunc('month', b.starts_at AT TIME ZONE 'Asia/Dubai') = ${monthStart}::date
     WHERE 'creator' = ANY(u.roles) AND u.is_active
-    GROUP BY u.id, u.full_name
+    GROUP BY u.id, u.full_name, u.craft
     ORDER BY u.full_name
   `);
 
@@ -61,6 +69,7 @@ export async function computeKpis(month: string): Promise<CreatorKpis[]> {
       COUNT(*) FILTER (WHERE d.review_status = 'approved')::int AS approved,
       COUNT(*) FILTER (WHERE d.review_status = 'needs_revision')::int AS needs_revision,
       COUNT(*) FILTER (WHERE d.is_posted)::int AS posted,
+      COALESCE(SUM(d.image_count) FILTER (WHERE d.review_status = 'approved'), 0)::int AS images_delivered,
       AVG(EXTRACT(EPOCH FROM (d.created_at - b.ends_at)) / 3600)
         FILTER (WHERE d.booking_id IS NOT NULL) AS avg_turnaround_hours
     FROM deliverables d
@@ -70,7 +79,7 @@ export async function computeKpis(month: string): Promise<CreatorKpis[]> {
   `);
 
   const targetsAgg = await db.execute(sql`
-    SELECT creator_id, target_shoots, target_deliverables, target_posted
+    SELECT creator_id, target_shoots, target_deliverables, target_posted, target_images
     FROM kpi_targets WHERE month = ${monthStart}::date
   `);
 
@@ -96,6 +105,7 @@ export async function computeKpis(month: string): Promise<CreatorKpis[]> {
     return {
       creatorId: id,
       creatorName: String(r.full_name),
+      craft: String(r.craft) as CreatorKpis["craft"],
       booked: Number(r.booked),
       completed: Number(r.completed),
       cancelled: Number(r.cancelled),
@@ -111,9 +121,11 @@ export async function computeKpis(month: string): Promise<CreatorKpis[]> {
         d && d.avg_turnaround_hours !== null
           ? Math.round(Number(d.avg_turnaround_hours) * 10) / 10
           : null,
+      imagesDelivered: d ? Number(d.images_delivered) : 0,
       targetShoots: t ? Number(t.target_shoots) : 0,
       targetDeliverables: t ? Number(t.target_deliverables) : 0,
       targetPosted: t ? Number(t.target_posted) : 0,
+      targetImages: t ? Number(t.target_images ?? 0) : 0,
     };
   });
 }

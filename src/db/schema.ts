@@ -52,6 +52,9 @@ export const platform = pgEnum("platform", [
   "dropbox",
   "other",
 ]);
+// Which craft a creator is measured on. Photo output is counted in images and
+// video in clips, so they carry separate targets; 'both' gets one of each.
+export const creatorCraft = pgEnum("creator_craft", ["video", "photo", "both"]);
 export const reviewStatus = pgEnum("review_status", [
   "submitted",
   "under_review",
@@ -74,6 +77,7 @@ export const users = pgTable("users", {
   photoUrl: text("photo_url"), // creator card photo (spec screen 1)
   sortOrder: integer("sort_order"), // booking-page display order (nulls last)
   branch: text("branch").default("Dubai"), // company branch, shown on booking cards
+  craft: creatorCraft("craft").notNull().default("video"), // which targets apply
   googleCalendarId: text("google_calendar_id"),
   googleRefreshToken: text("google_refresh_token"), // Option B only; unused under Workspace delegation
   webhookChannelId: text("webhook_channel_id"),
@@ -198,6 +202,10 @@ export const deliverables = pgTable(
     // Permit number the creator supplies when logging a video, so the number
     // comes from whoever filmed it. The reviewer sees it but can't edit it.
     permitNumber: text("permit_number"),
+    // Photos submit as one folder link per shoot, so counting deliverables
+    // undervalues them against per-clip videos. This is what the folder holds.
+    // NULL on anything logged before the count existed, and on videos.
+    imageCount: integer("image_count"),
     reviewedBy: uuid("reviewed_by").references(() => users.id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -271,6 +279,9 @@ export const kpiTargets = pgTable(
     targetShoots: integer("target_shoots").default(0),
     targetDeliverables: integer("target_deliverables").default(0),
     targetPosted: integer("target_posted").default(0),
+    // Photo output is scored against its own number — a folder count and a
+    // clip count aren't the same unit, so they don't share a target.
+    targetImages: integer("target_images").default(0),
   },
   (t) => [uniqueIndex("kpi_targets_creator_month").on(t.creatorId, t.month)]
 );

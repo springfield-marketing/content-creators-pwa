@@ -78,6 +78,9 @@ export default function LogDeliverable() {
   // Kept index-aligned with links — each video carries its own permit number.
   const [permits, setPermits] = useState<string[]>([""]);
   const [expectedVideos, setExpectedVideos] = useState<number | string>("");
+  // Photo volume: a photo shoot is one folder link, so the count is what makes
+  // the work measurable at all.
+  const [imageCount, setImageCount] = useState<number | string>("");
   const [editExpected, setEditExpected] = useState(false);
   const [workDate, setWorkDate] = useState<string | null>(
     dayjs().format("YYYY-MM-DD")
@@ -129,6 +132,9 @@ export default function LogDeliverable() {
   const permitsOk =
     type !== "video_shoot" ||
     links.every((_, i) => (permits[i] ?? "").trim() !== "");
+  // Photos are one folder, so one count covers the submission.
+  const imageCountOk =
+    type !== "photo_shoot" || (imageCount !== "" && Number(imageCount) >= 0);
   const canSubmit =
     shootOk &&
     !!workDate &&
@@ -136,7 +142,8 @@ export default function LogDeliverable() {
     platforms.every((pf) => pf !== null) &&
     countOk &&
     titleOk &&
-    permitsOk;
+    permitsOk &&
+    imageCountOk;
 
   const submit = async () => {
     setSubmitting(true);
@@ -156,6 +163,10 @@ export default function LogDeliverable() {
           workDate,
           permitNumber:
             type === "video_shoot" ? (permits[i] ?? "").trim() : undefined,
+          imageCount:
+            type === "photo_shoot" && imageCount !== ""
+              ? Number(imageCount)
+              : undefined,
           expectedVideos:
             type === "video_shoot" && !noShoot && expectedVideos !== ""
               ? Number(expectedVideos)
@@ -189,6 +200,7 @@ export default function LogDeliverable() {
     setLinks([""]);
     setPermits([""]);
     setExpectedVideos("");
+    setImageCount("");
     setEditExpected(false);
     setWorkDate(dayjs().format("YYYY-MM-DD"));
     // Refresh so the just-set total and counts are current if they log another.
@@ -380,6 +392,32 @@ export default function LogDeliverable() {
             onChange={setExpectedVideos}
           />
         ))}
+
+      {type === "photo_shoot" && (
+        <NumberInput
+          label={
+            <Group gap={4} align="center" wrap="nowrap" component="span">
+              <span>How many images are in this folder?</span>
+              <Tooltip
+                multiline
+                w={240}
+                withArrow
+                label="A photo shoot is logged as one folder, so this is what makes the size of the job visible — it's what your photo target is measured against."
+              >
+                <IconInfoCircle
+                  size={14}
+                  style={{ color: "var(--mantine-color-dimmed)", cursor: "help" }}
+                />
+              </Tooltip>
+            </Group>
+          }
+          required
+          min={0}
+          max={10000}
+          value={imageCount}
+          onChange={setImageCount}
+        />
+      )}
 
       <div>
         <Text size="sm" fw={500} mb={6}>

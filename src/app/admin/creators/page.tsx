@@ -37,10 +37,12 @@ import {
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
 
 type TimeOffEntry = { id: string; from: string; to: string; reason: string | null };
+type Craft = "video" | "photo" | "both";
 type CreatorRow = {
   id: string;
   name: string;
   isActive: boolean;
+  craft: Craft;
   workingHours: Hours;
   shootDurations: { photo: number; video: number; photo_video: number };
   bufferMinutes: number;
@@ -68,6 +70,7 @@ export default function CreatorSettings() {
   const [leaveRange, setLeaveRange] = useState<[string | null, string | null]>([null, null]);
   const [leaveReason, setLeaveReason] = useState("");
   const [conflicts, setConflicts] = useState<Conflict[] | null>(null);
+  const [craft, setCraft] = useState<Craft>("video");
   const [saving, setSaving] = useState(false);
   const [addOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false);
   const [addForm, setAddForm] = useState({ name: "", email: "", branch: "Dubai" });
@@ -90,6 +93,7 @@ export default function CreatorSettings() {
       horizon: c.maxHorizonDays,
       maxPerDay: c.maxShootsPerDay,
     });
+    setCraft(c.craft);
     setLeaveRange([null, null]);
     setLeaveReason("");
     setConflicts(null);
@@ -149,6 +153,7 @@ export default function CreatorSettings() {
         minNoticeHours: rules.notice,
         maxHorizonDays: rules.horizon,
         maxShootsPerDay: rules.maxPerDay,
+        craft,
       }),
     });
     setSaving(false);
@@ -430,6 +435,19 @@ export default function CreatorSettings() {
               <NumberInput label="Booking horizon (days)" value={rules.horizon} onChange={(v) => setRules({ ...rules, horizon: Number(v) || 1 })} min={1} />
               <NumberInput label="Max shoots per day" value={rules.maxPerDay} onChange={(v) => setRules({ ...rules, maxPerDay: Number(v) || 1 })} min={1} />
             </SimpleGrid>
+            <Select
+              label="Measured on"
+              description="Which targets apply on the KPI targets screen."
+              data={[
+                { value: "video", label: "Video — clips delivered" },
+                { value: "photo", label: "Photo — images delivered" },
+                { value: "both", label: "Both — a target in each" },
+              ]}
+              value={craft}
+              onChange={(v) => setCraft((v as Craft) ?? "video")}
+              allowDeselect={false}
+              maw={280}
+            />
             <Group justify="flex-end">
               <Button leftSection={<IconDeviceFloppy size={16} />} loading={saving} onClick={saveSettings}>
                 Save settings

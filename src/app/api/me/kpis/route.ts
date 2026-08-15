@@ -43,6 +43,7 @@ export async function GET(req: Request) {
       url: deliverables.url,
       comment: deliverables.reviewComment,
       permit: deliverables.permitNumber, // editable on resubmit; required on videos
+      imageCount: deliverables.imageCount, // same, for photos
     })
     .from(deliverables)
     .where(
