@@ -9,7 +9,7 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { bookings } from "@/db/schema";
+import { bookings, deliverables } from "@/db/schema";
 import { cancelBooking } from "@/lib/booking-actions";
 import { jsonError, parseBody } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
@@ -46,7 +46,12 @@ export async function POST(
     .where(and(eq(bookings.id, id), eq(bookings.creatorId, session.user.id)))
     .limit(1);
   if (!b) return jsonError(404, "Booking not found");
-  if (b.status !== "confirmed") return jsonError(409, "Booking is not active");
+  // Cancelling or completing only makes sense while the booking is live. A
+  // no-show has its own rule below, because the nightly job completes past
+  // bookings and used to take the option away hours after the shoot.
+  if (input.action !== "no_show" && b.status !== "confirmed") {
+    return jsonError(409, "Booking is not active");
+  }
 
   if (input.action === "cancel") {
     await cancelBooking({
@@ -62,6 +67,33 @@ export async function POST(
   if (input.action === "no_show") {
     if (dayjs(b.start).isAfter(dayjs())) {
       return jsonError(409, "You can only mark a no-show once the shoot has started");
+    }
+    if (b.status === "no_show") {
+      return jsonError(409, "Already marked as a no-show");
+    }
+    // The cron marks everything past as completed at 17:00 UTC, so a shoot
+    // ending mid-afternoon left about two hours to catch it. Completed stays
+    // correctable for two days; after that it's a manager's to fix.
+    if (b.status === "completed" && dayjs(b.end).isBefore(dayjs().subtract(48, "hour"))) {
+      return jsonError(
+        409,
+        "This shoot is more than two days old — ask a manager to mark it."
+      );
+    }
+    if (b.status !== "confirmed" && b.status !== "completed") {
+      return jsonError(409, "This booking can't be marked as a no-show");
+    }
+    // Work was logged against it, so it plainly went ahead.
+    const [logged] = await db
+      .select({ id: deliverables.id })
+      .from(deliverables)
+      .where(eq(deliverables.bookingId, b.id))
+      .limit(1);
+    if (logged) {
+      return jsonError(
+        409,
+        "You've logged work against this shoot, so it can't be a no-show."
+      );
     }
     await db
       .update(bookings)

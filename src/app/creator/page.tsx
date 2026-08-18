@@ -149,7 +149,9 @@ export default function MySchedule() {
   }
 
   const active = rows.filter(
-    (b) => b.status === "confirmed" || dayjs(b.end).isAfter(dayjs().subtract(1, "day"))
+    (b) =>
+      b.status === "confirmed" ||
+      dayjs(b.end).isAfter(dayjs().subtract(2, "day"))
   );
   const todays = active.filter((b) => dayjs(b.start).isSame(dayjs(), "day"));
   const upcoming = active.filter((b) => dayjs(b.start).isAfter(dayjs(), "day"));
@@ -214,6 +216,30 @@ export default function MySchedule() {
               “{b.notes}”
             </Text>
           )}
+
+          {/* A shoot the nightly job has already completed stays correctable
+              for two days, so an agent who never arrived isn't left recorded
+              as a completed shoot. */}
+          {b.status === "completed" &&
+            dayjs(b.end).isAfter(dayjs().subtract(48, "hour")) && (
+              <>
+                <Divider />
+                <Group gap="xs" align="center">
+                  <Text size="xs" c="dimmed">
+                    Agent didn&apos;t turn up?
+                  </Text>
+                  <Button
+                    size="compact-xs"
+                    variant="light"
+                    color="orange"
+                    leftSection={<IconUserOff size={14} />}
+                    onClick={() => openAction(b, "no_show")}
+                  >
+                    Mark no-show
+                  </Button>
+                </Group>
+              </>
+            )}
 
           {b.status === "confirmed" && (
             <>
