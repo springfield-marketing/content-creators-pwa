@@ -19,6 +19,7 @@ export async function GET() {
       code: generalPermits.code,
       label: generalPermits.label,
       isActive: generalPermits.isActive,
+      expiresOn: generalPermits.expiresOn,
       createdAt: generalPermits.createdAt,
       // Deliverables already logged under this code, so the manager can see
       // what removing it would affect.
@@ -39,6 +40,8 @@ const createSchema = z.object({
   // Free text in, digits out — managers paste the permit as they received it.
   code: z.string().trim().min(1).max(100),
   label: z.string().trim().min(2).max(120),
+  // Optional: not every permit states one, and it only ever warns.
+  expiresOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 });
 
 export async function POST(req: Request) {
@@ -71,7 +74,12 @@ export async function POST(req: Request) {
 
   const [created] = await db
     .insert(generalPermits)
-    .values({ code, label: parsed.data.label, createdBy: session.user.id })
+    .values({
+      code,
+      label: parsed.data.label,
+      expiresOn: parsed.data.expiresOn ?? null,
+      createdBy: session.user.id,
+    })
     .returning({ id: generalPermits.id });
 
   await logAudit({
@@ -79,7 +87,7 @@ export async function POST(req: Request) {
     entityId: created.id,
     action: "create",
     actorId: session.user.id,
-    diff: { code, label: parsed.data.label },
+    diff: { code, label: parsed.data.label, expiresOn: parsed.data.expiresOn ?? null },
   });
 
   return NextResponse.json({ id: created.id, code }, { status: 201 });

@@ -19,23 +19,49 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { IconPlus, IconToggleLeft, IconToggleRight } from "@tabler/icons-react";
+import dayjs from "dayjs";
+import {
+  IconPencil,
+  IconPlus,
+  IconToggleLeft,
+  IconToggleRight,
+} from "@tabler/icons-react";
 
 type Permit = {
   id: string;
   code: string;
   label: string;
   isActive: boolean;
+  expiresOn: string | null;
   uses: number;
 };
+
+// Expiry warns, it never changes routing — work under an expired code still
+// goes to managers until someone switches it off.
+function expiry(p: Permit): { text: string; color?: string } {
+  if (!p.expiresOn) return { text: "No expiry" };
+  const days = dayjs(p.expiresOn).startOf("day").diff(dayjs().startOf("day"), "day");
+  const on = dayjs(p.expiresOn).format("D MMM YYYY");
+  if (days < 0) return { text: `Expired ${on}`, color: "red" };
+  if (days === 0) return { text: `Expires today (${on})`, color: "red" };
+  if (days <= 30) return { text: `${days}d left (${on})`, color: "orange" };
+  return { text: on };
+}
 
 export default function GeneralPermits() {
   const [permits, setPermits] = useState<Permit[] | null>(null);
   const [form, setForm] = useState({ code: "", label: "" });
+  const [expires, setExpires] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formOpen, { open: openForm, close: closeForm }] = useDisclosure(false);
+  // Edit dialog, reusing the same fields against an existing row.
+  const [editing, setEditing] = useState<Permit | null>(null);
+  const [editForm, setEditForm] = useState({ code: "", label: "" });
+  const [editExpires, setEditExpires] = useState<string | null>(null);
+  const [editOpen, { open: openEdit, close: closeEdit }] = useDisclosure(false);
 
   const reload = useCallback(() => {
     fetch("/api/admin/permits")
@@ -56,7 +82,7 @@ export default function GeneralPermits() {
     const res = await fetch("/api/admin/permits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, expiresOn: expires }),
     });
     setSaving(false);
     const body = await res.json().catch(() => ({}));
@@ -75,6 +101,38 @@ export default function GeneralPermits() {
     });
     closeForm();
     setForm({ code: "", label: "" });
+    setExpires(null);
+    reload();
+  };
+
+  const startEdit = (p: Permit) => {
+    setEditing(p);
+    setEditForm({ code: p.code, label: p.label });
+    setEditExpires(p.expiresOn);
+    openEdit();
+  };
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    setSaving(true);
+    const res = await fetch(`/api/admin/permits/${editing.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...editForm, expiresOn: editExpires }),
+    });
+    setSaving(false);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      notifications.show({
+        title: "Couldn't save",
+        message: body.error ?? (body.issues?.[0]?.message || "Check the details."),
+        color: "red",
+      });
+      return;
+    }
+    notifications.show({ title: "Permit updated", message: editForm.label, color: "green" });
+    closeEdit();
+    setEditing(null);
     reload();
   };
 
@@ -133,9 +191,65 @@ export default function GeneralPermits() {
             value={form.label}
             onChange={(e) => setForm({ ...form, label: e.currentTarget.value })}
           />
+          <DatePickerInput
+            label="Expires on"
+            description="Optional. Flags the permit for renewal — it keeps routing to managers either way."
+            placeholder="No expiry"
+            clearable
+            valueFormat="D MMM YYYY"
+            value={expires}
+            onChange={setExpires}
+          />
           <Group justify="flex-end">
             <Button loading={saving} onClick={add}>
               Add permit
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={editOpen}
+        onClose={closeEdit}
+        title="Edit general permit"
+        centered
+      >
+        <Stack gap="sm">
+          <TextInput
+            label="Permit code"
+            description="Only the digits are stored and matched."
+            value={editForm.code}
+            onChange={(e) => setEditForm({ ...editForm, code: e.currentTarget.value })}
+          />
+          {editing !== null && editing.uses > 0 && (
+            <Alert variant="light" color="orange" p="xs">
+              <Text size="xs">
+                {editing.uses}{" "}
+                {editing.uses === 1 ? "deliverable matches" : "deliverables match"}{" "}
+                {editing.code}. Changing the code re-points that match, so those
+                stop counting as general and any work under the new code starts.
+              </Text>
+            </Alert>
+          )}
+          <TextInput
+            label="What it covers"
+            value={editForm.label}
+            onChange={(e) => setEditForm({ ...editForm, label: e.currentTarget.value })}
+          />
+          <DatePickerInput
+            label="Expires on"
+            placeholder="No expiry"
+            clearable
+            valueFormat="D MMM YYYY"
+            value={editExpires}
+            onChange={setEditExpires}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeEdit}>
+              Cancel
+            </Button>
+            <Button loading={saving} onClick={saveEdit}>
+              Save changes
             </Button>
           </Group>
         </Stack>
@@ -155,6 +269,7 @@ export default function GeneralPermits() {
                 <Table.Th>Code</Table.Th>
                 <Table.Th>Covers</Table.Th>
                 <Table.Th>Used by</Table.Th>
+                <Table.Th>Expires</Table.Th>
                 <Table.Th>Status</Table.Th>
                 <Table.Th />
               </Table.Tr>
@@ -176,6 +291,11 @@ export default function GeneralPermits() {
                     </Text>
                   </Table.Td>
                   <Table.Td>
+                    <Text size="sm" c={expiry(p).color ?? "dimmed"}>
+                      {expiry(p).text}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
                     <Badge
                       size="sm"
                       variant="light"
@@ -185,6 +305,15 @@ export default function GeneralPermits() {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
+                    <Group gap={6} wrap="nowrap">
+                    <Button
+                      size="compact-xs"
+                      variant="default"
+                      leftSection={<IconPencil size={14} />}
+                      onClick={() => startEdit(p)}
+                    >
+                      Edit
+                    </Button>
                     <Button
                       size="compact-xs"
                       variant="light"
@@ -200,6 +329,7 @@ export default function GeneralPermits() {
                     >
                       {p.isActive ? "Switch off" : "Switch on"}
                     </Button>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}

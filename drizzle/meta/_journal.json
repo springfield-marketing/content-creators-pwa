@@ -148,6 +148,13 @@
       "when": 1786715950467,
       "tag": "0020_creator_craft",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787036663531,
+      "tag": "0021_general_permit_expiry",
+      "breakpoints": true
     }
   ]
 }

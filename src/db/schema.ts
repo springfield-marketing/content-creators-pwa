@@ -367,6 +367,9 @@ export const generalPermits = pgTable("general_permits", {
   code: text("code").notNull().unique(),
   label: text("label").notNull(), // what the permit covers, for the admin list
   isActive: boolean("is_active").notNull().default(true),
+  // Informational only — an expired code still routes to managers until it's
+  // switched off, so a date passing never silently reassigns review work.
+  expiresOn: date("expires_on"),
   createdBy: uuid("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
