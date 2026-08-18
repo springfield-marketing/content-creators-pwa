@@ -36,7 +36,6 @@ import {
   IconSearch,
 } from "@tabler/icons-react";
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
-import { AgentSearchSelect, type AgentHit } from "@/components/AgentSearchSelect";
 
 type Platform = "instagram" | "tiktok" | "drive" | "dropbox" | "other";
 
@@ -72,7 +71,6 @@ export default function LogDeliverable() {
   const [recent, setRecent] = useState<RecentShoot[] | null>(null);
   const [shootId, setShootId] = useState<string | null>(null);
   const [noShoot, setNoShoot] = useState(false);
-  const [agent, setAgent] = useState<AgentHit | null>(null);
   const [title, setTitle] = useState("");
   const [type, setType] = useState("photo_shoot");
   const [links, setLinks] = useState<string[]>([""]);
@@ -136,7 +134,7 @@ export default function LogDeliverable() {
       : matchingShoots.slice(0, VISIBLE_SHOOTS);
 
   const platforms = useMemo(() => links.map(detectPlatform), [links]);
-  const shootOk = noShoot ? agent !== null : shootId !== null;
+  const shootOk = noShoot ? title.trim() !== "" : shootId !== null;
   const selectedShoot = shootId
     ? recent?.find((s) => s.id === shootId) ?? null
     : null;
@@ -169,13 +167,16 @@ export default function LogDeliverable() {
     setSubmitting(true);
     // One deliverable per link — each reviewed and counted individually.
     let ok = 0;
+    // A company shoot is one shoot, however many links it produced — the first
+    // submission creates the booking and the rest join it.
+    let companyBookingId: string | null = null;
     for (let i = 0; i < links.length; i++) {
       const res = await fetch("/api/me/deliverables", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bookingId: noShoot ? undefined : shootId,
-          agentId: noShoot ? agent?.id : undefined,
+          bookingId: noShoot ? (companyBookingId ?? undefined) : shootId,
+          companyShoot: noShoot && !companyBookingId ? true : undefined,
           title: noShoot ? title.trim() : undefined,
           type,
           url: links[i],
@@ -193,7 +194,15 @@ export default function LogDeliverable() {
               : undefined,
         }),
       });
-      if (res.ok) ok++;
+      if (res.ok) {
+        ok++;
+        if (noShoot && !companyBookingId) {
+          const body: { bookingId?: string | null } = await res
+            .json()
+            .catch(() => ({}));
+          companyBookingId = body.bookingId ?? null;
+        }
+      }
     }
     setSubmitting(false);
     if (ok === 0) {
@@ -214,7 +223,6 @@ export default function LogDeliverable() {
     });
     setShootId(null);
     setNoShoot(false);
-    setAgent(null);
     setTitle("");
     setType("photo_shoot");
     setLinks([""]);
@@ -346,27 +354,27 @@ export default function LogDeliverable() {
                 bg={noShoot ? "var(--mantine-color-brand-0)" : undefined}
               >
                 <Group justify="space-between">
-                  <Text size="sm">Not tied to a shoot</Text>
+                  <div>
+                    <Text size="sm">Company shoot</Text>
+                    <Text size="xs" c="dimmed">
+                      Internal work with no agent — meetings, activations,
+                      social posts
+                    </Text>
+                  </div>
                   {noShoot && <Badge size="sm">Selected</Badge>}
                 </Group>
               </Card>
             </UnstyledButton>
 
             {noShoot && (
-              <>
-                <AgentSearchSelect
-                  placeholder="Search the agent it's for"
-                  value={agent}
-                  onChange={setAgent}
-                />
-                <TextInput
-                  label="Title"
-                  description="Name this deliverable so it's identifiable in review — required when it's not tied to a shoot."
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.currentTarget.value)}
-                />
-              </>
+              <TextInput
+                label="What was it for?"
+                description="Names the shoot in review and on the KPI screens."
+                placeholder="e.g. Monday meeting, Q3 activation"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.currentTarget.value)}
+              />
             )}
           </Stack>
         )}

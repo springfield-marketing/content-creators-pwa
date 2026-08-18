@@ -4,11 +4,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { bookings, deliverables } from "@/db/schema";
+import { bookings, deliverables, users } from "@/db/schema";
+import { TZ } from "@/lib/availability";
 import { jsonError, parseBody } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const schema = z.object({
   bookingId: z.string().uuid().optional(),
@@ -27,6 +34,9 @@ const schema = z.object({
   // Media permit, supplied per video by the creator who filmed it. Required
   // for videos (enforced below); free text — real permits vary in format.
   permitNumber: z.string().trim().min(1).max(100).optional(),
+  // Internal work with no agent. Records the shoot as a company booking so the
+  // deliverable has something to hang off, rather than floating untied.
+  companyShoot: z.boolean().optional(),
   // How many images the folder holds. Required for photos (enforced below) —
   // it's the only measure of photo volume, since a shoot is one folder link.
   imageCount: z.number().int().min(0).max(10000).optional(),
@@ -40,7 +50,7 @@ export async function POST(req: Request) {
   if ("error" in parsed) return parsed.error;
   const input = parsed.data;
 
-  // Not tied to a shoot → it has no project to name it, so a title is required.
+  // No shoot to inherit a name from, so the creator supplies one.
   if (!input.bookingId && !input.title) {
     return jsonError(422, "A title is required when not tied to a shoot");
   }
@@ -52,6 +62,50 @@ export async function POST(req: Request) {
   }
 
   let agentId = input.agentId ?? null;
+  let bookingId = input.bookingId ?? null;
+
+  // Company shoots are logged after the fact, so the booking is written as
+  // already completed: no calendar event for something that has happened, and
+  // 'completed' sits outside the no-overlap constraint, which only guards
+  // confirmed bookings. Times come from the creator's own configured duration
+  // for that shoot type — enough to place the shoot on the day it happened.
+  if (input.companyShoot && !bookingId) {
+    const [me] = await db
+      .select({ shootDurations: users.shootDurations })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1);
+    const shootType = input.type === "photo_shoot" ? "photo" : "video";
+    const minutes = me?.shootDurations?.[shootType] ?? 120;
+    const startsAt = dayjs.tz(`${input.workDate} 10:00`, TZ).toDate();
+    const endsAt = dayjs(startsAt).add(minutes, "minute").toDate();
+
+    const [created] = await db
+      .insert(bookings)
+      .values({
+        creatorId: session.user.id,
+        agentId: null,
+        source: "company",
+        shootType,
+        locationType: "office",
+        projectName: input.title!,
+        startsAt,
+        endsAt,
+        status: "completed",
+      })
+      .returning({ id: bookings.id });
+    bookingId = created.id;
+    agentId = null;
+
+    await logAudit({
+      entity: "booking",
+      entityId: created.id,
+      action: "create_company",
+      actorId: session.user.id,
+      diff: { projectName: input.title, source: "company", loggedByCreator: true },
+    });
+  }
+
   if (input.bookingId) {
     const [b] = await db
       .select({ agentId: bookings.agentId })
@@ -85,7 +139,7 @@ export async function POST(req: Request) {
     .insert(deliverables)
     .values({
       creatorId: session.user.id,
-      bookingId: input.bookingId ?? null,
+      bookingId,
       agentId,
       type: input.type,
       platform: input.platform,
@@ -108,11 +162,13 @@ export async function POST(req: Request) {
     diff: {
       type: input.type,
       url: input.url,
-      bookingId: input.bookingId,
+      bookingId,
       permitNumber: input.permitNumber ?? null,
       imageCount: input.imageCount ?? null,
     },
   });
 
-  return NextResponse.json({ id: created.id }, { status: 201 });
+  // Returned so a multi-link submit reuses the company booking made by the
+  // first link instead of creating one per video.
+  return NextResponse.json({ id: created.id, bookingId }, { status: 201 });
 }
