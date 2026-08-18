@@ -221,8 +221,8 @@ export default function WeeklyPlan() {
               </Group>
             ))}
             <Text size="xs" c="dimmed">
-              To keep a booking instead, reassign it from the Bookings screen,
-              or soften the role.
+              To keep a booking instead, soften the role, or move it to
+              another time on the Bookings screen.
             </Text>
           </Stack>
         </Alert>

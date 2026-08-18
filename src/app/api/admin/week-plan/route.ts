@@ -140,7 +140,7 @@ export async function PUT(req: Request) {
     return NextResponse.json(
       {
         error:
-          "Some existing bookings don't fit the new roles — reassign or cancel them first.",
+          "Some existing bookings don't fit the new roles — cancel them or soften the role first.",
         conflicts,
       },
       { status: 409 }

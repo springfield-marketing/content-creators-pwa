@@ -1,7 +1,7 @@
 "use client";
 
 // Screen 13 — Creator settings & time off, on real data. Time off enforces
-// §B12.2: conflicting confirmed bookings must be reassigned or cancelled
+// §B12.2: conflicting confirmed bookings must be cancelled
 // before the leave can be saved.
 
 import { useCallback, useEffect, useState } from "react";
@@ -195,23 +195,22 @@ export default function CreatorSettings() {
     }
   };
 
-  const resolveConflict = async (bookingId: string, how: "cancel" | "reassign", targetId?: string) => {
+  const resolveConflict = async (bookingId: string) => {
     const res = await fetch(`/api/admin/bookings/${bookingId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        how === "cancel"
-          ? { action: "cancel", reason: "Creator unavailable (time off)" }
-          : { action: "reassign", creatorId: targetId }
-      ),
+      body: JSON.stringify({
+        action: "cancel",
+        reason: "Creator unavailable (time off)",
+      }),
     });
     const body = await res.json().catch(() => ({}));
     notifications.show(
       res.ok
         ? {
-            title: how === "cancel" ? "Booking cancelled" : "Booking reassigned",
+            title: "Booking cancelled",
             message: "Agent notified automatically.",
-            color: how === "cancel" ? "red" : "green",
+            color: "red",
           }
         : { title: "Couldn't resolve", message: body.error ?? "Try again.", color: "red" }
     );
@@ -450,7 +449,6 @@ export default function CreatorSettings() {
     );
   }
 
-  const otherCreators = creators.filter((c) => c.id !== creator.id && c.isActive);
 
   return (
     <Stack gap="lg">
@@ -808,14 +806,13 @@ export default function CreatorSettings() {
             >
               <Stack gap="xs">
                 <Text size="sm">
-                  Each one must be reassigned or cancelled before the leave can
+                  Each one must be cancelled before the leave can
                   be saved — agents are notified automatically.
                 </Text>
                 {conflicts.map((b) => (
                   <ConflictRow
                     key={b.id}
                     conflict={b}
-                    others={otherCreators}
                     onResolve={resolveConflict}
                   />
                 ))}
@@ -830,14 +827,11 @@ export default function CreatorSettings() {
 
 function ConflictRow({
   conflict,
-  others,
   onResolve,
 }: {
   conflict: Conflict;
-  others: { id: string; name: string }[];
-  onResolve: (id: string, how: "cancel" | "reassign", targetId?: string) => void;
+  onResolve: (id: string) => void;
 }) {
-  const [target, setTarget] = useState<string | null>(null);
   return (
     <Group justify="space-between" wrap="wrap">
       <Text size="sm">
@@ -845,32 +839,14 @@ function ConflictRow({
         {dbShootTypeLabel[conflict.shootType]} · {conflict.projectName} (
         {conflict.agentName})
       </Text>
-      <Group gap={6}>
-        <Select
-          size="xs"
-          placeholder="Reassign to…"
-          data={others.map((c) => ({ value: c.id, label: c.name }))}
-          value={target}
-          onChange={setTarget}
-          maw={170}
-        />
-        <Button
-          size="compact-xs"
-          variant="default"
-          disabled={!target}
-          onClick={() => onResolve(conflict.id, "reassign", target!)}
-        >
-          Reassign
-        </Button>
-        <Button
-          size="compact-xs"
-          variant="light"
-          color="red"
-          onClick={() => onResolve(conflict.id, "cancel")}
-        >
-          Cancel
-        </Button>
-      </Group>
+      <Button
+        size="compact-xs"
+        variant="light"
+        color="red"
+        onClick={() => onResolve(conflict.id)}
+      >
+        Cancel booking
+      </Button>
     </Group>
   );
 }

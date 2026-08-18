@@ -75,7 +75,7 @@ export async function POST(
   if (conflicts.length > 0) {
     return NextResponse.json(
       {
-        error: "Resolve the conflicting bookings first (reassign or cancel).",
+        error: "Cancel the conflicting bookings first.",
         conflicts,
       },
       { status: 409 }

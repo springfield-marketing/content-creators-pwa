@@ -1,6 +1,6 @@
 "use client";
 
-// Screen 12 — Bookings overview on real data: week grid, cancel/reassign,
+// Screen 12 — Bookings overview on real data: week grid, cancel/edit/move,
 // pending ≤24h cancellation requests (§B12.1), decline flags.
 
 import { useCallback, useEffect, useState } from "react";
@@ -94,7 +94,6 @@ export default function BookingsOverview() {
   });
   const [moveTo, setMoveTo] = useState<string | null>(null);
   const [moveMinutes, setMoveMinutes] = useState<number | string>(120);
-  const [reassignTo, setReassignTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [detailOpen, { open: openDetail, close: closeDetail }] =
     useDisclosure(false);
@@ -153,7 +152,6 @@ export default function BookingsOverview() {
   const act = async (
     action:
       | "cancel"
-      | "reassign"
       | "no_show"
       | "undo_no_show"
       | "undo_cancel"
@@ -174,8 +172,6 @@ export default function BookingsOverview() {
                 start: dayjs(moveTo).toISOString(),
                 durationMinutes: Number(moveMinutes) || 120,
               }
-          : action === "reassign"
-          ? { action, creatorId: reassignTo }
           : action === "undo_no_show"
             ? { action }
             : action === "undo_cancel"
@@ -202,7 +198,7 @@ export default function BookingsOverview() {
                         ? "Details updated"
                         : action === "reschedule"
                           ? "Booking moved"
-                          : "Booking reassigned",
+                          : "Done",
             message:
               action === "cancel"
                 ? "Calendar event removed — agent notified."
@@ -368,7 +364,6 @@ export default function BookingsOverview() {
                                 setMoveMinutes(
                                   dayjs(b.end).diff(dayjs(b.start), "minute")
                                 );
-                                setReassignTo(null);
                                 openDetail();
                               }}
                             >
@@ -726,26 +721,6 @@ export default function BookingsOverview() {
 
             {selected.status === "confirmed" && (
               <>
-                <Divider label="Reassign (e.g. creator is sick)" />
-                <Group>
-                  <Select
-                    placeholder="Move to…"
-                    data={creators
-                      .filter((c) => c.id !== selected.creatorId)
-                      .map((c) => ({ value: c.id, label: c.name }))}
-                    value={reassignTo}
-                    onChange={setReassignTo}
-                    style={{ flex: 1 }}
-                  />
-                  <Button
-                    variant="default"
-                    disabled={!reassignTo}
-                    loading={busy}
-                    onClick={() => act("reassign")}
-                  >
-                    Reassign
-                  </Button>
-                </Group>
 
                 <Divider label="Cancel booking" />
                 <Textarea
