@@ -23,6 +23,10 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import {
+  DeliverableEditModal,
+  type EditableDeliverable,
+} from "@/components/DeliverableEditModal";
 import { IconCheck, IconExternalLink, IconMessage } from "@tabler/icons-react";
 
 type QueueItem = {
@@ -55,6 +59,7 @@ export default function ReviewQueue() {
   const [comment, setComment] = useState("");
   const [changesTarget, setChangesTarget] = useState<QueueItem | null>(null);
   const [approveTarget, setApproveTarget] = useState<QueueItem | null>(null);
+  const [editing, setEditing] = useState<EditableDeliverable | null>(null);
   const [busy, setBusy] = useState(false);
   const [changesOpen, { open: openChanges, close: closeChanges }] =
     useDisclosure(false);
@@ -275,6 +280,26 @@ export default function ReviewQueue() {
                   >
                     Request changes
                   </Button>
+                  {/* A wrong link or permit is faster to fix here than to send
+                      back and wait for a resubmission. */}
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() =>
+                      setEditing({
+                        id: d.id,
+                        type: d.type,
+                        url: d.url,
+                        title: d.title,
+                        permitNumber: d.permitNumber,
+                        imageCount: d.imageCount,
+                        creatorName: d.creatorName,
+                      })
+                    }
+                  >
+                    Edit
+                  </Button>
                 </Group>
               </Group>
             </Card>
@@ -371,6 +396,12 @@ export default function ReviewQueue() {
           </Group>
         </Stack>
       </Modal>
+      <DeliverableEditModal
+        target={editing}
+        onClose={() => setEditing(null)}
+        onSaved={reload}
+      />
+
     </Stack>
   );
 }

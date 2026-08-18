@@ -23,11 +23,17 @@ import {
 } from "@mantine/core";
 import { IconChevronLeft, IconChevronRight, IconSearch } from "@tabler/icons-react";
 import { notifications } from "@mantine/notifications";
+import {
+  DeliverableEditModal,
+  type EditableDeliverable,
+} from "@/components/DeliverableEditModal";
 
 type ReviewRow = {
   deliverableId: string;
   reviewStatus: string | null;
   isPosted: boolean | null;
+  imageCount: number | null;
+  deliverableTitle: string | null;
   at: string;
   submittedAt: string | null;
   reviewer: string | null;
@@ -90,6 +96,7 @@ export default function ReviewsScreen() {
   const [decision, setDecision] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [undoing, setUndoing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<EditableDeliverable | null>(null);
   // Bumped after an undo to refetch the month without duplicating the loader.
   const [refresh, setRefresh] = useState(0);
 
@@ -284,7 +291,7 @@ export default function ReviewsScreen() {
                     <Table.Th w={140}>Decision</Table.Th>
                     <Table.Th>Video</Table.Th>
                     <Table.Th>Comment / permit</Table.Th>
-                    <Table.Th w={110} />
+                    <Table.Th w={150} />
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -331,6 +338,7 @@ export default function ReviewsScreen() {
                         )}
                       </Table.Td>
                       <Table.Td>
+                        <Group gap={4} wrap="nowrap">
                         {/* Only where it still applies: an approval that's
                             still standing and hasn't been posted. */}
                         {r.decision === "approved" &&
@@ -346,6 +354,24 @@ export default function ReviewsScreen() {
                               Undo
                             </Button>
                           )}
+                        <Button
+                          size="compact-xs"
+                          variant="subtle"
+                          onClick={() =>
+                            setEditing({
+                              id: r.deliverableId,
+                              type: r.type,
+                              url: r.url,
+                              title: r.deliverableTitle,
+                              permitNumber: r.permit,
+                              imageCount: r.imageCount,
+                              creatorName: r.creator,
+                            })
+                          }
+                        >
+                          Edit
+                        </Button>
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -355,6 +381,12 @@ export default function ReviewsScreen() {
           )}
         </>
       )}
+      <DeliverableEditModal
+        target={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => setRefresh((n) => n + 1)}
+      />
+
     </Stack>
   );
 }

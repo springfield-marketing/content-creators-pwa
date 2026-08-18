@@ -15,6 +15,8 @@ export type ReviewRow = {
   // Current state, so the screen only offers an undo where one still applies.
   reviewStatus: string | null;
   isPosted: boolean | null;
+  imageCount: number | null;
+  deliverableTitle: string | null;
   at: string; // decided_at
   submittedAt: string | null; // deliverable submission, for time-to-decision
   reviewer: string | null;
@@ -64,6 +66,7 @@ export async function getReviewLog(month: string): Promise<ReviewRow[]> {
       deliverableId: reviewDecisions.deliverableId,
       reviewStatus: deliverables.reviewStatus,
       isPosted: deliverables.isPosted,
+      imageCount: deliverables.imageCount,
       submittedAt: deliverables.createdAt,
       reviewerName: reviewer.fullName,
       creatorName: creator.fullName,
@@ -91,6 +94,8 @@ export async function getReviewLog(month: string): Promise<ReviewRow[]> {
     deliverableId: r.deliverableId,
     reviewStatus: r.reviewStatus,
     isPosted: r.isPosted,
+    imageCount: r.imageCount,
+    deliverableTitle: r.title,
     at: r.at.toISOString(),
     submittedAt: r.submittedAt?.toISOString() ?? null,
     reviewer: r.reviewerName,

@@ -1,6 +1,7 @@
 // POST /api/admin/deliverables/[id] — review decision:
 //   { action: "approve" } | { action: "request_changes", comment }
 //   { action: "unapprove" } → back to the queue after a mistaken approval
+//   { action: "edit", ... }  → correct a link, permit or image count
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -16,6 +17,15 @@ import { hidesGeneralPermits, isGeneralPermit } from "@/lib/general-permits";
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve") }),
   z.object({ action: z.literal("unapprove") }),
+  z
+    .object({
+      action: z.literal("edit"),
+      url: z.string().url().max(2000).optional(),
+      title: z.string().trim().min(1).max(200).optional(),
+      permitNumber: z.string().trim().min(1).max(100).optional(),
+      imageCount: z.number().int().min(0).max(10000).optional(),
+    })
+    .refine((v) => Object.keys(v).length > 1, { message: "Nothing to change" }),
   z.object({
     action: z.literal("request_changes"),
     comment: z.string().trim().min(3).max(2000),
@@ -41,6 +51,9 @@ export async function POST(
       type: deliverables.type,
       creatorId: deliverables.creatorId,
       permitNumber: deliverables.permitNumber,
+      imageCount: deliverables.imageCount,
+      url: deliverables.url,
+      title: deliverables.title,
       isPosted: deliverables.isPosted,
     })
     .from(deliverables)
@@ -60,6 +73,37 @@ export async function POST(
   ) {
     return jsonError(403, "General-permit work is reviewed by a manager");
   }
+  // Correcting a deliverable without disturbing its review state — a wrong
+  // link, a mistyped permit, or an image count on work logged before counts
+  // existed. Allowed at any status, since the 40 photo deliverables needing a
+  // count were approved months ago and can't be sent back for it.
+  if (input.action === "edit") {
+    const changes = Object.fromEntries(
+      Object.entries(input).filter(([k, v]) => k !== "action" && v !== undefined)
+    );
+
+    await db.update(deliverables).set(changes).where(eq(deliverables.id, id));
+
+    await logAudit({
+      entity: "deliverable",
+      entityId: id,
+      action: "edit",
+      actorId: session.user.id,
+      diff: {
+        changed: changes,
+        // Kept so a wrong correction can be traced back.
+        previous: {
+          url: d.url,
+          title: d.title,
+          permitNumber: d.permitNumber,
+          imageCount: d.imageCount,
+        },
+      },
+    });
+
+    return NextResponse.json({ ok: true });
+  }
+
   // Undo a mistaken approval: back to the queue for a proper decision. The
   // creator is told nothing and needs to do nothing — it isn't a rejection.
   if (input.action === "unapprove") {
