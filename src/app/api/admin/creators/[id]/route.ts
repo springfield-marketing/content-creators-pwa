@@ -5,7 +5,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import dayjs from "dayjs";
-import { and, arrayContains, eq } from "drizzle-orm";
+import { and, arrayContains, eq, ne } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -32,6 +32,17 @@ const schema = z
     maxHorizonDays: z.number().int().min(1).max(365),
     maxShootsPerDay: z.number().int().min(1).max(20),
     branch: z.string().trim().max(60),
+    // Identity, so a typo or a hand-over doesn't need a database edit.
+    fullName: z.string().trim().min(2).max(120),
+    email: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .email()
+      .max(254)
+      .refine((e) => e.endsWith("@springfield-re.com"), {
+        message: "Must be a company Google account (@springfield-re.com)",
+      }),
     craft: z.enum(["video", "photo", "both"]),
     isActive: z.boolean(),
   })
@@ -49,9 +60,22 @@ export async function PATCH(
   const parsed = await parseBody(req, schema);
   if ("error" in parsed) return parsed.error;
 
+  // Email is both the sign-in and the calendar bookings land on — every creator
+  // has the two identical — so a change has to be unique and move both.
+  const patch: Record<string, unknown> = { ...parsed.data };
+  if (parsed.data.email) {
+    const [clash] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.email, parsed.data.email), ne(users.id, id)))
+      .limit(1);
+    if (clash) return jsonError(409, "That email is already in use.");
+    patch.googleCalendarId = parsed.data.email;
+  }
+
   const [updated] = await db
     .update(users)
-    .set(parsed.data)
+    .set(patch)
     .where(and(eq(users.id, id), arrayContains(users.roles, ["creator"])))
     .returning({ id: users.id });
   if (!updated) return jsonError(404, "Creator not found");

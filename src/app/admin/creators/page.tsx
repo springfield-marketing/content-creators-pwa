@@ -41,6 +41,9 @@ type Craft = "video" | "photo" | "both";
 type CreatorRow = {
   id: string;
   name: string;
+  email: string;
+  photoUrl: string | null;
+  slug: string | null;
   isActive: boolean;
   resignedOn: string | null;
   craft: Craft;
@@ -72,6 +75,9 @@ export default function CreatorSettings() {
   const [leaveReason, setLeaveReason] = useState("");
   const [conflicts, setConflicts] = useState<Conflict[] | null>(null);
   const [craft, setCraft] = useState<Craft>("video");
+  const [details, setDetails] = useState({ name: "", email: "" });
+  const [newPhoto, setNewPhoto] = useState<File | null>(null);
+  const [savingDetails, setSavingDetails] = useState(false);
   const [saving, setSaving] = useState(false);
   const [addOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false);
   const [resignOpen, { open: openResign, close: closeResign }] = useDisclosure(false);
@@ -94,6 +100,8 @@ export default function CreatorSettings() {
       maxPerDay: c.maxShootsPerDay,
     });
     setCraft(c.craft);
+    setDetails({ name: c.name, email: c.email });
+    setNewPhoto(null);
     setLeaveRange([null, null]);
     setLeaveReason("");
     setConflicts(null);
@@ -248,6 +256,61 @@ export default function CreatorSettings() {
       notifications.show({ title: "Time off removed", message: "", color: "blue" });
       reload();
     }
+  };
+
+  // Details and photo save together but travel separately: the photo is
+  // multipart, everything else is the JSON PATCH.
+  const saveDetails = async () => {
+    if (!creator) return;
+    setSavingDetails(true);
+
+    const res = await fetch(`/api/admin/creators/${creator.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fullName: details.name.trim(),
+        email: details.email.trim().toLowerCase(),
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setSavingDetails(false);
+      notifications.show({
+        title: "Couldn't save details",
+        message: body.error ?? (body.issues?.[0]?.message || "Check the values."),
+        color: "red",
+      });
+      return;
+    }
+
+    if (newPhoto) {
+      const fd = new FormData();
+      fd.append("photo", newPhoto);
+      const pRes = await fetch(`/api/admin/creators/${creator.id}/photo`, {
+        method: "POST",
+        body: fd,
+      });
+      if (!pRes.ok) {
+        const body = await pRes.json().catch(() => ({}));
+        setSavingDetails(false);
+        notifications.show({
+          title: "Details saved, photo didn't upload",
+          message: body.error ?? "Try the photo again.",
+          color: "orange",
+        });
+        reload();
+        return;
+      }
+    }
+
+    setSavingDetails(false);
+    setNewPhoto(null);
+    notifications.show({
+      title: "Details saved",
+      message: `${details.name} — the booking page updates immediately.`,
+      color: "green",
+    });
+    reload();
   };
 
   const resign = async () => {
@@ -437,6 +500,48 @@ export default function CreatorSettings() {
           </Group>
         </Stack>
       </Modal>
+
+      <Card>
+        <Stack gap="sm">
+          <Text fw={600}>Details</Text>
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+            <TextInput
+              label="Full name"
+              value={details.name}
+              onChange={(e) => setDetails({ ...details, name: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Google Workspace email"
+              description="Also the calendar bookings land on."
+              value={details.email}
+              onChange={(e) => setDetails({ ...details, email: e.currentTarget.value })}
+            />
+            <FileInput
+              label="Replace photo"
+              description={creator.photoUrl ? "A photo is set." : "No photo yet."}
+              placeholder="Choose an image"
+              accept="image/*"
+              clearable
+              value={newPhoto}
+              onChange={setNewPhoto}
+            />
+          </SimpleGrid>
+          <Group justify="space-between">
+            <Text size="xs" c="dimmed">
+              Booking link stays /book/{creator.slug} — renaming doesn&apos;t
+              change it, so shared links keep working.
+            </Text>
+            <Button
+              leftSection={<IconDeviceFloppy size={16} />}
+              loading={savingDetails}
+              disabled={details.name.trim().length < 2 || !details.email.trim()}
+              onClick={saveDetails}
+            >
+              Save details
+            </Button>
+          </Group>
+        </Stack>
+      </Card>
 
       <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
         <Card>

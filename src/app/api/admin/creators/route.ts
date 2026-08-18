@@ -18,6 +18,8 @@ export async function GET() {
     .select({
       id: users.id,
       name: users.fullName,
+      email: users.email,
+      photoUrl: users.photoUrl,
       slug: users.slug,
       branch: users.branch,
       craft: users.craft,
