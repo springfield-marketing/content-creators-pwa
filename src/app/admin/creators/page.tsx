@@ -42,6 +42,7 @@ type CreatorRow = {
   id: string;
   name: string;
   isActive: boolean;
+  resignedOn: string | null;
   craft: Craft;
   workingHours: Hours;
   shootDurations: { photo: number; video: number; photo_video: number };
@@ -73,12 +74,11 @@ export default function CreatorSettings() {
   const [craft, setCraft] = useState<Craft>("video");
   const [saving, setSaving] = useState(false);
   const [addOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false);
+  const [resignOpen, { open: openResign, close: closeResign }] = useDisclosure(false);
+  const [resigning, setResigning] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", email: "", branch: "Dubai" });
   const [addPhoto, setAddPhoto] = useState<File | null>(null);
   const [adding, setAdding] = useState(false);
-  // Set when the email belongs to a deactivated creator, so the modal can
-  // offer reactivation instead of dead-ending on the 409.
-  const [reactivateId, setReactivateId] = useState<string | null>(null);
 
   const creator = (creators ?? []).find((c) => c.id === creatorId) ?? null;
 
@@ -250,15 +250,40 @@ export default function CreatorSettings() {
     }
   };
 
+  const resign = async () => {
+    if (!creator) return;
+    setResigning(true);
+    const res = await fetch(`/api/admin/creators/${creator.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "resign" }),
+    });
+    setResigning(false);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      notifications.show({
+        title: "Couldn't resign",
+        message: body.error ?? "Try again.",
+        color: "red",
+      });
+      return;
+    }
+    notifications.show({
+      title: `${creator.name} marked as resigned`,
+      message: `${body.freedEmail} is free for their replacement.`,
+      color: "orange",
+    });
+    closeResign();
+    reload();
+  };
+
   const resetAddForm = () => {
     setAddForm({ name: "", email: "", branch: "Dubai" });
     setAddPhoto(null);
-    setReactivateId(null);
   };
 
   const addCreator = async () => {
     setAdding(true);
-    setReactivateId(null);
     const body = new FormData();
     body.append("fullName", addForm.name);
     body.append("email", addForm.email);
@@ -269,7 +294,6 @@ export default function CreatorSettings() {
     setAdding(false);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      if (data.reactivateId) setReactivateId(data.reactivateId);
       notifications.show({
         title: "Couldn't add creator",
         message: data.error ?? (data.issues?.[0]?.message || "Check the details."),
@@ -283,29 +307,6 @@ export default function CreatorSettings() {
         ? `${addForm.name} is now on the booking page.`
         : `${addForm.name} was added, but their Google Calendar isn't reachable — check domain-wide delegation before they take bookings.`,
       color: data.calendarOk ? "green" : "yellow",
-    });
-    closeAdd();
-    resetAddForm();
-    reload();
-  };
-
-  const reactivateCreator = async () => {
-    if (!reactivateId) return;
-    setAdding(true);
-    const res = await fetch(`/api/admin/creators/${reactivateId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: true }),
-    });
-    setAdding(false);
-    if (!res.ok) {
-      notifications.show({ title: "Couldn't reactivate", message: "Try again.", color: "red" });
-      return;
-    }
-    notifications.show({
-      title: "Creator reactivated",
-      message: `${addForm.email} is back on the booking page.`,
-      color: "green",
     });
     closeAdd();
     resetAddForm();
@@ -336,7 +337,7 @@ export default function CreatorSettings() {
           <Select
             data={creators.map((c) => ({
               value: c.id,
-              label: c.isActive ? c.name : `${c.name} (deactivated)`,
+              label: c.isActive ? c.name : `${c.name} (resigned)`,
             }))}
             value={creatorId}
             onChange={switchCreator}
@@ -348,6 +349,42 @@ export default function CreatorSettings() {
           </Button>
         </Group>
       </Group>
+
+      <Modal
+        opened={resignOpen}
+        onClose={closeResign}
+        title={`Mark ${creator.name} as resigned?`}
+        centered
+      >
+        <Stack gap="sm">
+          <Text size="sm">
+            Their shoots, deliverables and review history stay exactly where
+            they are — nothing is deleted.
+          </Text>
+          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+            <Stack gap={4}>
+              <Text size="sm">
+                They come off the booking page and can no longer sign in.
+              </Text>
+              <Text size="sm">
+                Their email is freed for whoever replaces them, so add the new
+                creator with the same address afterwards.
+              </Text>
+              <Text size="sm" fw={500}>
+                Undoing this needs a database change.
+              </Text>
+            </Stack>
+          </Alert>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeResign}>
+              Cancel
+            </Button>
+            <Button color="red" loading={resigning} onClick={resign}>
+              Mark as resigned
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal
         opened={addOpen}
@@ -393,20 +430,6 @@ export default function CreatorSettings() {
             adjust them on this screen after adding.
           </Text>
 
-          {reactivateId && (
-            <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
-              <Stack gap="xs">
-                <Text size="sm">
-                  This email belongs to a deactivated creator. Reactivating keeps
-                  their existing history and settings.
-                </Text>
-                <Button size="xs" color="yellow" loading={adding} onClick={reactivateCreator}>
-                  Reactivate instead
-                </Button>
-              </Stack>
-            </Alert>
-          )}
-
           <Group justify="flex-end">
             <Button loading={adding} onClick={addCreator}>
               Add creator
@@ -448,7 +471,21 @@ export default function CreatorSettings() {
               allowDeselect={false}
               maw={280}
             />
-            <Group justify="flex-end">
+            <Group justify="space-between">
+              {creator.resignedOn ? (
+                <Text size="xs" c="dimmed">
+                  Resigned {dayjs(creator.resignedOn).format("D MMM YYYY")}
+                </Text>
+              ) : (
+                <Button
+                  variant="subtle"
+                  color="red"
+                  size="compact-sm"
+                  onClick={openResign}
+                >
+                  Mark as resigned
+                </Button>
+              )}
               <Button leftSection={<IconDeviceFloppy size={16} />} loading={saving} onClick={saveSettings}>
                 Save settings
               </Button>

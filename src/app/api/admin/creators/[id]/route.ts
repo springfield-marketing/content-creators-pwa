@@ -1,8 +1,10 @@
 // PATCH /api/admin/creators/[id] — booking-shaping settings (screen 13).
 // Config changes affect future availability only (§B12.3).
+// POST  /api/admin/creators/[id] — { action: "resign" }: they've left.
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import dayjs from "dayjs";
 import { and, arrayContains, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
@@ -63,4 +65,66 @@ export async function PATCH(
   });
 
   return NextResponse.json({ ok: true });
+}
+
+// Resigning frees the shared mailbox for the next hire while leaving every
+// booking, deliverable and review decision attached to this row. The address
+// moves to former_email and email becomes a synthetic archive value, because
+// users.email is UNIQUE and the replacement needs the real one.
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session) return jsonError(401, "Not authenticated");
+
+  const { id } = await params;
+  const parsed = await parseBody(req, z.object({ action: z.literal("resign") }));
+  if ("error" in parsed) return parsed.error;
+
+  const [c] = await db
+    .select({
+      id: users.id,
+      name: users.fullName,
+      email: users.email,
+      slug: users.slug,
+      isActive: users.isActive,
+      resignedOn: users.resignedOn,
+    })
+    .from(users)
+    .where(and(eq(users.id, id), arrayContains(users.roles, ["creator"])))
+    .limit(1);
+  if (!c) return jsonError(404, "Creator not found");
+  if (c.resignedOn) return jsonError(409, "This creator has already resigned");
+
+  const today = dayjs().format("YYYY-MM-DD");
+  // Slug is unique, so the archived address is too.
+  const archived = `resigned+${c.slug ?? c.id}@springfield-re.com`;
+
+  await db
+    .update(users)
+    .set({
+      isActive: false,
+      resignedOn: today,
+      formerEmail: c.email,
+      email: archived,
+      // Stops the nightly watch-channel cron renewing a watch on a mailbox
+      // that now belongs to somebody else.
+      googleCalendarId: null,
+      webhookChannelId: null,
+      webhookResourceId: null,
+      webhookExpiresAt: null,
+      calendarSyncToken: null,
+    })
+    .where(eq(users.id, id));
+
+  await logAudit({
+    entity: "user",
+    entityId: id,
+    action: "creator_resigned",
+    actorId: session.user.id,
+    diff: { name: c.name, freedEmail: c.email, resignedOn: today },
+  });
+
+  return NextResponse.json({ ok: true, freedEmail: c.email });
 }

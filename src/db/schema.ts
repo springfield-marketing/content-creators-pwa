@@ -101,6 +101,11 @@ export const users = pgTable("users", {
   maxHorizonDays: integer("max_horizon_days").default(7),
   maxShootsPerDay: integer("max_shoots_per_day").default(3),
   isActive: boolean("is_active").default(true),
+  // Creators share a pool of mailboxes, so a leaver has to release their
+  // address for the next hire — email is UNIQUE. former_email keeps what they
+  // held; their bookings and deliverables stay on this row either way.
+  resignedOn: date("resigned_on"),
+  formerEmail: text("former_email"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 }, (t) => [
   // A roleless user could sign in but reach nothing; fail loudly instead.

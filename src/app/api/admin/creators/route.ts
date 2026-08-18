@@ -22,6 +22,7 @@ export async function GET() {
       branch: users.branch,
       craft: users.craft,
       isActive: users.isActive,
+      resignedOn: users.resignedOn,
       workingHours: users.workingHours,
       shootDurations: users.shootDurations,
       bufferMinutes: users.bufferMinutes,
@@ -117,23 +118,15 @@ export async function POST(req: Request) {
   }
 
   const [existing] = await db
-    .select({ id: users.id, isActive: users.isActive, roles: users.roles })
+    .select({ id: users.id })
     .from(users)
     .where(eq(users.email, email))
     .limit(1);
+  // A resigned creator releases their address, so a collision here always
+  // means a current account. Reactivating is deliberately not offered: these
+  // mailboxes are handed on, so the same address is usually a different person.
   if (existing) {
-    const reactivatable =
-      existing.isActive === false && existing.roles.includes("creator");
-    return NextResponse.json(
-      {
-        error: reactivatable
-          ? "This creator already exists but is deactivated."
-          : "This email is already in use.",
-        // Lets the modal offer reactivation instead of a dead end.
-        reactivateId: reactivatable ? existing.id : undefined,
-      },
-      { status: 409 }
-    );
+    return jsonError(409, "This email is already in use by an active account.");
   }
 
   const slug = slugify(fullName);
