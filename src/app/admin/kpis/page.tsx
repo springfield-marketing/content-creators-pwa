@@ -25,12 +25,14 @@ const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` :
 
 function exportCsv(month: string, kpis: CreatorKpis[]) {
   const header =
-    "creator,month,booked,completed,cancelled,cancelled_by_creator,no_shows,overtime_minutes,submitted,approved,needs_revision,posted,avg_turnaround_h,target_shoots,target_deliverables,target_posted";
+    "creator,month,booked,completed,cancelled,cancelled_by_creator,no_shows,overtime_minutes,submitted,approved,needs_revision,posted,tied_to_shoot,pct_tied,avg_turnaround_h,target_shoots,target_deliverables,target_posted";
   const rows = kpis.map((k) =>
     [
       k.creatorName, month, k.booked, k.completed, k.cancelled, k.cancelledByCreator,
       k.noShows, k.overtimeMinutes, k.submitted, k.approved, k.needsRevision,
-      k.posted, k.avgTurnaroundHours ?? "", k.targetShoots, k.targetDeliverables, k.targetPosted,
+      k.posted, k.tiedToShoot,
+      k.submitted > 0 ? Math.round((k.tiedToShoot / k.submitted) * 100) : "",
+      k.avgTurnaroundHours ?? "", k.targetShoots, k.targetDeliverables, k.targetPosted,
     ].join(",")
   );
   const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
@@ -57,6 +59,12 @@ function CreatorCard({ k }: { k: CreatorKpis }) {
     { label: "Submitted", value: String(k.submitted) },
     { label: "Revisions", value: pct(k.needsRevision, k.submitted) },
     { label: "Post rate", value: pct(k.posted, k.approved) },
+    {
+      label: "Tied to a shoot",
+      value: pct(k.tiedToShoot, k.submitted),
+      tooltip:
+        "Deliverables logged against the shoot they came from. Turnaround is only measurable on these, so a low share leaves the KPI thin.",
+    },
     { label: "Turnaround", value: k.avgTurnaroundHours != null ? `${k.avgTurnaroundHours}h` : "—" },
     { label: "Overtime", value: k.overtimeMinutes > 0 ? `${k.overtimeMinutes}m` : "—" },
   ];

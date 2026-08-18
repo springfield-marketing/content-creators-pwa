@@ -29,6 +29,9 @@ export type CreatorKpis = {
   // Photo volume: a photo shoot is one folder link, so deliverable counts
   // undervalue it against per-clip videos. Summed over approved photo work.
   imagesDelivered: number;
+  // Deliverables logged against the shoot they came from. Turnaround can only
+  // be measured on these, so a low share is why the KPI reads thin.
+  tiedToShoot: number;
   targetShoots: number;
   targetDeliverables: number;
   targetPosted: number;
@@ -70,6 +73,7 @@ export async function computeKpis(month: string): Promise<CreatorKpis[]> {
       COUNT(*) FILTER (WHERE d.review_status = 'needs_revision')::int AS needs_revision,
       COUNT(*) FILTER (WHERE d.is_posted)::int AS posted,
       COALESCE(SUM(d.image_count) FILTER (WHERE d.review_status = 'approved'), 0)::int AS images_delivered,
+      COUNT(*) FILTER (WHERE d.booking_id IS NOT NULL)::int AS tied_to_shoot,
       AVG(EXTRACT(EPOCH FROM (d.created_at - b.ends_at)) / 3600)
         FILTER (WHERE d.booking_id IS NOT NULL) AS avg_turnaround_hours
     FROM deliverables d
@@ -122,6 +126,7 @@ export async function computeKpis(month: string): Promise<CreatorKpis[]> {
           ? Math.round(Number(d.avg_turnaround_hours) * 10) / 10
           : null,
       imagesDelivered: d ? Number(d.images_delivered) : 0,
+      tiedToShoot: d ? Number(d.tied_to_shoot) : 0,
       targetShoots: t ? Number(t.target_shoots) : 0,
       targetDeliverables: t ? Number(t.target_deliverables) : 0,
       targetPosted: t ? Number(t.target_posted) : 0,
