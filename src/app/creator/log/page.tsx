@@ -33,6 +33,7 @@ import {
   IconBrandInstagram,
   IconBrandTiktok,
   IconLink,
+  IconSearch,
 } from "@tabler/icons-react";
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
 import { AgentSearchSelect, type AgentHit } from "@/components/AgentSearchSelect";
@@ -86,6 +87,10 @@ export default function LogDeliverable() {
     dayjs().format("YYYY-MM-DD")
   );
   const [submitting, setSubmitting] = useState(false);
+  // The list can run to 25+ once shoots stay selectable until something is
+  // logged, so it's searchable rather than truncated to the newest few.
+  const [shootQuery, setShootQuery] = useState("");
+  const [showAllShoots, setShowAllShoots] = useState(false);
 
   const loadRecent = useCallback(() => {
     fetch("/api/me/bookings")
@@ -106,7 +111,6 @@ export default function LogDeliverable() {
               if (aOut !== bOut) return aOut ? -1 : 1;
               return b.start.localeCompare(a.start);
             })
-            .slice(0, 8)
         )
       )
       .catch(() => setRecent([]));
@@ -114,6 +118,22 @@ export default function LogDeliverable() {
   useEffect(() => {
     loadRecent();
   }, [loadRecent]);
+
+  const VISIBLE_SHOOTS = 6;
+  const matchingShoots = useMemo(() => {
+    const all = recent ?? [];
+    const q = shootQuery.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((b) =>
+      [b.projectName, b.agentName, dayjs(b.start).format("D MMM YYYY ddd")]
+        .filter(Boolean)
+        .some((f) => String(f).toLowerCase().includes(q))
+    );
+  }, [recent, shootQuery]);
+  const shownShoots =
+    showAllShoots || shootQuery.trim()
+      ? matchingShoots
+      : matchingShoots.slice(0, VISIBLE_SHOOTS);
 
   const platforms = useMemo(() => links.map(detectPlatform), [links]);
   const shootOk = noShoot ? agent !== null : shootId !== null;
@@ -224,7 +244,20 @@ export default function LogDeliverable() {
           <Skeleton height={120} radius="lg" />
         ) : (
           <Stack gap="xs">
-            {recent.map((b) => {
+            {recent.length > VISIBLE_SHOOTS && (
+              <TextInput
+                placeholder="Search by project, agent or date"
+                value={shootQuery}
+                onChange={(e) => setShootQuery(e.currentTarget.value)}
+                leftSection={<IconSearch size={16} />}
+              />
+            )}
+            {shownShoots.length === 0 && (
+              <Text size="sm" c="dimmed">
+                No shoots match “{shootQuery}”.
+              </Text>
+            )}
+            {shownShoots.map((b) => {
               const selected = shootId === b.id && !noShoot;
               return (
                 <UnstyledButton
@@ -279,6 +312,19 @@ export default function LogDeliverable() {
                 </UnstyledButton>
               );
             })}
+
+            {!shootQuery.trim() &&
+              !showAllShoots &&
+              matchingShoots.length > VISIBLE_SHOOTS && (
+                <Anchor
+                  component="button"
+                  type="button"
+                  size="sm"
+                  onClick={() => setShowAllShoots(true)}
+                >
+                  Show {matchingShoots.length - VISIBLE_SHOOTS} older shoots
+                </Anchor>
+              )}
 
             <UnstyledButton
               onClick={() => {

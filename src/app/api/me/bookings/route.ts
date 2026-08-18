@@ -35,11 +35,20 @@ export async function GET() {
     .where(
       and(
         eq(bookings.creatorId, session.user.id),
-        // Recent shoots, plus any shoot that still owes videos — so a
-        // partially-delivered shoot stays selectable past the 7-day window.
+        // Recent shoots, plus anything still owing work. The second clause
+        // used to read expected_videos only, which is NULL on a photo shoot —
+        // so a photo shoot silently dropped out after seven days and the
+        // creator had to log it untied, which is what makes photo turnaround
+        // unmeasurable. Bounded to 60 days so the list stays finite.
         or(
           gte(bookings.endsAt, dayjs().subtract(7, "day").toDate()),
-          sql`${bookings.expectedVideos} > (select count(*) from deliverables d where d.booking_id = ${bookings.id} and d.type = 'video_shoot')`
+          and(
+            gte(bookings.endsAt, dayjs().subtract(60, "day").toDate()),
+            or(
+              sql`${bookings.expectedVideos} > (select count(*) from deliverables d where d.booking_id = ${bookings.id} and d.type = 'video_shoot')`,
+              sql`not exists (select 1 from deliverables d where d.booking_id = ${bookings.id})`
+            )
+          )
         )
       )
     )
