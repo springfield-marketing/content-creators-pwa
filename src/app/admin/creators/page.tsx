@@ -11,6 +11,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Divider,
   FileInput,
   Group,
@@ -47,6 +48,7 @@ type CreatorRow = {
   isActive: boolean;
   resignedOn: string | null;
   craft: Craft;
+  roles: string[];
   workingHours: Hours;
   shootDurations: { photo: number; video: number; photo_video: number };
   bufferMinutes: number;
@@ -76,6 +78,7 @@ export default function CreatorSettings() {
   const [conflicts, setConflicts] = useState<Conflict[] | null>(null);
   const [craft, setCraft] = useState<Craft>("video");
   const [details, setDetails] = useState({ name: "", email: "" });
+  const [isTeamLead, setIsTeamLead] = useState(false);
   const [newPhoto, setNewPhoto] = useState<File | null>(null);
   const [savingDetails, setSavingDetails] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -101,6 +104,7 @@ export default function CreatorSettings() {
     });
     setCraft(c.craft);
     setDetails({ name: c.name, email: c.email });
+    setIsTeamLead(c.roles.includes("team_lead"));
     setNewPhoto(null);
     setLeaveRange([null, null]);
     setLeaveReason("");
@@ -162,6 +166,7 @@ export default function CreatorSettings() {
         maxHorizonDays: rules.horizon,
         maxShootsPerDay: rules.maxPerDay,
         craft,
+        isTeamLead,
       }),
     });
     setSaving(false);
@@ -585,6 +590,21 @@ export default function CreatorSettings() {
               <NumberInput label="Booking horizon (days)" value={rules.horizon} onChange={(v) => setRules({ ...rules, horizon: Number(v) || 1 })} min={1} />
               <NumberInput label="Max shoots per day" value={rules.maxPerDay} onChange={(v) => setRules({ ...rules, maxPerDay: Number(v) || 1 })} min={1} />
             </SimpleGrid>
+            <Checkbox
+              label="Can review other creators' work"
+              description="Adds the review queue. They still can't approve their own, and general-permit work stays with managers."
+              checked={isTeamLead}
+              onChange={(e) => setIsTeamLead(e.currentTarget.checked)}
+            />
+            {isTeamLead !== creator.roles.includes("team_lead") && (
+              <Alert color="blue" variant="light" p="xs">
+                <Text size="xs">
+                  Sign-in details are read when someone logs in, so{" "}
+                  {creator.name.split(" ")[0]} needs to sign out and back in
+                  before this takes effect.
+                </Text>
+              </Alert>
+            )}
             <Select
               label="Measured on"
               description="Which targets apply on the KPI targets screen."

@@ -23,6 +23,7 @@ export async function GET() {
       slug: users.slug,
       branch: users.branch,
       craft: users.craft,
+      roles: users.roles,
       isActive: users.isActive,
       resignedOn: users.resignedOn,
       workingHours: users.workingHours,

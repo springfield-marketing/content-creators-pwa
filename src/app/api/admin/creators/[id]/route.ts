@@ -45,6 +45,9 @@ const schema = z
         message: "Must be a company Google account (@springfield-re.com)",
       }),
     craft: z.enum(["video", "photo", "both"]),
+    // Grants or removes the review queue. Kept as a boolean rather than the
+    // raw roles array so this endpoint can't strip 'creator' by accident.
+    isTeamLead: z.boolean(),
     isActive: z.boolean(),
   })
   .partial()
@@ -63,7 +66,20 @@ export async function PATCH(
 
   // Email is both the sign-in and the calendar bookings land on — every creator
   // has the two identical — so a change has to be unique and move both.
-  const patch: Record<string, unknown> = { ...parsed.data };
+  const { isTeamLead, ...fields } = parsed.data;
+  const patch: Record<string, unknown> = { ...fields };
+
+  // roles is a set, so add or drop only team_lead and leave the rest intact.
+  if (isTeamLead !== undefined) {
+    const [current] = await db
+      .select({ roles: users.roles })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+    if (!current) return jsonError(404, "Creator not found");
+    const without = current.roles.filter((r) => r !== "team_lead");
+    patch.roles = isTeamLead ? [...without, "team_lead"] : without;
+  }
   if (parsed.data.email) {
     const [clash] = await db
       .select({ id: users.id })
@@ -86,7 +102,7 @@ export async function PATCH(
     entityId: id,
     action: "update",
     actorId: session.user.id,
-    diff: parsed.data,
+    diff: { ...parsed.data, ...(patch.roles ? { roles: patch.roles } : {}) },
   });
 
   return NextResponse.json({ ok: true });
