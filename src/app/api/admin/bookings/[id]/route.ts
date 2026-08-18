@@ -1,6 +1,7 @@
 // POST /api/admin/bookings/[id] — manager actions:
 //   { action: "cancel", reason }          → cancel + event deletion
 //   { action: "reassign", creatorId }     → move to another creator's calendar
+//   { action: "no_show", reason }         → agent didn't turn up (§B5.5)
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -21,6 +22,7 @@ import { logAudit } from "@/lib/audit";
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancel"), reason: z.string().trim().min(3).max(1000) }),
   z.object({ action: z.literal("reassign"), creatorId: z.string().uuid() }),
+  z.object({ action: z.literal("no_show"), reason: z.string().trim().min(3).max(500) }),
 ]);
 
 export async function POST(
@@ -46,6 +48,52 @@ export async function POST(
     } catch (e) {
       return jsonError(409, e instanceof Error ? e.message : "Cancel failed");
     }
+    return NextResponse.json({ ok: true });
+  }
+
+  // No-show. Creators mark their own from /creator, but only while the booking
+  // is still 'confirmed' — and the nightly cron flips everything past to
+  // 'completed', so that window closes hours after the shoot. This is the
+  // manager's way to correct it afterwards, so a no-show doesn't stay recorded
+  // as completed work. Same fields the creator's action writes.
+  if (input.action === "no_show") {
+    const [b] = await db
+      .select({
+        id: bookings.id,
+        status: bookings.status,
+        startsAt: bookings.startsAt,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, id))
+      .limit(1);
+    if (!b) return jsonError(404, "Booking not found");
+    if (b.status === "no_show") {
+      return jsonError(409, "Already marked as a no-show");
+    }
+    if (b.status === "cancelled") {
+      return jsonError(409, "This booking was cancelled, so there was nothing to attend");
+    }
+    if (b.startsAt > new Date()) {
+      return jsonError(409, "You can only mark a no-show once the shoot has started");
+    }
+
+    await db
+      .update(bookings)
+      .set({
+        status: "no_show",
+        cancellationReason: input.reason,
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, id));
+
+    await logAudit({
+      entity: "booking",
+      entityId: id,
+      action: "no_show",
+      actorId: session.user.id,
+      diff: { reason: input.reason, setBy: "manager", previousStatus: b.status },
+    });
+
     return NextResponse.json({ ok: true });
   }
 

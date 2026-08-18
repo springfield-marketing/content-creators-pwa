@@ -79,6 +79,7 @@ export default function BookingsOverview() {
   const [requests, setRequests] = useState<CancelRequest[]>([]);
   const [selected, setSelected] = useState<AdminBooking | null>(null);
   const [reason, setReason] = useState("");
+  const [noShowReason, setNoShowReason] = useState("");
   const [reassignTo, setReassignTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [detailOpen, { open: openDetail, close: closeDetail }] =
@@ -135,16 +136,16 @@ export default function BookingsOverview() {
     }
   };
 
-  const act = async (action: "cancel" | "reassign") => {
+  const act = async (action: "cancel" | "reassign" | "no_show") => {
     if (!selected) return;
     setBusy(true);
     const res = await fetch(`/api/admin/bookings/${selected.id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
-        action === "cancel"
-          ? { action, reason }
-          : { action, creatorId: reassignTo }
+        action === "reassign"
+          ? { action, creatorId: reassignTo }
+          : { action, reason: action === "no_show" ? noShowReason : reason }
       ),
     });
     setBusy(false);
@@ -153,12 +154,19 @@ export default function BookingsOverview() {
     notifications.show(
       res.ok
         ? {
-            title: action === "cancel" ? "Booking cancelled" : "Booking reassigned",
+            title:
+              action === "cancel"
+                ? "Booking cancelled"
+                : action === "no_show"
+                  ? "Marked as a no-show"
+                  : "Booking reassigned",
             message:
               action === "cancel"
                 ? "Calendar event removed — agent notified."
-                : "New invite sent; old event removed.",
-            color: action === "cancel" ? "red" : "green",
+                : action === "no_show"
+                  ? "It no longer counts as a completed shoot."
+                  : "New invite sent; old event removed.",
+            color: action === "cancel" ? "red" : action === "no_show" ? "orange" : "green",
           }
         : { title: "Action failed", message: body.error ?? "Try again.", color: "red" }
     );
@@ -291,6 +299,7 @@ export default function BookingsOverview() {
                               onClick={() => {
                                 setSelected(b);
                                 setReason("");
+                                setNoShowReason("");
                                 setReassignTo(null);
                                 openDetail();
                               }}
@@ -486,6 +495,30 @@ export default function BookingsOverview() {
                 {selected.cancelledBy ? ` (${selected.cancelledBy})` : ""}
               </Text>
             )}
+
+            {(selected.status === "confirmed" ||
+              selected.status === "completed") &&
+              dayjs(selected.start).isBefore(dayjs()) && (
+                <>
+                  <Divider label="Agent didn't turn up" />
+                  <Textarea
+                    placeholder="What happened? (required)"
+                    autosize
+                    minRows={2}
+                    value={noShowReason}
+                    onChange={(e) => setNoShowReason(e.currentTarget.value)}
+                  />
+                  <Button
+                    color="orange"
+                    variant="light"
+                    disabled={noShowReason.trim().length < 3}
+                    loading={busy}
+                    onClick={() => act("no_show")}
+                  >
+                    Mark as no-show
+                  </Button>
+                </>
+              )}
 
             {selected.status === "confirmed" && (
               <>
