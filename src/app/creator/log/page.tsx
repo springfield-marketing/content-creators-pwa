@@ -36,6 +36,7 @@ import {
   IconSearch,
 } from "@tabler/icons-react";
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
+import { AgentSearchSelect, type AgentHit } from "@/components/AgentSearchSelect";
 
 type Platform = "instagram" | "tiktok" | "drive" | "dropbox" | "other";
 
@@ -70,7 +71,10 @@ type RecentShoot = {
 export default function LogDeliverable() {
   const [recent, setRecent] = useState<RecentShoot[] | null>(null);
   const [shootId, setShootId] = useState<string | null>(null);
-  const [noShoot, setNoShoot] = useState(false);
+  // null = logging against a booked shoot; otherwise which kind of shoot the
+  // creator is recording because it never got booked.
+  const [unbooked, setUnbooked] = useState<null | "company" | "client">(null);
+  const [agent, setAgent] = useState<AgentHit | null>(null);
   const [title, setTitle] = useState("");
   const [type, setType] = useState("photo_shoot");
   const [links, setLinks] = useState<string[]>([""]);
@@ -134,18 +138,21 @@ export default function LogDeliverable() {
       : matchingShoots.slice(0, VISIBLE_SHOOTS);
 
   const platforms = useMemo(() => links.map(detectPlatform), [links]);
-  const shootOk = noShoot ? title.trim() !== "" : shootId !== null;
+  const shootOk =
+    unbooked === null
+      ? shootId !== null
+      : title.trim() !== "" && (unbooked === "company" || agent !== null);
   const selectedShoot = shootId
     ? recent?.find((s) => s.id === shootId) ?? null
     : null;
   // A shoot-tied video needs a declared total; it's asked once (when the shoot
   // has none yet) and read-only thereafter.
-  const needsCount = type === "video_shoot" && !noShoot && !!shootId;
+  const needsCount = type === "video_shoot" && unbooked === null && !!shootId;
   const alreadyDeclared = selectedShoot?.expectedVideos != null;
   const countOk =
     !needsCount || (expectedVideos !== "" && Number(expectedVideos) >= 1);
   // Not tied to a shoot → a title is required to identify it in review.
-  const titleOk = !noShoot || title.trim() !== "";
+  const titleOk = unbooked === null || title.trim() !== "";
   // Every video needs its own permit number before it can be submitted.
   const permitsOk =
     type !== "video_shoot" ||
@@ -167,17 +174,18 @@ export default function LogDeliverable() {
     setSubmitting(true);
     // One deliverable per link — each reviewed and counted individually.
     let ok = 0;
-    // A company shoot is one shoot, however many links it produced — the first
-    // submission creates the booking and the rest join it.
-    let companyBookingId: string | null = null;
+    // An unbooked shoot is one shoot however many links it produced — the
+    // first submission creates the booking and the rest join it.
+    let recordedBookingId: string | null = null;
     for (let i = 0; i < links.length; i++) {
       const res = await fetch("/api/me/deliverables", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bookingId: noShoot ? (companyBookingId ?? undefined) : shootId,
-          companyShoot: noShoot && !companyBookingId ? true : undefined,
-          title: noShoot ? title.trim() : undefined,
+          bookingId: unbooked ? (recordedBookingId ?? undefined) : shootId,
+          recordShoot: unbooked && !recordedBookingId ? unbooked : undefined,
+          agentId: unbooked === "client" ? agent?.id : undefined,
+          title: unbooked ? title.trim() : undefined,
           type,
           url: links[i],
           platform: platforms[i],
@@ -189,18 +197,18 @@ export default function LogDeliverable() {
               ? Number(imageCount)
               : undefined,
           expectedVideos:
-            type === "video_shoot" && !noShoot && expectedVideos !== ""
+            type === "video_shoot" && unbooked === null && expectedVideos !== ""
               ? Number(expectedVideos)
               : undefined,
         }),
       });
       if (res.ok) {
         ok++;
-        if (noShoot && !companyBookingId) {
+        if (unbooked && !recordedBookingId) {
           const body: { bookingId?: string | null } = await res
             .json()
             .catch(() => ({}));
-          companyBookingId = body.bookingId ?? null;
+          recordedBookingId = body.bookingId ?? null;
         }
       }
     }
@@ -222,7 +230,8 @@ export default function LogDeliverable() {
       color: ok < links.length ? "orange" : "green",
     });
     setShootId(null);
-    setNoShoot(false);
+    setUnbooked(null);
+    setAgent(null);
     setTitle("");
     setType("photo_shoot");
     setLinks([""]);
@@ -266,13 +275,13 @@ export default function LogDeliverable() {
               </Text>
             )}
             {shownShoots.map((b) => {
-              const selected = shootId === b.id && !noShoot;
+              const selected = shootId === b.id && unbooked === null;
               return (
                 <UnstyledButton
                   key={b.id}
                   onClick={() => {
                     setShootId(b.id);
-                    setNoShoot(false);
+                    setUnbooked(null);
                     // Attribute the deliverable to the shoot's date, not today.
                     setWorkDate(dayjs(b.start).format("YYYY-MM-DD"));
                     setExpectedVideos(b.expectedVideos ?? "");
@@ -334,48 +343,82 @@ export default function LogDeliverable() {
                 </Anchor>
               )}
 
-            <UnstyledButton
-              onClick={() => {
-                setNoShoot(true);
-                setShootId(null);
-                setExpectedVideos("");
-                setEditExpected(false);
-                setWorkDate(dayjs().format("YYYY-MM-DD"));
-              }}
-            >
-              <Card
-                padding="sm"
-                style={{
-                  borderStyle: "dashed",
-                  ...(noShoot
-                    ? { borderColor: "var(--mantine-color-brand-6)" }
-                    : {}),
+            {/* Both record the shoot that was never booked, so the
+                deliverable is tied rather than floating free. */}
+            {(
+              [
+                {
+                  kind: "company" as const,
+                  label: "Company shoot",
+                  hint: "Internal work with no agent — meetings, activations, social posts",
+                },
+                {
+                  kind: "client" as const,
+                  label: "Client shoot that wasn't booked",
+                  hint: "Work for an agent that never came through the booking form",
+                },
+              ]
+            ).map((opt) => (
+              <UnstyledButton
+                key={opt.kind}
+                onClick={() => {
+                  setUnbooked(opt.kind);
+                  setShootId(null);
+                  setExpectedVideos("");
+                  setEditExpected(false);
+                  if (opt.kind === "company") setAgent(null);
                 }}
-                bg={noShoot ? "var(--mantine-color-brand-0)" : undefined}
               >
-                <Group justify="space-between">
-                  <div>
-                    <Text size="sm">Company shoot</Text>
-                    <Text size="xs" c="dimmed">
-                      Internal work with no agent — meetings, activations,
-                      social posts
-                    </Text>
-                  </div>
-                  {noShoot && <Badge size="sm">Selected</Badge>}
-                </Group>
-              </Card>
-            </UnstyledButton>
+                <Card
+                  padding="sm"
+                  style={{
+                    borderStyle: "dashed",
+                    ...(unbooked === opt.kind
+                      ? { borderColor: "var(--mantine-color-brand-6)" }
+                      : {}),
+                  }}
+                  bg={
+                    unbooked === opt.kind
+                      ? "var(--mantine-color-brand-0)"
+                      : undefined
+                  }
+                >
+                  <Group justify="space-between" wrap="nowrap">
+                    <div>
+                      <Text size="sm">{opt.label}</Text>
+                      <Text size="xs" c="dimmed">
+                        {opt.hint}
+                      </Text>
+                    </div>
+                    {unbooked === opt.kind && <Badge size="sm">Selected</Badge>}
+                  </Group>
+                </Card>
+              </UnstyledButton>
+            ))}
 
-            {noShoot && (
+            {unbooked === "client" && (
+              <AgentSearchSelect
+                placeholder="Which agent was it for?"
+                value={agent}
+                onChange={setAgent}
+              />
+            )}
+
+            {unbooked !== null && (
               <TextInput
                 label="What was it for?"
                 description="Names the shoot in review and on the KPI screens."
-                placeholder="e.g. Monday meeting, Q3 activation"
+                placeholder={
+                  unbooked === "company"
+                    ? "e.g. Monday meeting, Q3 activation"
+                    : "e.g. Palm Jebel Ali listing"
+                }
                 required
                 value={title}
                 onChange={(e) => setTitle(e.currentTarget.value)}
               />
             )}
+
           </Stack>
         )}
       </div>

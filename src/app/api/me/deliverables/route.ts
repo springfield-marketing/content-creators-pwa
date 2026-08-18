@@ -9,7 +9,7 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { bookings, deliverables, users } from "@/db/schema";
+import { agents, bookings, deliverables, users } from "@/db/schema";
 import { TZ } from "@/lib/availability";
 import { jsonError, parseBody } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
@@ -34,9 +34,11 @@ const schema = z.object({
   // Media permit, supplied per video by the creator who filmed it. Required
   // for videos (enforced below); free text — real permits vary in format.
   permitNumber: z.string().trim().min(1).max(100).optional(),
-  // Internal work with no agent. Records the shoot as a company booking so the
-  // deliverable has something to hang off, rather than floating untied.
-  companyShoot: z.boolean().optional(),
+  // A shoot that was never booked. Recording it here creates the booking so
+  // the deliverable has something to hang off, rather than floating untied:
+  // 'company' is internal work with no agent, 'client' is work for an agent
+  // that simply never came through the booking flow.
+  recordShoot: z.enum(["company", "client"]).optional(),
   // How many images the folder holds. Required for photos (enforced below) —
   // it's the only measure of photo volume, since a shoot is one folder link.
   imageCount: z.number().int().min(0).max(10000).optional(),
@@ -69,7 +71,20 @@ export async function POST(req: Request) {
   // 'completed' sits outside the no-overlap constraint, which only guards
   // confirmed bookings. Times come from the creator's own configured duration
   // for that shoot type — enough to place the shoot on the day it happened.
-  if (input.companyShoot && !bookingId) {
+  if (input.recordShoot && !bookingId) {
+    const isClient = input.recordShoot === "client";
+    if (isClient && !input.agentId) {
+      return jsonError(422, "Choose the agent this shoot was for");
+    }
+    if (isClient) {
+      const [a] = await db
+        .select({ id: agents.id })
+        .from(agents)
+        .where(and(eq(agents.id, input.agentId!), eq(agents.isActive, true)))
+        .limit(1);
+      if (!a) return jsonError(404, "Agent not found");
+    }
+
     const [me] = await db
       .select({ shootDurations: users.shootDurations })
       .from(users)
@@ -84,10 +99,14 @@ export async function POST(req: Request) {
       .insert(bookings)
       .values({
         creatorId: session.user.id,
-        agentId: null,
-        source: "company",
+        agentId: isClient ? input.agentId! : null,
+        // 'manual' marks a client shoot recorded after the fact, so it stays
+        // distinguishable from one the agent booked properly.
+        source: isClient ? "manual" : "company",
         shootType,
-        locationType: "office",
+        // No address was captured, so on_site is left unqualified for client
+        // work; a manager can correct it on the booking.
+        locationType: isClient ? "on_site" : "office",
         projectName: input.title!,
         startsAt,
         endsAt,
@@ -95,14 +114,18 @@ export async function POST(req: Request) {
       })
       .returning({ id: bookings.id });
     bookingId = created.id;
-    agentId = null;
+    agentId = isClient ? input.agentId! : null;
 
     await logAudit({
       entity: "booking",
       entityId: created.id,
-      action: "create_company",
+      action: isClient ? "create_unbooked_client" : "create_company",
       actorId: session.user.id,
-      diff: { projectName: input.title, source: "company", loggedByCreator: true },
+      diff: {
+        projectName: input.title,
+        source: isClient ? "manual" : "company",
+        loggedByCreator: true,
+      },
     });
   }
 
