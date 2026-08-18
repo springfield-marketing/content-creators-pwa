@@ -10,6 +10,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Card,
   Divider,
   Group,
@@ -80,6 +81,9 @@ export default function BookingsOverview() {
   const [selected, setSelected] = useState<AdminBooking | null>(null);
   const [reason, setReason] = useState("");
   const [noShowReason, setNoShowReason] = useState("");
+  // Restoring re-creates the calendar event; whether that mails the agent is a
+  // per-case call, so the manager chooses rather than us guessing.
+  const [notifyAgent, setNotifyAgent] = useState(true);
   const [reassignTo, setReassignTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [detailOpen, { open: openDetail, close: closeDetail }] =
@@ -136,7 +140,9 @@ export default function BookingsOverview() {
     }
   };
 
-  const act = async (action: "cancel" | "reassign" | "no_show" | "undo_no_show") => {
+  const act = async (
+    action: "cancel" | "reassign" | "no_show" | "undo_no_show" | "undo_cancel"
+  ) => {
     if (!selected) return;
     setBusy(true);
     const res = await fetch(`/api/admin/bookings/${selected.id}`, {
@@ -147,7 +153,9 @@ export default function BookingsOverview() {
           ? { action, creatorId: reassignTo }
           : action === "undo_no_show"
             ? { action }
-            : { action, reason: action === "no_show" ? noShowReason : reason }
+            : action === "undo_cancel"
+              ? { action, notifyAgent }
+              : { action, reason: action === "no_show" ? noShowReason : reason }
       ),
     });
     setBusy(false);
@@ -163,7 +171,9 @@ export default function BookingsOverview() {
                   ? "Marked as a no-show"
                   : action === "undo_no_show"
                     ? "No-show reversed"
-                    : "Booking reassigned",
+                    : action === "undo_cancel"
+                      ? "Booking restored"
+                      : "Booking reassigned",
             message:
               action === "cancel"
                 ? "Calendar event removed — agent notified."
@@ -171,7 +181,11 @@ export default function BookingsOverview() {
                   ? "It no longer counts as a completed shoot."
                   : action === "undo_no_show"
                     ? "It counts as a completed shoot again."
-                    : "New invite sent; old event removed.",
+                    : action === "undo_cancel"
+                      ? notifyAgent
+                        ? "Back on the calendar — agent re-invited."
+                        : "Back on the calendar, quietly."
+                      : "New invite sent; old event removed.",
             color:
               action === "cancel"
                 ? "red"
@@ -311,6 +325,9 @@ export default function BookingsOverview() {
                                 setSelected(b);
                                 setReason("");
                                 setNoShowReason("");
+                                setNotifyAgent(
+                                  dayjs(b.start).isAfter(dayjs())
+                                );
                                 setReassignTo(null);
                                 openDetail();
                               }}
@@ -505,6 +522,29 @@ export default function BookingsOverview() {
                 Reason: “{selected.cancellationReason}”
                 {selected.cancelledBy ? ` (${selected.cancelledBy})` : ""}
               </Text>
+            )}
+
+            {selected.status === "cancelled" && (
+              <>
+                <Divider label="Cancelled in error?" />
+                <Text size="xs" c="dimmed">
+                  Puts it back on {selected.creatorName}&apos;s calendar. If the
+                  slot has since been taken, this will say so rather than
+                  double-booking.
+                </Text>
+                <Checkbox
+                  checked={notifyAgent}
+                  onChange={(e) => setNotifyAgent(e.currentTarget.checked)}
+                  label={`Send ${selected.agentName ?? "the agent"} a new invite`}
+                />
+                <Button
+                  variant="light"
+                  loading={busy}
+                  onClick={() => act("undo_cancel")}
+                >
+                  Restore booking
+                </Button>
+              </>
             )}
 
             {selected.status === "no_show" && (

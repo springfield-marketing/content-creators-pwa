@@ -3,6 +3,7 @@
 //   { action: "reassign", creatorId }     → move to another creator's calendar
 //   { action: "no_show", reason }         → agent didn't turn up (§B5.5)
 //   { action: "undo_no_show" }            → it was marked in error
+//   { action: "undo_cancel", notifyAgent } → restore + re-create the event
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -25,6 +26,10 @@ const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("reassign"), creatorId: z.string().uuid() }),
   z.object({ action: z.literal("no_show"), reason: z.string().trim().min(3).max(500) }),
   z.object({ action: z.literal("undo_no_show") }),
+  z.object({
+    action: z.literal("undo_cancel"),
+    notifyAgent: z.boolean(),
+  }),
 ]);
 
 export async function POST(
@@ -123,6 +128,118 @@ export async function POST(
       entityId: id,
       action: "no_show_reverted",
       actorId: session.user.id,
+    });
+
+    return NextResponse.json({ ok: true });
+  }
+
+  // Restoring a cancellation is the only reversal that has to rebuild
+  // something outside the database: cancelling deleted the calendar event, so
+  // this makes a new one. Two things can legitimately stop it — the slot may
+  // have been taken while the booking was cancelled, which the no-overlap
+  // constraint catches, and the creator may have since resigned, which leaves
+  // no calendar to write to.
+  if (input.action === "undo_cancel") {
+    const [b] = await db
+      .select({
+        id: bookings.id,
+        status: bookings.status,
+        creatorId: bookings.creatorId,
+        startsAt: bookings.startsAt,
+        endsAt: bookings.endsAt,
+        shootType: bookings.shootType,
+        projectName: bookings.projectName,
+        locationType: bookings.locationType,
+        propertyAddress: bookings.propertyAddress,
+        notes: bookings.notes,
+        agentName: agents.fullName,
+        agentEmail: agents.email,
+        agentPhone: agents.phone,
+      })
+      .from(bookings)
+      .leftJoin(agents, eq(agents.id, bookings.agentId))
+      .where(eq(bookings.id, id))
+      .limit(1);
+    if (!b) return jsonError(404, "Booking not found");
+    if (b.status !== "cancelled") {
+      return jsonError(409, "Only a cancelled booking can be restored");
+    }
+
+    const [creator] = await db
+      .select({ name: users.fullName, calendarEmail: users.googleCalendarId })
+      .from(users)
+      .where(eq(users.id, b.creatorId))
+      .limit(1);
+    if (!creator?.calendarEmail) {
+      return jsonError(
+        409,
+        "This creator has no calendar any more — reassign the booking to someone else instead."
+      );
+    }
+
+    try {
+      await db.transaction(async (tx) => {
+        // Runs first so the no-overlap constraint rejects before an event is
+        // created; otherwise a clash would leave an orphan in the calendar.
+        await tx
+          .update(bookings)
+          .set({
+            status: "confirmed",
+            cancellationReason: null,
+            cancelledBy: null,
+            cancelledAt: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(bookings.id, b.id));
+
+        const eventId = await insertBookingEvent({
+          creatorEmail: creator.calendarEmail!,
+          bookingId: b.id,
+          summary: `Shoot: ${b.agentName ?? "Company"} — ${dbShootTypeLabel[b.shootType]} · ${b.projectName ?? ""}`,
+          location:
+            b.locationType === "on_site"
+              ? (b.propertyAddress ?? "")
+              : "Springfield office",
+          description: [
+            "Booked via ContentApp (cancellation reversed)",
+            b.agentName ? `Agent: ${b.agentName}${b.agentPhone ? ` (${b.agentPhone})` : ""}` : null,
+            `Type: ${dbShootTypeLabel[b.shootType]}`,
+            b.projectName ? `Project: ${b.projectName}` : null,
+            b.notes ? `Notes: ${b.notes}` : null,
+            `Booking ID: ${b.id}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          startIso: b.startsAt.toISOString(),
+          endIso: b.endsAt.toISOString(),
+          agentEmail: b.agentEmail,
+          timeZone: TZ,
+          notifyAgent: input.notifyAgent,
+        });
+
+        await tx
+          .update(bookings)
+          .set({ googleEventId: eventId, googleCalendarId: creator.calendarEmail })
+          .where(eq(bookings.id, b.id));
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // 23P01 is the exclusion violation behind no_overlapping_confirmed.
+      if (msg.includes("no_overlapping_confirmed") || msg.includes("23P01")) {
+        return jsonError(
+          409,
+          "That slot now holds another confirmed booking, so this one can't be restored."
+        );
+      }
+      return jsonError(502, `Couldn't restore the booking: ${msg}`);
+    }
+
+    await logAudit({
+      entity: "booking",
+      entityId: id,
+      action: "cancellation_reverted",
+      actorId: session.user.id,
+      diff: { notifiedAgent: input.notifyAgent },
     });
 
     return NextResponse.json({ ok: true });

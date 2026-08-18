@@ -56,11 +56,14 @@ export async function insertBookingEvent(params: {
   endIso: string;
   agentEmail: string | null;
   timeZone: string;
+  // Restoring a cancelled booking re-creates its event, and a fresh invite for
+  // a shoot that already happened is just noise — so the caller decides.
+  notifyAgent?: boolean;
 }): Promise<string> {
   const calendar = calendarFor(params.creatorEmail);
   const res = await calendar.events.insert({
     calendarId: "primary",
-    sendUpdates: "all",
+    sendUpdates: params.notifyAgent === false ? "none" : "all",
     requestBody: {
       summary: params.summary,
       location: params.location,
