@@ -1,4 +1,5 @@
 // GET /api/admin/creators — creators with settings + upcoming time off.
+// PUT /api/admin/creators — the order creators appear in on the booking page.
 // POST /api/admin/creators — add a creator (multipart: details + optional photo).
 
 import { NextResponse } from "next/server";
@@ -10,7 +11,7 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { creatorTimeOff, users } from "@/db/schema";
 import { freeBusy } from "@/lib/google-calendar";
-import { jsonError } from "@/lib/api";
+import { jsonError, parseBody } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 
 export async function GET() {
@@ -23,6 +24,7 @@ export async function GET() {
       slug: users.slug,
       branch: users.branch,
       craft: users.craft,
+      sortOrder: users.sortOrder,
       roles: users.roles,
       isActive: users.isActive,
       resignedOn: users.resignedOn,
@@ -207,4 +209,51 @@ export async function POST(req: Request) {
     { id: created.id, slug, calendarOk },
     { status: 201 }
   );
+}
+
+// Booking-page order. Takes the whole list rather than a move, so positions are
+// rewritten 1..n and the gaps left by departed creators close up — Jericho's
+// resignation left a hole at 4. New creators keep appending at max + 1.
+export async function PUT(req: Request) {
+  const session = await auth();
+  if (!session) return jsonError(401, "Not authenticated");
+
+  const parsed = await parseBody(
+    req,
+    z.object({ ids: z.array(z.string().uuid()).min(1).max(200) })
+  );
+  if ("error" in parsed) return parsed.error;
+  const { ids } = parsed.data;
+
+  if (new Set(ids).size !== ids.length) {
+    return jsonError(422, "The same creator appears twice in the order");
+  }
+
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(arrayContains(users.roles, ["creator"]));
+  const known = new Set(rows.map((r) => r.id));
+  if (ids.some((id) => !known.has(id))) {
+    return jsonError(422, "That list contains someone who isn't a creator");
+  }
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < ids.length; i++) {
+      await tx
+        .update(users)
+        .set({ sortOrder: i + 1 })
+        .where(eq(users.id, ids[i]));
+    }
+  });
+
+  await logAudit({
+    entity: "user",
+    entityId: session.user.id,
+    action: "creator_order",
+    actorId: session.user.id,
+    diff: { order: ids },
+  });
+
+  return NextResponse.json({ ok: true });
 }

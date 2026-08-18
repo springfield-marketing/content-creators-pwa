@@ -49,6 +49,7 @@ type CreatorRow = {
   resignedOn: string | null;
   craft: Craft;
   roles: string[];
+  sortOrder: number | null;
   workingHours: Hours;
   shootDurations: { photo: number; video: number; photo_video: number };
   bufferMinutes: number;
@@ -81,6 +82,7 @@ export default function CreatorSettings() {
   const [isTeamLead, setIsTeamLead] = useState(false);
   const [newPhoto, setNewPhoto] = useState<File | null>(null);
   const [savingDetails, setSavingDetails] = useState(false);
+  const [ordering, setOrdering] = useState(false);
   const [saving, setSaving] = useState(false);
   const [addOpen, { open: openAdd, close: closeAdd }] = useDisclosure(false);
   const [resignOpen, { open: openResign, close: closeResign }] = useDisclosure(false);
@@ -367,6 +369,42 @@ export default function CreatorSettings() {
     reload();
   };
 
+  // Mirrors how the booking page sorts, so this list reads as what agents see.
+  const bookingOrder = (creators ?? [])
+    .filter((c) => c.isActive)
+    .slice()
+    .sort((a, b) => {
+      if (a.sortOrder == null && b.sortOrder == null)
+        return a.name.localeCompare(b.name);
+      if (a.sortOrder == null) return 1;
+      if (b.sortOrder == null) return -1;
+      return a.sortOrder - b.sortOrder;
+    });
+
+  const moveCreator = async (index: number, delta: number) => {
+    const next = bookingOrder.slice();
+    const target = index + delta;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+
+    setOrdering(true);
+    const res = await fetch("/api/admin/creators", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: next.map((c) => c.id) }),
+    });
+    setOrdering(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      notifications.show({
+        title: "Couldn't reorder",
+        message: body.error ?? "Try again.",
+        color: "red",
+      });
+    }
+    reload();
+  };
+
   const resetAddForm = () => {
     setAddForm({ name: "", email: "", branch: "Dubai" });
     setAddPhoto(null);
@@ -527,6 +565,53 @@ export default function CreatorSettings() {
           </Group>
         </Stack>
       </Modal>
+
+      <Card>
+        <Stack gap="sm">
+          <div>
+            <Text fw={600}>Booking page order</Text>
+            <Text size="xs" c="dimmed">
+              The order agents see on /book. Saves as you move people.
+            </Text>
+          </div>
+          <Stack gap={4}>
+            {bookingOrder.map((c, i) => (
+              <Group key={c.id} gap="xs" wrap="nowrap">
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  w={22}
+                  ta="right"
+                  style={{ fontVariantNumeric: "tabular-nums" }}
+                >
+                  {i + 1}
+                </Text>
+                <Text size="sm" style={{ flex: 1 }}>
+                  {c.name}
+                </Text>
+                <Button
+                  size="compact-xs"
+                  variant="default"
+                  disabled={i === 0 || ordering}
+                  onClick={() => moveCreator(i, -1)}
+                  aria-label={`Move ${c.name} up`}
+                >
+                  ↑
+                </Button>
+                <Button
+                  size="compact-xs"
+                  variant="default"
+                  disabled={i === bookingOrder.length - 1 || ordering}
+                  onClick={() => moveCreator(i, 1)}
+                  aria-label={`Move ${c.name} down`}
+                >
+                  ↓
+                </Button>
+              </Group>
+            ))}
+          </Stack>
+        </Stack>
+      </Card>
 
       <Card>
         <Stack gap="sm">
