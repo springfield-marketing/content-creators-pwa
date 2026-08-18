@@ -2,6 +2,7 @@
 //   { action: "cancel", reason }          → cancel + event deletion
 //   { action: "reassign", creatorId }     → move to another creator's calendar
 //   { action: "no_show", reason }         → agent didn't turn up (§B5.5)
+//   { action: "undo_no_show" }            → it was marked in error
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -23,6 +24,7 @@ const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancel"), reason: z.string().trim().min(3).max(1000) }),
   z.object({ action: z.literal("reassign"), creatorId: z.string().uuid() }),
   z.object({ action: z.literal("no_show"), reason: z.string().trim().min(3).max(500) }),
+  z.object({ action: z.literal("undo_no_show") }),
 ]);
 
 export async function POST(
@@ -92,6 +94,35 @@ export async function POST(
       action: "no_show",
       actorId: session.user.id,
       diff: { reason: input.reason, setBy: "manager", previousStatus: b.status },
+    });
+
+    return NextResponse.json({ ok: true });
+  }
+
+  // A no-show can only be marked on a shoot that has already started, so
+  // reversing one always lands back on 'completed'. The calendar event was
+  // never touched, so there's nothing to restore.
+  if (input.action === "undo_no_show") {
+    const [b] = await db
+      .select({ id: bookings.id, status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.id, id))
+      .limit(1);
+    if (!b) return jsonError(404, "Booking not found");
+    if (b.status !== "no_show") {
+      return jsonError(409, "This booking isn't marked as a no-show");
+    }
+
+    await db
+      .update(bookings)
+      .set({ status: "completed", cancellationReason: null, updatedAt: new Date() })
+      .where(eq(bookings.id, id));
+
+    await logAudit({
+      entity: "booking",
+      entityId: id,
+      action: "no_show_reverted",
+      actorId: session.user.id,
     });
 
     return NextResponse.json({ ok: true });

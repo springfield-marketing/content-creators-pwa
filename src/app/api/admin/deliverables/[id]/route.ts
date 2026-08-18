@@ -1,12 +1,13 @@
 // POST /api/admin/deliverables/[id] — review decision:
 //   { action: "approve" } | { action: "request_changes", comment }
+//   { action: "unapprove" } → back to the queue after a mistaken approval
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { deliverables } from "@/db/schema";
+import { deliverables, reviewDecisions } from "@/db/schema";
 import { jsonError, parseBody } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { recordReviewDecision } from "@/lib/review-log";
@@ -14,6 +15,7 @@ import { hidesGeneralPermits, isGeneralPermit } from "@/lib/general-permits";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve") }),
+  z.object({ action: z.literal("unapprove") }),
   z.object({
     action: z.literal("request_changes"),
     comment: z.string().trim().min(3).max(2000),
@@ -39,6 +41,7 @@ export async function POST(
       type: deliverables.type,
       creatorId: deliverables.creatorId,
       permitNumber: deliverables.permitNumber,
+      isPosted: deliverables.isPosted,
     })
     .from(deliverables)
     .where(eq(deliverables.id, id))
@@ -57,6 +60,46 @@ export async function POST(
   ) {
     return jsonError(403, "General-permit work is reviewed by a manager");
   }
+  // Undo a mistaken approval: back to the queue for a proper decision. The
+  // creator is told nothing and needs to do nothing — it isn't a rejection.
+  if (input.action === "unapprove") {
+    if (d.status !== "approved") {
+      return jsonError(409, "Only an approved deliverable can be returned to the queue");
+    }
+    if (d.isPosted) {
+      return jsonError(409, "This has already been posted, so it can't be un-approved");
+    }
+
+    // Kept in the audit entry, because the review-log row is about to go.
+    const [decision] = await db
+      .select()
+      .from(reviewDecisions)
+      .where(eq(reviewDecisions.deliverableId, id))
+      .orderBy(desc(reviewDecisions.decidedAt))
+      .limit(1);
+
+    await db
+      .update(deliverables)
+      .set({ reviewStatus: "submitted", reviewedBy: null, reviewedAt: null })
+      .where(eq(deliverables.id, id));
+
+    await db.delete(reviewDecisions).where(eq(reviewDecisions.deliverableId, id));
+
+    await logAudit({
+      entity: "deliverable",
+      entityId: id,
+      action: "approval_reverted",
+      actorId: session.user.id,
+      diff: {
+        previousReviewer: decision?.reviewerId ?? null,
+        previousDecidedAt: decision?.decidedAt ?? null,
+        deletedReviewDecision: decision ?? null,
+      },
+    });
+
+    return NextResponse.json({ ok: true });
+  }
+
   await db
     .update(deliverables)
     .set({

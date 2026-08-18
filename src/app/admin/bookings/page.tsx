@@ -136,7 +136,7 @@ export default function BookingsOverview() {
     }
   };
 
-  const act = async (action: "cancel" | "reassign" | "no_show") => {
+  const act = async (action: "cancel" | "reassign" | "no_show" | "undo_no_show") => {
     if (!selected) return;
     setBusy(true);
     const res = await fetch(`/api/admin/bookings/${selected.id}`, {
@@ -145,7 +145,9 @@ export default function BookingsOverview() {
       body: JSON.stringify(
         action === "reassign"
           ? { action, creatorId: reassignTo }
-          : { action, reason: action === "no_show" ? noShowReason : reason }
+          : action === "undo_no_show"
+            ? { action }
+            : { action, reason: action === "no_show" ? noShowReason : reason }
       ),
     });
     setBusy(false);
@@ -159,14 +161,23 @@ export default function BookingsOverview() {
                 ? "Booking cancelled"
                 : action === "no_show"
                   ? "Marked as a no-show"
-                  : "Booking reassigned",
+                  : action === "undo_no_show"
+                    ? "No-show reversed"
+                    : "Booking reassigned",
             message:
               action === "cancel"
                 ? "Calendar event removed — agent notified."
                 : action === "no_show"
                   ? "It no longer counts as a completed shoot."
-                  : "New invite sent; old event removed.",
-            color: action === "cancel" ? "red" : action === "no_show" ? "orange" : "green",
+                  : action === "undo_no_show"
+                    ? "It counts as a completed shoot again."
+                    : "New invite sent; old event removed.",
+            color:
+              action === "cancel"
+                ? "red"
+                : action === "no_show"
+                  ? "orange"
+                  : "green",
           }
         : { title: "Action failed", message: body.error ?? "Try again.", color: "red" }
     );
@@ -494,6 +505,19 @@ export default function BookingsOverview() {
                 Reason: “{selected.cancellationReason}”
                 {selected.cancelledBy ? ` (${selected.cancelledBy})` : ""}
               </Text>
+            )}
+
+            {selected.status === "no_show" && (
+              <>
+                <Divider label="Marked in error?" />
+                <Button
+                  variant="light"
+                  loading={busy}
+                  onClick={() => act("undo_no_show")}
+                >
+                  Undo no-show
+                </Button>
+              </>
             )}
 
             {(selected.status === "confirmed" ||

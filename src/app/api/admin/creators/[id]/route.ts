@@ -1,6 +1,7 @@
 // PATCH /api/admin/creators/[id] — booking-shaping settings (screen 13).
 // Config changes affect future availability only (§B12.3).
 // POST  /api/admin/creators/[id] — { action: "resign" }: they've left.
+//                                  { action: "unresign" }: marked in error.
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -103,7 +104,10 @@ export async function POST(
   if (!session) return jsonError(401, "Not authenticated");
 
   const { id } = await params;
-  const parsed = await parseBody(req, z.object({ action: z.literal("resign") }));
+  const parsed = await parseBody(
+    req,
+    z.object({ action: z.enum(["resign", "unresign"]) })
+  );
   if ("error" in parsed) return parsed.error;
 
   const [c] = await db
@@ -114,11 +118,54 @@ export async function POST(
       slug: users.slug,
       isActive: users.isActive,
       resignedOn: users.resignedOn,
+      formerEmail: users.formerEmail,
     })
     .from(users)
     .where(and(eq(users.id, id), arrayContains(users.roles, ["creator"])))
     .limit(1);
   if (!c) return jsonError(404, "Creator not found");
+
+  // Reversing a resignation only works while nobody has taken the address back
+  // — once a replacement holds it, the two would collide on a UNIQUE column.
+  if (parsed.data.action === "unresign") {
+    if (!c.resignedOn || !c.formerEmail) {
+      return jsonError(409, "This creator hasn't resigned");
+    }
+    const [taken] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.email, c.formerEmail), ne(users.id, id)))
+      .limit(1);
+    if (taken) {
+      return jsonError(
+        409,
+        `${c.formerEmail} now belongs to someone else, so it can't be handed back. Free it there first.`
+      );
+    }
+
+    await db
+      .update(users)
+      .set({
+        isActive: true,
+        resignedOn: null,
+        email: c.formerEmail,
+        formerEmail: null,
+        // The nightly cron reopens the calendar watch for any creator missing one.
+        googleCalendarId: c.formerEmail,
+      })
+      .where(eq(users.id, id));
+
+    await logAudit({
+      entity: "user",
+      entityId: id,
+      action: "creator_resignation_reverted",
+      actorId: session.user.id,
+      diff: { name: c.name, restoredEmail: c.formerEmail },
+    });
+
+    return NextResponse.json({ ok: true, restoredEmail: c.formerEmail });
+  }
+
   if (c.resignedOn) return jsonError(409, "This creator has already resigned");
 
   const today = dayjs().format("YYYY-MM-DD");

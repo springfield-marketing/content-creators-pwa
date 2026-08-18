@@ -11,6 +11,10 @@ import { agents, bookings, deliverables, reviewDecisions, users } from "@/db/sch
 export type ReviewDecisionKind = "approved" | "changes_requested";
 
 export type ReviewRow = {
+  deliverableId: string;
+  // Current state, so the screen only offers an undo where one still applies.
+  reviewStatus: string | null;
+  isPosted: boolean | null;
   at: string; // decided_at
   submittedAt: string | null; // deliverable submission, for time-to-decision
   reviewer: string | null;
@@ -57,6 +61,9 @@ export async function getReviewLog(month: string): Promise<ReviewRow[]> {
   const rows = await db
     .select({
       at: reviewDecisions.decidedAt,
+      deliverableId: reviewDecisions.deliverableId,
+      reviewStatus: deliverables.reviewStatus,
+      isPosted: deliverables.isPosted,
       submittedAt: deliverables.createdAt,
       reviewerName: reviewer.fullName,
       creatorName: creator.fullName,
@@ -81,6 +88,9 @@ export async function getReviewLog(month: string): Promise<ReviewRow[]> {
     .orderBy(desc(reviewDecisions.decidedAt));
 
   return rows.map((r) => ({
+    deliverableId: r.deliverableId,
+    reviewStatus: r.reviewStatus,
+    isPosted: r.isPosted,
     at: r.at.toISOString(),
     submittedAt: r.submittedAt?.toISOString() ?? null,
     reviewer: r.reviewerName,

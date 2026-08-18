@@ -313,6 +313,28 @@ export default function CreatorSettings() {
     reload();
   };
 
+  const unresign = async () => {
+    if (!creator) return;
+    setResigning(true);
+    const res = await fetch(`/api/admin/creators/${creator.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "unresign" }),
+    });
+    setResigning(false);
+    const body = await res.json().catch(() => ({}));
+    notifications.show(
+      res.ok
+        ? {
+            title: `${creator.name} is back`,
+            message: `${body.restoredEmail} is theirs again.`,
+            color: "green",
+          }
+        : { title: "Couldn't undo", message: body.error ?? "Try again.", color: "red" }
+    );
+    if (res.ok) reload();
+  };
+
   const resign = async () => {
     if (!creator) return;
     setResigning(true);
@@ -578,9 +600,19 @@ export default function CreatorSettings() {
             />
             <Group justify="space-between">
               {creator.resignedOn ? (
-                <Text size="xs" c="dimmed">
-                  Resigned {dayjs(creator.resignedOn).format("D MMM YYYY")}
-                </Text>
+                <Group gap="sm">
+                  <Text size="xs" c="dimmed">
+                    Resigned {dayjs(creator.resignedOn).format("D MMM YYYY")}
+                  </Text>
+                  <Button
+                    variant="subtle"
+                    size="compact-sm"
+                    loading={resigning}
+                    onClick={unresign}
+                  >
+                    Undo
+                  </Button>
+                </Group>
               ) : (
                 <Button
                   variant="subtle"

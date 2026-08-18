@@ -9,6 +9,7 @@ import {
   ActionIcon,
   Anchor,
   Badge,
+  Button,
   Group,
   Select,
   SimpleGrid,
@@ -21,8 +22,12 @@ import {
   Card,
 } from "@mantine/core";
 import { IconChevronLeft, IconChevronRight, IconSearch } from "@tabler/icons-react";
+import { notifications } from "@mantine/notifications";
 
 type ReviewRow = {
+  deliverableId: string;
+  reviewStatus: string | null;
+  isPosted: boolean | null;
   at: string;
   submittedAt: string | null;
   reviewer: string | null;
@@ -84,6 +89,9 @@ export default function ReviewsScreen() {
   const [creator, setCreator] = useState<string | null>(null);
   const [decision, setDecision] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [undoing, setUndoing] = useState<string | null>(null);
+  // Bumped after an undo to refetch the month without duplicating the loader.
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +102,30 @@ export default function ReviewsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, [month, refresh]);
+
+  // Reverses a mistaken approval: the deliverable returns to the queue and this
+  // decision row goes with it, so the log stops claiming a decision that stands.
+  const undoApproval = async (r: ReviewRow) => {
+    setUndoing(r.deliverableId);
+    const res = await fetch(`/api/admin/deliverables/${r.deliverableId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "unapprove" }),
+    });
+    setUndoing(null);
+    const body = await res.json().catch(() => ({}));
+    notifications.show(
+      res.ok
+        ? {
+            title: "Back in the review queue",
+            message: `${r.creator ?? "The creator"}'s work is waiting for a decision again.`,
+            color: "orange",
+          }
+        : { title: "Couldn't undo", message: body.error ?? "Try again.", color: "red" }
+    );
+    if (res.ok) setRefresh((n) => n + 1);
+  };
 
   const shift = (n: number) =>
     setMonth(dayjs(`${month}-01`).add(n, "month").format("YYYY-MM"));
@@ -253,6 +284,7 @@ export default function ReviewsScreen() {
                     <Table.Th w={140}>Decision</Table.Th>
                     <Table.Th>Video</Table.Th>
                     <Table.Th>Comment / permit</Table.Th>
+                    <Table.Th w={110} />
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -297,6 +329,23 @@ export default function ReviewsScreen() {
                             Permit {r.permit}
                           </Text>
                         )}
+                      </Table.Td>
+                      <Table.Td>
+                        {/* Only where it still applies: an approval that's
+                            still standing and hasn't been posted. */}
+                        {r.decision === "approved" &&
+                          r.reviewStatus === "approved" &&
+                          !r.isPosted && (
+                            <Button
+                              size="compact-xs"
+                              variant="light"
+                              color="orange"
+                              loading={undoing === r.deliverableId}
+                              onClick={() => undoApproval(r)}
+                            >
+                              Undo
+                            </Button>
+                          )}
                       </Table.Td>
                     </Table.Tr>
                   ))}
