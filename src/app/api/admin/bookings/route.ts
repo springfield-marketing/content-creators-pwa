@@ -1,6 +1,7 @@
 // GET /api/admin/bookings?from&to — all creators' bookings for the week grid.
 
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import dayjs from "dayjs";
 import { and, eq, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
@@ -8,6 +9,9 @@ import { agents, bookings, users } from "@/db/schema";
 import { jsonError } from "@/lib/api";
 
 export async function GET(req: Request) {
+  const session = await auth();
+  if (!session) return jsonError(401, "Not authenticated");
+
   const url = new URL(req.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");

@@ -1,7 +1,9 @@
 // PATCH /api/admin/agents/[id] — edit, approve/reject, activate/deactivate.
-// NOTE: role middleware arrives with Auth.js in step 4.
+// Checked here as well as in the proxy: approving or deactivating an agent is
+// worth attributing, and the audit entry needs an actor to be worth keeping.
 
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents } from "@/db/schema";
@@ -13,6 +15,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await auth();
+  if (!session) return jsonError(401, "Not authenticated");
+
   const { id } = await params;
   const parsed = await parseBody(req, agentUpdateSchema);
   if ("error" in parsed) return parsed.error;
@@ -29,6 +34,7 @@ export async function PATCH(
     entity: "agent",
     entityId: id,
     action: "update",
+    actorId: session.user.id,
     diff: parsed.data,
   });
 

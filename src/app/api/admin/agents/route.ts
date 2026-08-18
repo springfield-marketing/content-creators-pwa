@@ -1,8 +1,9 @@
 // /api/admin/agents — master agent list (GET) and manual add (POST).
-// NOTE: role middleware arrives with Auth.js in step 4; until then these
-// are unguarded in dev.
+// The proxy gates /api/admin to managers; these check the session again so the
+// route doesn't depend solely on it, and so the audit entry has an actor.
 
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents } from "@/db/schema";
@@ -11,6 +12,9 @@ import { agentCreateSchema } from "@/lib/schemas";
 import { logAudit } from "@/lib/audit";
 
 export async function GET() {
+  const session = await auth();
+  if (!session) return jsonError(401, "Not authenticated");
+
   const rows = await db
     .select({
       id: agents.id,
@@ -27,6 +31,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const session = await auth();
+  if (!session) return jsonError(401, "Not authenticated");
+
   const parsed = await parseBody(req, agentCreateSchema);
   if ("error" in parsed) return parsed.error;
   const { fullName, email, phone, office } = parsed.data;
@@ -47,6 +54,7 @@ export async function POST(req: Request) {
     entity: "agent",
     entityId: created.id,
     action: "create",
+    actorId: session.user.id,
     diff: parsed.data,
   });
 

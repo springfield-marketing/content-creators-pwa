@@ -131,7 +131,7 @@ export async function POST(req: Request) {
 
   if (input.bookingId) {
     const [b] = await db
-      .select({ agentId: bookings.agentId })
+      .select({ agentId: bookings.agentId, expectedVideos: bookings.expectedVideos })
       .from(bookings)
       .where(
         and(
@@ -142,6 +142,21 @@ export async function POST(req: Request) {
       .limit(1);
     if (!b) return jsonError(404, "Shoot not found");
     agentId = b.agentId; // shoot-tied deliverables inherit the agent
+
+    // The form asks for the shoot's video total once, when the shoot doesn't
+    // have one yet, and disables submit without it — but the server said
+    // optional, so anything not going through the form could skip it and
+    // silently break the "2 of 3 from this shoot" count. Same rule, enforced.
+    if (
+      input.type === "video_shoot" &&
+      b.expectedVideos == null &&
+      input.expectedVideos == null
+    ) {
+      return jsonError(
+        422,
+        "Say how many videos this shoot should produce in total"
+      );
+    }
 
     // Record how many videos this shoot should yield, so later submissions
     // (and the manager) can see what's still outstanding.
