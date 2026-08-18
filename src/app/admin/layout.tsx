@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import {
+  Alert,
+  Anchor,
   AppShell,
   Burger,
   Group,
   NavLink,
   Text,
 } from "@mantine/core";
+import dayjs from "dayjs";
 import { UserMenu } from "@/components/UserMenu";
 import { useDisclosure } from "@mantine/hooks";
 import {
@@ -74,6 +78,45 @@ export default function AdminLayout({
   // A team_lead only reaches the review queue (see proxy.ts) — offering the
   // rest of the sidebar would just bounce them back out.
   const isManager = !!session?.user?.roles?.includes("manager");
+
+  // A permit lapsing is worth interrupting someone about — it only showed on
+  // the permits screen, which nobody opens unless they already suspect a
+  // problem. Managers only: a team lead can't reach that screen to act on it.
+  const [lapsing, setLapsing] = useState<
+    { id: string; code: string; label: string; expiresOn: string | null }[]
+  >([]);
+  useEffect(() => {
+    if (!isManager) return;
+    let cancelled = false;
+    fetch("/api/admin/permits")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(
+        (
+          rows: {
+            id: string;
+            code: string;
+            label: string;
+            isActive: boolean;
+            expiresOn: string | null;
+          }[]
+        ) => {
+          if (cancelled) return;
+          const cutoff = dayjs().add(30, "day");
+          setLapsing(
+            rows.filter(
+              (p) =>
+                p.isActive &&
+                p.expiresOn !== null &&
+                dayjs(p.expiresOn).isBefore(cutoff)
+            )
+          );
+        }
+      )
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isManager]);
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
@@ -142,7 +185,39 @@ export default function AdminLayout({
         })}
       </AppShell.Navbar>
 
-      <AppShell.Main>{children}</AppShell.Main>
+      <AppShell.Main>
+        {lapsing.length > 0 && (
+          <Alert
+            color={
+              lapsing.some((p) => dayjs(p.expiresOn).isBefore(dayjs()))
+                ? "red"
+                : "orange"
+            }
+            variant="light"
+            icon={<IconLicense size={18} />}
+            mb="md"
+          >
+            <Group justify="space-between" wrap="wrap" gap="xs">
+              <Text size="sm">
+                {lapsing
+                  .map(
+                    (p) =>
+                      `${p.label} (${p.code}) ${
+                        dayjs(p.expiresOn).isBefore(dayjs())
+                          ? `expired ${dayjs(p.expiresOn).format("D MMM")}`
+                          : `expires ${dayjs(p.expiresOn).format("D MMM")}`
+                      }`
+                  )
+                  .join(" · ")}
+              </Text>
+              <Anchor component={Link} href="/admin/permits" size="sm">
+                Renew or switch off
+              </Anchor>
+            </Group>
+          </Alert>
+        )}
+        {children}
+      </AppShell.Main>
     </AppShell>
   );
 }

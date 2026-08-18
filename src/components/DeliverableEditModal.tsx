@@ -70,9 +70,39 @@ function EditForm({
   const [permit, setPermit] = useState(target.permitNumber ?? "");
   const [images, setImages] = useState<number | string>(target.imageCount ?? "");
   const [saving, setSaving] = useState(false);
+  // Removal is destructive and the reason lands in the audit entry, so it's
+  // behind a deliberate second step rather than a button next to Save.
+  const [removing, setRemoving] = useState(false);
+  const [reason, setReason] = useState("");
 
   const isVideo = target.type === "video_shoot";
   const isPhoto = target.type === "photo_shoot";
+
+  const [deleting, setDeleting] = useState(false);
+
+  const remove = async () => {
+    setDeleting(true);
+    const res = await fetch(`/api/admin/deliverables/${target.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", reason: reason.trim() }),
+    });
+    setDeleting(false);
+    const data = await res.json().catch(() => ({}));
+    notifications.show(
+      res.ok
+        ? { title: "Deliverable removed", message: "", color: "orange" }
+        : {
+            title: "Couldn't remove",
+            message: data.error ?? "Try again.",
+            color: "red",
+          }
+    );
+    if (res.ok) {
+      onClose();
+      onSaved();
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -149,14 +179,46 @@ function EditForm({
           onChange={setImages}
         />
       )}
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
-          Cancel
+      <Group justify="space-between">
+        <Button
+          variant="subtle"
+          color="red"
+          size="compact-sm"
+          onClick={() => setRemoving((v) => !v)}
+        >
+          {removing ? "Keep it" : "Remove"}
         </Button>
-        <Button loading={saving} onClick={save}>
-          Save
-        </Button>
+        <Group>
+          <Button variant="default" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={saving} onClick={save}>
+            Save
+          </Button>
+        </Group>
       </Group>
+
+      {removing && (
+        <Stack gap="xs">
+          <Text size="sm">
+            Removing it deletes the deliverable and its review history. The
+            record of what was here is kept in the activity log.
+          </Text>
+          <TextInput
+            placeholder="Why is it being removed? (required)"
+            value={reason}
+            onChange={(e) => setReason(e.currentTarget.value)}
+          />
+          <Button
+            color="red"
+            disabled={reason.trim().length < 3}
+            loading={deleting}
+            onClick={remove}
+          >
+            Remove permanently
+          </Button>
+        </Stack>
+      )}
     </Stack>
   );
 }

@@ -2,6 +2,7 @@
 //   { action: "approve" } | { action: "request_changes", comment }
 //   { action: "unapprove" } → back to the queue after a mistaken approval
 //   { action: "edit", ... }  → correct a link, permit or image count
+//   { action: "delete", reason } → remove one logged in error
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -17,6 +18,10 @@ import { hidesGeneralPermits, isGeneralPermit } from "@/lib/general-permits";
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve") }),
   z.object({ action: z.literal("unapprove") }),
+  z.object({
+    action: z.literal("delete"),
+    reason: z.string().trim().min(3).max(500),
+  }),
   z
     .object({
       action: z.literal("edit"),
@@ -73,6 +78,48 @@ export async function POST(
   ) {
     return jsonError(403, "General-permit work is reviewed by a manager");
   }
+  // Removing one logged in error — a duplicate, or work that was never done.
+  //
+  // A real delete rather than a hidden flag: deliverables are read in fourteen
+  // places, and a flag missed in any one of them leaves a "deleted" deliverable
+  // still counting toward someone's KPIs, which is the problem this is meant to
+  // solve. The row and its review decisions are written into the audit entry
+  // first, so the record survives even though the data doesn't.
+  if (input.action === "delete") {
+    if (d.isPosted) {
+      return jsonError(
+        409,
+        "This has been posted, so it can't be removed — correct it instead."
+      );
+    }
+
+    const [full] = await db
+      .select()
+      .from(deliverables)
+      .where(eq(deliverables.id, id))
+      .limit(1);
+    const decisions = await db
+      .select()
+      .from(reviewDecisions)
+      .where(eq(reviewDecisions.deliverableId, id));
+
+    await logAudit({
+      entity: "deliverable",
+      entityId: id,
+      action: "delete",
+      actorId: session.user.id,
+      diff: { reason: input.reason, deliverable: full, reviewDecisions: decisions },
+    });
+
+    await db.transaction(async (tx) => {
+      // The only thing pointing at a deliverable, so it has to go first.
+      await tx.delete(reviewDecisions).where(eq(reviewDecisions.deliverableId, id));
+      await tx.delete(deliverables).where(eq(deliverables.id, id));
+    });
+
+    return NextResponse.json({ ok: true });
+  }
+
   // Correcting a deliverable without disturbing its review state — a wrong
   // link, a mistyped permit, or an image count on work logged before counts
   // existed. Allowed at any status, since the 40 photo deliverables needing a
