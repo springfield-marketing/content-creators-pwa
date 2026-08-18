@@ -29,6 +29,7 @@ export async function GET(req: Request) {
       projectName: bookings.projectName,
       locationType: bookings.locationType,
       propertyAddress: bookings.propertyAddress,
+      notes: bookings.notes,
       status: bookings.status,
       cancellationReason: bookings.cancellationReason,
       cancelledBy: bookings.cancelledBy,

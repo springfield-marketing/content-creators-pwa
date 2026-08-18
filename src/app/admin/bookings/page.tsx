@@ -34,7 +34,7 @@ import {
   IconChevronRight,
   IconPlus,
 } from "@tabler/icons-react";
-import { DatePickerInput, TimeInput } from "@mantine/dates";
+import { DatePickerInput, TimeInput, DateTimePicker } from "@mantine/dates";
 import { dbShootTypeLabel, type DbShootType } from "@/lib/shoot-types";
 
 type AdminBooking = {
@@ -48,6 +48,7 @@ type AdminBooking = {
   projectName: string | null;
   locationType: "on_site" | "office";
   propertyAddress: string | null;
+  notes: string | null;
   status: string;
   cancellationReason: string | null;
   cancelledBy: string | null;
@@ -84,6 +85,15 @@ export default function BookingsOverview() {
   // Restoring re-creates the calendar event; whether that mails the agent is a
   // per-case call, so the manager chooses rather than us guessing.
   const [notifyAgent, setNotifyAgent] = useState(true);
+  const [edit, setEdit] = useState({
+    projectName: "",
+    propertyAddress: "",
+    notes: "",
+    locationType: "on_site" as "on_site" | "office",
+    shootType: "video" as "photo" | "video" | "photo_video",
+  });
+  const [moveTo, setMoveTo] = useState<string | null>(null);
+  const [moveMinutes, setMoveMinutes] = useState<number | string>(120);
   const [reassignTo, setReassignTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [detailOpen, { open: openDetail, close: closeDetail }] =
@@ -141,7 +151,14 @@ export default function BookingsOverview() {
   };
 
   const act = async (
-    action: "cancel" | "reassign" | "no_show" | "undo_no_show" | "undo_cancel"
+    action:
+      | "cancel"
+      | "reassign"
+      | "no_show"
+      | "undo_no_show"
+      | "undo_cancel"
+      | "edit"
+      | "reschedule"
   ) => {
     if (!selected) return;
     setBusy(true);
@@ -149,7 +166,15 @@ export default function BookingsOverview() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
-        action === "reassign"
+        action === "edit"
+          ? { action, ...edit }
+          : action === "reschedule"
+            ? {
+                action,
+                start: dayjs(moveTo).toISOString(),
+                durationMinutes: Number(moveMinutes) || 120,
+              }
+          : action === "reassign"
           ? { action, creatorId: reassignTo }
           : action === "undo_no_show"
             ? { action }
@@ -173,7 +198,11 @@ export default function BookingsOverview() {
                     ? "No-show reversed"
                     : action === "undo_cancel"
                       ? "Booking restored"
-                      : "Booking reassigned",
+                      : action === "edit"
+                        ? "Details updated"
+                        : action === "reschedule"
+                          ? "Booking moved"
+                          : "Booking reassigned",
             message:
               action === "cancel"
                 ? "Calendar event removed — agent notified."
@@ -327,6 +356,17 @@ export default function BookingsOverview() {
                                 setNoShowReason("");
                                 setNotifyAgent(
                                   dayjs(b.start).isAfter(dayjs())
+                                );
+                                setEdit({
+                                  projectName: b.projectName ?? "",
+                                  propertyAddress: b.propertyAddress ?? "",
+                                  notes: b.notes ?? "",
+                                  locationType: b.locationType,
+                                  shootType: b.shootType,
+                                });
+                                setMoveTo(b.start);
+                                setMoveMinutes(
+                                  dayjs(b.end).diff(dayjs(b.start), "minute")
                                 );
                                 setReassignTo(null);
                                 openDetail();
@@ -522,6 +562,106 @@ export default function BookingsOverview() {
                 Reason: “{selected.cancellationReason}”
                 {selected.cancelledBy ? ` (${selected.cancelledBy})` : ""}
               </Text>
+            )}
+
+            {/* Details were captured once on the agent's form; this is the
+                only place they can be corrected. */}
+            {(selected.status === "confirmed" ||
+              selected.status === "completed") && (
+              <>
+                <Divider label="Correct the details" />
+                <TextInput
+                  label="Project"
+                  value={edit.projectName}
+                  onChange={(e) =>
+                    setEdit({ ...edit, projectName: e.currentTarget.value })
+                  }
+                />
+                <Group grow>
+                  <Select
+                    label="Type"
+                    data={[
+                      { value: "photo", label: "Photo" },
+                      { value: "video", label: "Video" },
+                      { value: "photo_video", label: "Photo + Video" },
+                    ]}
+                    value={edit.shootType}
+                    onChange={(v) =>
+                      setEdit({ ...edit, shootType: (v as typeof edit.shootType) ?? edit.shootType })
+                    }
+                    allowDeselect={false}
+                  />
+                  <Select
+                    label="Location"
+                    data={[
+                      { value: "on_site", label: "On site" },
+                      { value: "office", label: "Office" },
+                    ]}
+                    value={edit.locationType}
+                    onChange={(v) =>
+                      setEdit({ ...edit, locationType: (v as typeof edit.locationType) ?? edit.locationType })
+                    }
+                    allowDeselect={false}
+                  />
+                </Group>
+                {edit.locationType === "on_site" && (
+                  <TextInput
+                    label="Address"
+                    value={edit.propertyAddress}
+                    onChange={(e) =>
+                      setEdit({ ...edit, propertyAddress: e.currentTarget.value })
+                    }
+                  />
+                )}
+                <Textarea
+                  label="Notes"
+                  autosize
+                  minRows={2}
+                  value={edit.notes}
+                  onChange={(e) => setEdit({ ...edit, notes: e.currentTarget.value })}
+                />
+                <Button
+                  variant="light"
+                  loading={busy}
+                  disabled={edit.projectName.trim() === ""}
+                  onClick={() => act("edit")}
+                >
+                  Save details
+                </Button>
+              </>
+            )}
+
+            {selected.status === "confirmed" && (
+              <>
+                <Divider label="Move it" />
+                <Text size="xs" c="dimmed">
+                  The agent is notified and their calendar event moves with it.
+                </Text>
+                <Group grow align="flex-end">
+                  <DateTimePicker
+                    label="New start"
+                    valueFormat="ddd D MMM, HH:mm"
+                    value={moveTo}
+                    onChange={setMoveTo}
+                  />
+                  <NumberInput
+                    label="Minutes"
+                    min={15}
+                    max={720}
+                    step={15}
+                    value={moveMinutes}
+                    onChange={setMoveMinutes}
+                  />
+                </Group>
+                <Button
+                  variant="light"
+                  loading={busy}
+                  disabled={!moveTo}
+                  onClick={() => act("reschedule")}
+                >
+                  Move booking
+                </Button>
+              </>
             )}
 
             {selected.status === "cancelled" && (

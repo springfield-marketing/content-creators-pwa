@@ -103,6 +103,30 @@ export async function patchBookingEventTimes(params: {
 }
 
 // Removes a booking's event (cancellation); attendees are notified by Google.
+// Keeps the event's wording in step with a booking a manager has corrected.
+// Times are handled by patchBookingEventTimes, which the agent path also uses.
+export async function patchBookingEventDetails(params: {
+  creatorEmail: string;
+  eventId: string;
+  summary: string;
+  location: string;
+  description: string;
+}): Promise<void> {
+  const calendar = calendarFor(params.creatorEmail);
+  await calendar.events.patch({
+    calendarId: "primary",
+    eventId: params.eventId,
+    // Wording changes don't warrant a fresh invite; a moved shoot does, and
+    // that goes through patchBookingEventTimes.
+    sendUpdates: "none",
+    requestBody: {
+      summary: params.summary,
+      location: params.location,
+      description: params.description,
+    },
+  });
+}
+
 export async function deleteBookingEvent(
   creatorEmail: string,
   eventId: string

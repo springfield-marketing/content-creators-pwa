@@ -4,9 +4,12 @@
 //   { action: "no_show", reason }         → agent didn't turn up (§B5.5)
 //   { action: "undo_no_show" }            → it was marked in error
 //   { action: "undo_cancel", notifyAgent } → restore + re-create the event
+//   { action: "edit", ... }               → correct the shoot's details
+//   { action: "reschedule", start, durationMinutes } → move it
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import dayjs from "dayjs";
 import { and, arrayContains, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
@@ -15,6 +18,8 @@ import { cancelBooking } from "@/lib/booking-actions";
 import {
   deleteBookingEvent,
   insertBookingEvent,
+  patchBookingEventDetails,
+  patchBookingEventTimes,
 } from "@/lib/google-calendar";
 import { TZ } from "@/lib/availability";
 import { dbShootTypeLabel } from "@/lib/shoot-types";
@@ -29,6 +34,21 @@ const schema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("undo_cancel"),
     notifyAgent: z.boolean(),
+  }),
+  z
+    .object({
+      action: z.literal("edit"),
+      projectName: z.string().trim().min(1).max(200).optional(),
+      propertyAddress: z.string().trim().max(300).optional(),
+      notes: z.string().trim().max(2000).optional(),
+      locationType: z.enum(["on_site", "office"]).optional(),
+      shootType: z.enum(["photo", "video", "photo_video"]).optional(),
+    })
+    .refine((v) => Object.keys(v).length > 1, { message: "Nothing to change" }),
+  z.object({
+    action: z.literal("reschedule"),
+    start: z.string().datetime({ offset: true }),
+    durationMinutes: z.number().int().min(15).max(720),
   }),
 ]);
 
@@ -242,6 +262,128 @@ export async function POST(
       diff: { notifiedAgent: input.notifyAgent },
     });
 
+    return NextResponse.json({ ok: true });
+  }
+
+  // Correcting a booking's details. The manager's own screen is the only place
+  // these can be fixed — the agent's form captured them once at booking time.
+  if (input.action === "edit" || input.action === "reschedule") {
+    const [b] = await db
+      .select({
+        id: bookings.id,
+        status: bookings.status,
+        eventId: bookings.googleEventId,
+        calendarEmail: bookings.googleCalendarId,
+        startsAt: bookings.startsAt,
+        endsAt: bookings.endsAt,
+        shootType: bookings.shootType,
+        projectName: bookings.projectName,
+        locationType: bookings.locationType,
+        propertyAddress: bookings.propertyAddress,
+        notes: bookings.notes,
+        agentName: agents.fullName,
+        agentPhone: agents.phone,
+      })
+      .from(bookings)
+      .leftJoin(agents, eq(agents.id, bookings.agentId))
+      .where(eq(bookings.id, id))
+      .limit(1);
+    if (!b) return jsonError(404, "Booking not found");
+
+    if (input.action === "reschedule") {
+      // Moving a shoot only makes sense while it's still going to happen.
+      if (b.status !== "confirmed") {
+        return jsonError(409, "Only a confirmed booking can be moved");
+      }
+      const start = dayjs(input.start);
+      const end = start.add(input.durationMinutes, "minute");
+      try {
+        await db.transaction(async (tx) => {
+          await tx
+            .update(bookings)
+            .set({ startsAt: start.toDate(), endsAt: end.toDate(), updatedAt: new Date() })
+            .where(eq(bookings.id, id));
+          if (b.eventId && b.calendarEmail) {
+            // Inside the transaction: a calendar failure rolls the times back
+            // rather than leaving the two disagreeing. Attendees are notified,
+            // which is the point — the agent has to know it moved.
+            await patchBookingEventTimes({
+              creatorEmail: b.calendarEmail,
+              eventId: b.eventId,
+              startIso: start.toISOString(),
+              endIso: end.toISOString(),
+              timeZone: TZ,
+            });
+          }
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("no_overlapping_confirmed") || msg.includes("23P01")) {
+          return jsonError(409, "That time clashes with another confirmed booking for this creator.");
+        }
+        return jsonError(502, `Couldn't move the booking: ${msg}`);
+      }
+
+      await logAudit({
+        entity: "booking",
+        entityId: id,
+        action: "reschedule",
+        actorId: session.user.id,
+        diff: { from: b.startsAt, to: start.toDate(), durationMinutes: input.durationMinutes },
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    const changes = Object.fromEntries(
+      Object.entries(input).filter(([k, v]) => k !== "action" && v !== undefined)
+    );
+    await db.update(bookings).set({ ...changes, updatedAt: new Date() }).where(eq(bookings.id, id));
+
+    // Keep the calendar wording in step, best effort: the record is the source
+    // of truth and a stale event shouldn't fail the edit.
+    const next = { ...b, ...changes } as typeof b;
+    if (b.eventId && b.calendarEmail) {
+      try {
+        await patchBookingEventDetails({
+          creatorEmail: b.calendarEmail,
+          eventId: b.eventId,
+          summary: `Shoot: ${next.agentName ?? "Company"} — ${dbShootTypeLabel[next.shootType]} · ${next.projectName ?? ""}`,
+          location:
+            next.locationType === "on_site"
+              ? (next.propertyAddress ?? "")
+              : "Springfield office",
+          description: [
+            "Booked via ContentApp",
+            next.agentName ? `Agent: ${next.agentName}${next.agentPhone ? ` (${next.agentPhone})` : ""}` : null,
+            `Type: ${dbShootTypeLabel[next.shootType]}`,
+            next.projectName ? `Project: ${next.projectName}` : null,
+            next.notes ? `Notes: ${next.notes}` : null,
+            `Booking ID: ${id}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        });
+      } catch (e) {
+        console.error("Calendar detail patch failed:", e);
+      }
+    }
+
+    await logAudit({
+      entity: "booking",
+      entityId: id,
+      action: "edit",
+      actorId: session.user.id,
+      diff: {
+        changed: changes,
+        previous: {
+          projectName: b.projectName,
+          propertyAddress: b.propertyAddress,
+          notes: b.notes,
+          locationType: b.locationType,
+          shootType: b.shootType,
+        },
+      },
+    });
     return NextResponse.json({ ok: true });
   }
 
