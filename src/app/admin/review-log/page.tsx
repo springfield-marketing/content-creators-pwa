@@ -34,6 +34,7 @@ type ReviewRow = {
   isPosted: boolean | null;
   imageCount: number | null;
   deliverableTitle: string | null;
+  postedUrl: string | null;
   at: string;
   submittedAt: string | null;
   reviewer: string | null;
@@ -319,11 +320,25 @@ export default function ReviewsScreen() {
                           {r.creator ?? "—"}
                           {r.videoName ? ` · ${r.videoName}` : ""}
                         </Text>
-                        {r.url && (
-                          <Anchor href={r.url} target="_blank" size="xs">
-                            open
-                          </Anchor>
-                        )}
+                        <Group gap={8}>
+                          {r.url && (
+                            <Anchor href={r.url} target="_blank" size="xs">
+                              open
+                            </Anchor>
+                          )}
+                          {/* Where it actually went live, captured when the
+                              creator marked it posted. */}
+                          {r.postedUrl && (
+                            <Anchor
+                              href={r.postedUrl}
+                              target="_blank"
+                              size="xs"
+                              c="green"
+                            >
+                              view post
+                            </Anchor>
+                          )}
+                        </Group>
                       </Table.Td>
                       <Table.Td>
                         {r.comment && (

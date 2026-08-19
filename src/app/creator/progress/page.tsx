@@ -83,6 +83,9 @@ export default function MyProgress() {
     outstanding: Outstanding[];
   } | null>(null);
   const [acting, setActing] = useState<string | null>(null);
+  // Kept per row: creators clear several of these in one sitting, so a dialog
+  // each would make a routine job slow.
+  const [postedLinks, setPostedLinks] = useState<Record<string, string>>({});
   // Resubmit dialog: correct the link + acknowledge the comment first.
   const [resubmitTarget, setResubmitTarget] = useState<Revision | null>(null);
   const [newUrl, setNewUrl] = useState("");
@@ -111,16 +114,31 @@ export default function MyProgress() {
     const res = await fetch(`/api/me/deliverables/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark_posted" }),
+      body: JSON.stringify({
+        action: "mark_posted",
+        postedUrl: (postedLinks[id] ?? "").trim(),
+      }),
     });
     setActing(null);
+    const body = await res.json().catch(() => ({}));
     if (res.ok) {
+      setPostedLinks((m) => {
+        const next = { ...m };
+        delete next[id];
+        return next;
+      });
       notifications.show({
         title: "Marked as posted",
         message: "Counted toward your posted KPI.",
         color: "green",
       });
       reload();
+    } else {
+      notifications.show({
+        title: "Couldn't mark it posted",
+        message: body.error ?? "Check the link and try again.",
+        color: "red",
+      });
     }
   };
 
@@ -304,25 +322,48 @@ export default function MyProgress() {
             <Text fw={600} size="sm">
               Approved — ready to post ({data.toPost.length})
             </Text>
-            {data.toPost.map((d) => (
-              <Group key={d.id} justify="space-between" wrap="nowrap">
-                <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-                  <Badge size="sm" variant="light" color="green">
-                    {d.type === "photo_shoot" ? "Photo Shoot" : "Video Shoot"}
-                  </Badge>
-                  <Anchor size="xs" href={d.url} target="_blank" truncate>
-                    {d.url}
-                  </Anchor>
-                </Group>
-                <Button
-                  size="compact-xs"
-                  loading={acting === d.id}
-                  onClick={() => markPosted(d.id)}
-                >
-                  Mark as posted
-                </Button>
-              </Group>
-            ))}
+            {data.toPost.map((d) => {
+              const link = postedLinks[d.id] ?? "";
+              return (
+                <Stack key={d.id} gap={6}>
+                  <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+                    <Badge size="sm" variant="light" color="green">
+                      {d.type === "photo_shoot" ? "Photo Shoot" : "Video Shoot"}
+                    </Badge>
+                    <Anchor size="xs" href={d.url} target="_blank" truncate>
+                      {d.url}
+                    </Anchor>
+                  </Group>
+                  <Group gap="xs" wrap="nowrap" align="flex-start">
+                    <TextInput
+                      style={{ flex: 1 }}
+                      size="xs"
+                      placeholder="Paste the Instagram or TikTok link you posted"
+                      value={link}
+                      onChange={(e) =>
+                        setPostedLinks((m) => ({
+                          ...m,
+                          [d.id]: e.currentTarget.value,
+                        }))
+                      }
+                      error={
+                        link.trim() !== "" && !isValidLink(link.trim())
+                          ? "Needs a full link starting with https://"
+                          : undefined
+                      }
+                    />
+                    <Button
+                      size="xs"
+                      loading={acting === d.id}
+                      disabled={!isValidLink(link.trim())}
+                      onClick={() => markPosted(d.id)}
+                    >
+                      Mark as posted
+                    </Button>
+                  </Group>
+                </Stack>
+              );
+            })}
           </Stack>
         </Card>
       )}

@@ -201,6 +201,9 @@ export const deliverables = pgTable(
     title: text("title"),
     isPosted: boolean("is_posted").default(false),
     postedAt: timestamp("posted_at", { withTimezone: true }),
+    // The published post — the reel or TikTok the work became. Separate from
+    // url, which is the file that was delivered for review.
+    postedUrl: text("posted_url"),
     workDate: date("work_date").notNull(),
     reviewStatus: reviewStatus("review_status").notNull().default("submitted"),
     reviewComment: text("review_comment"),

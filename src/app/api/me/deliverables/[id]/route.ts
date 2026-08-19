@@ -1,6 +1,6 @@
 // PATCH /api/me/deliverables/[id] — creator actions on their own deliverable:
 //   { action: "resubmit", url? }   after a revision request
-//   { action: "mark_posted" }      approved work published to socials
+//   { action: "mark_posted", postedUrl }  approved work published to socials
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -18,7 +18,11 @@ const schema = z.discriminatedUnion("action", [
     permitNumber: z.string().trim().min(1).max(100).optional(),
     imageCount: z.number().int().min(0).max(10000).optional(),
   }),
-  z.object({ action: z.literal("mark_posted") }),
+  z.object({
+    action: z.literal("mark_posted"),
+    // Required: the point of marking something posted is knowing where it went.
+    postedUrl: z.string().url().max(2000),
+  }),
 ]);
 
 export async function PATCH(
@@ -55,13 +59,18 @@ export async function PATCH(
     if (d.isPosted) return jsonError(409, "Already marked as posted");
     await db
       .update(deliverables)
-      .set({ isPosted: true, postedAt: new Date() })
+      .set({
+        isPosted: true,
+        postedAt: new Date(),
+        postedUrl: parsed.data.postedUrl,
+      })
       .where(eq(deliverables.id, id));
     await logAudit({
       entity: "deliverable",
       entityId: id,
       action: "mark_posted",
       actorId: session.user.id,
+      diff: { postedUrl: parsed.data.postedUrl },
     });
     return NextResponse.json({ ok: true });
   }

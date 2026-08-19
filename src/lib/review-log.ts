@@ -17,6 +17,7 @@ export type ReviewRow = {
   isPosted: boolean | null;
   imageCount: number | null;
   deliverableTitle: string | null;
+  postedUrl: string | null;
   at: string; // decided_at
   submittedAt: string | null; // deliverable submission, for time-to-decision
   reviewer: string | null;
@@ -67,6 +68,7 @@ export async function getReviewLog(month: string): Promise<ReviewRow[]> {
       reviewStatus: deliverables.reviewStatus,
       isPosted: deliverables.isPosted,
       imageCount: deliverables.imageCount,
+      postedUrl: deliverables.postedUrl,
       submittedAt: deliverables.createdAt,
       reviewerName: reviewer.fullName,
       creatorName: creator.fullName,
@@ -96,6 +98,7 @@ export async function getReviewLog(month: string): Promise<ReviewRow[]> {
     isPosted: r.isPosted,
     imageCount: r.imageCount,
     deliverableTitle: r.title,
+    postedUrl: r.postedUrl,
     at: r.at.toISOString(),
     submittedAt: r.submittedAt?.toISOString() ?? null,
     reviewer: r.reviewerName,
