@@ -1,44 +1,65 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { AppChrome, type ChromeLink } from "@/components/AppChrome";
-import { can } from "@/lib/registry/access";
+"use client";
 
-// Permits inside the app's own shell — same header, same sidebar as every
-// other signed-in area. It used to carry its own header and horizontal tab
-// strip, inherited from the standalone registry, which made one product look
-// like two.
-export default async function PermitsLayout({
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+import { Anchor, Box, Container, Group } from "@mantine/core";
+
+// Agent-facing shell, deliberately the same as the booking one: agents arrive
+// here from /book to check whether a project can be marketed, and should not
+// feel they have left. Admins maintain permits in the dashboard instead, at
+// /admin/permits.
+export default function AgentPermitsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-  if (!session) redirect("/login");
-
-  const roles = session.user.roles;
-
-  const links: (ChromeLink & { show: boolean })[] = [
-    { href: "/permits", label: "All permits", icon: "list", show: true },
-    {
-      href: "/permits/requests",
-      label: can(roles, "viewAllRequests") ? "Requests" : "My requests",
-      icon: "requests",
-      show: can(roles, "viewOwnRequests"),
-    },
-    {
-      href: "/permits/renew",
-      label: "Renewals",
-      icon: "renewals",
-      show: can(roles, "batchRenew"),
-    },
-  ];
+  const pathname = usePathname();
 
   return (
-    <AppChrome
-      title="Content Team · Permits"
-      groups={[{ links: links.filter((l) => l.show) }]}
-    >
-      {children}
-    </AppChrome>
+    <>
+      <Box component="header" className="app-header" py="sm">
+        <Container size="sm">
+          <Group justify="space-between">
+            <Anchor component={Link} href="/book" underline="never">
+              <Image
+                src="/Springfield Properties Logo.png"
+                alt="Springfield Properties"
+                width={128}
+                height={30}
+                className="brand-logo"
+                priority
+              />
+            </Anchor>
+            <Group gap="md">
+              <Anchor
+                component={Link}
+                href="/permits"
+                size="sm"
+                c={pathname === "/permits" ? "brand" : "dimmed"}
+                fw={pathname === "/permits" ? 600 : 400}
+              >
+                Permits
+              </Anchor>
+              <Anchor
+                component={Link}
+                href="/permits/requests"
+                size="sm"
+                c={pathname.startsWith("/permits/requests") ? "brand" : "dimmed"}
+                fw={pathname.startsWith("/permits/requests") ? 600 : 400}
+              >
+                My requests
+              </Anchor>
+              <Anchor component={Link} href="/book" size="sm" c="dimmed">
+                Book
+              </Anchor>
+            </Group>
+          </Group>
+        </Container>
+      </Box>
+      <Container size="sm" py="lg">
+        {children}
+      </Container>
+    </>
   );
 }

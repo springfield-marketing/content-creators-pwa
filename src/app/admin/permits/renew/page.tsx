@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function RenewPage() {
   const session = await auth();
   if (!session) redirect("/login");
-  if (!can(session.user.roles, "batchRenew")) redirect("/permits");
+  if (!can(session.user.roles, "batchRenew")) redirect("/admin/permits");
 
   return (
     <Stack gap="lg">

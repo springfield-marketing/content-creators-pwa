@@ -87,24 +87,42 @@ describe("allowed", () => {
     });
   });
 
-  describe("the permits list holds both kinds of permit", () => {
-    it("lets a manager in, because they own the general codes", () => {
-      expect(allowed("/permits", ["manager"])).toBe(true);
+  describe("permits are maintained in the dashboard", () => {
+    it("admits the people who maintain them", () => {
+      for (const role of ["manager", "permit_admin", "marketing"] as const) {
+        expect(allowed("/admin/permits", [role])).toBe(true);
+        expect(allowed("/admin/permits/renew", [role])).toBe(true);
+        expect(allowed("/api/admin/permits", [role])).toBe(true);
+      }
+    });
+
+    it("lets marketing in for permits WITHOUT opening the rest of admin", () => {
+      // The whole reason /admin/permits sits above /admin in the table.
+      expect(allowed("/admin/permits", ["marketing"])).toBe(true);
+      expect(allowed("/admin", ["marketing"])).toBe(false);
+      expect(allowed("/admin/review", ["marketing"])).toBe(false);
+      expect(allowed("/admin/kpis", ["marketing"])).toBe(false);
+      expect(allowed("/admin/team", ["marketing"])).toBe(false);
+    });
+
+    it("keeps agents out of the dashboard entirely", () => {
+      expect(allowed("/admin/permits", ["agent"])).toBe(false);
+      expect(allowed("/api/admin/permits", ["agent"])).toBe(false);
+      expect(allowed("/admin", ["agent"])).toBe(false);
     });
 
     it("still grants a manager nothing in the registry itself", () => {
-      // Reaching the list is not the same as reading offplan permits — that is
-      // decided by the capability table, which gives manager nothing. The page
-      // redacts accordingly.
+      // Reaching the screen is not the same as reading offplan permits — that
+      // is decided by the capability table. The page redacts accordingly.
       expect(can(["manager"], "viewPermitDetails")).toBe(false);
       expect(can(["manager"], "issuePermit")).toBe(false);
     });
+  });
 
-    it("keeps agents away from managing general codes", () => {
-      // The list admits them; the write API stays under /api/admin, which the
-      // route table does not open to agents.
-      expect(allowed("/api/admin/permits", ["agent"])).toBe(false);
-      expect(allowed("/api/admin/permits", ["marketing"])).toBe(false);
+  describe("the agent-facing view", () => {
+    it("admits agents", () => {
+      expect(allowed("/permits", ["agent"])).toBe(true);
+      expect(allowed("/permits/requests", ["agent"])).toBe(true);
     });
 
     it("does not let a team lead or executive in", () => {

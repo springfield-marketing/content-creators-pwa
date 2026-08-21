@@ -7,35 +7,36 @@ import { getProjects } from "@/lib/registry/queries";
 
 export const dynamic = "force-dynamic";
 
-// An agent's own requests. The queue everyone's requests land in is an admin
-// screen, at /admin/permits/requests.
-export default async function AgentRequestsPage() {
+export default async function PermitRequestsPage() {
   const session = await auth();
   if (!session) redirect("/login");
 
   const roles = session.user.roles;
-  if (!can(roles, "viewOwnRequests")) redirect("/permits");
-  if (can(roles, "viewAllRequests")) redirect("/admin/permits/requests");
+  if (!can(roles, "viewOwnRequests")) redirect("/admin/permits");
 
-  // Names only — the autocomplete needs nothing else, and shipping full rows
-  // would hand an agent the permit details the list redacts.
+  const seesAll = can(roles, "viewAllRequests");
+  // Names only — the autocomplete needs nothing else, and shipping the full
+  // rows here would hand an agent the permit details the list redacts.
   const projects = (await getProjects()).map((p) => ({
     id: p.id,
     name: p.name,
   }));
 
   return (
-    <Stack gap="md">
+    <Stack gap="lg">
       <div>
-        <Title order={3}>My requests</Title>
+        <Title order={2}>{seesAll ? "Requests" : "My requests"}</Title>
         <Text size="sm" c="dimmed">
-          Ask marketing for a permit when the project you need isn&apos;t listed.
+          {seesAll
+            ? "Every permit request raised, newest first"
+            : "Permit requests you have raised"}
         </Text>
       </div>
 
       <RequestsPanel
         canRequest={can(roles, "requestPermit")}
-        showRequester={false}
+        showRequester={seesAll}
+        canResolve={can(roles, "issuePermit")}
         projects={projects}
       />
     </Stack>

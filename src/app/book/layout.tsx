@@ -25,9 +25,17 @@ export default function BookLayout({
                 priority
               />
             </Anchor>
-            <Text size="sm" c="dimmed">
-              Book a shoot
-            </Text>
+            <Group gap="md">
+              {/* Agents check here whether a project can be marketed before
+                  booking a shoot for it. Signing in is required beyond this
+                  link; the booking flow itself stays public. */}
+              <Anchor component={Link} href="/permits" size="sm" c="dimmed">
+                Permits
+              </Anchor>
+              <Text size="sm" c="dimmed">
+                Book a shoot
+              </Text>
+            </Group>
           </Group>
         </Container>
       </Box>
