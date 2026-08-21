@@ -37,11 +37,17 @@ if (env && env !== "production") {
   process.exit(0);
 }
 
-const url = process.env.DATABASE_URL;
-if (!url) {
-  console.error("[migrate] DATABASE_URL is not set");
+// Unpooled by preference. Neon's pooler returns connections without resetting
+// search_path, which has already turned one healthy cutover into a fake
+// failure; migrations have no business going through a transaction pooler.
+// Vercel's Neon integration provides DATABASE_URL_UNPOOLED alongside the
+// pooled one, and locally the -pooler host is rewritten by hand.
+const raw = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+if (!raw) {
+  console.error("[migrate] neither DATABASE_URL_UNPOOLED nor DATABASE_URL is set");
   process.exit(1);
 }
+const url = raw.replace("-pooler.", ".");
 
 // Say which database, so a mistake is visible in the build log rather than
 // discovered later.

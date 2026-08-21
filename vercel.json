@@ -19,5 +19,6 @@
       "path": "/api/cron/permit-expiry",
       "schedule": "0 4 * * *"
     }
-  ]
+  ],
+  "buildCommand": "npm run db:migrate:deploy && next build"
 }

@@ -1,51 +1,131 @@
-# Deploying to Vercel
+# Deploying
 
-## 1. Get the code to Vercel
-Preferred: connect the GitHub repo (`springfield-marketing/content-creators-pwa`)
-in Vercel → auto-deploy on push. (Requires the local git push to work.)
-Alternative without GitHub: `npx vercel` from the project root (CLI deploy).
+Vercel project **content-creators-pwa** → <https://booking.springfieldproperties.ae>
+(team `springfield-marketing`, scope `nihaals-projects-dff64ce5`).
 
-## 2. Database — Neon via Vercel Marketplace
-Vercel dashboard → Storage → Create → Neon (free tier). Attach to the project;
-it injects `DATABASE_URL`. Copy that URL for the next step.
+Deploys are driven by git. `main` builds to production; any other branch builds
+a preview. There is no manual `vercel deploy` step in the normal flow.
 
-## 3. Migrate + seed the hosted database (run locally)
+## The normal flow
+
 ```bash
-DATABASE_URL='<neon-url>' npx drizzle-kit migrate
-SEED_DEMO=0 DATABASE_URL='<neon-url>' npx tsx src/db/seed.ts
+git push -u origin <branch>     # -> preview build, same database as production
+# check the preview URL
+gh pr create --fill             # or merge straight to main
+# merging to main -> production build
 ```
-(The seed reads `seed-data/creators.local.json` and `Agent list.csv` from this
-machine — real people land in the hosted DB without ever touching git.)
 
-## 4. Environment variables (Vercel → Project → Settings → Environment Variables)
-| Var | Value |
+## Migrations run themselves
+
+`vercel.json` sets:
+
+```json
+"buildCommand": "npm run db:migrate:deploy && next build"
+```
+
+so a schema change ships with the code that needs it instead of being a step
+someone has to remember. If a migration fails the build fails, and no code is
+deployed against a schema that cannot support it.
+
+`scripts/migrate-deploy.mts`:
+
+- **skips on preview builds** — `DATABASE_URL` is shared across environments, so
+  a preview would otherwise migrate production;
+- **prefers `DATABASE_URL_UNPOOLED`** and strips `-pooler.` from whatever it
+  gets (see the pooler warning below);
+- **prints the target host** so a mistake is visible in the build log;
+- **only reads `.env` when `DATABASE_URL` is unset** — `.env` holds the LOCAL
+  database, and silently migrating localhost while believing it was production
+  is the one mistake it must not allow.
+
+To run a migration by hand against production:
+
+```bash
+DATABASE_URL="$(grep '^NEON_DATABASE_URL=' .env | cut -d= -f2-)" \
+  npm run db:migrate:deploy
+```
+
+## Never use `drizzle-kit migrate` against Neon
+
+It exits `1` with **no message at all** when it cannot connect or a statement
+fails, which is indistinguishable from a broken migration. Use
+`npm run db:migrate:deploy`, which prints the failing statement.
+
+`drizzle-kit generate` is also unusable here — see the migrations note in
+CLAUDE.md. Migrations are hand-written.
+
+## Never point admin tooling at Neon's pooler
+
+Neon's pooler returns server connections **without resetting `search_path`**,
+and `pg_dump` sets it to empty for its session. Back up and then query in the
+same script and the second connection can inherit the empty path, so every
+unqualified query fails with `relation "users" does not exist` against a
+database that is perfectly healthy. This turned the first production cutover
+into a fake failure.
+
+`PGOPTIONS=-c search_path=public` does not fix it — the pooler rejects
+`options=` in the startup packet and tells you to use an unpooled connection.
+
+So: **strip `-pooler.` from the host for migrations, dumps and admin scripts.**
+`scripts/cutover.sh` and `scripts/import-registry.sh` both do this via
+`unpooled()`. The app itself should keep using the pooled URL.
+
+## Environment
+
+Set for Production + Preview on the project. Check with `vercel env ls production`.
+
+| Variable | Purpose | Status |
+|---|---|---|
+| `DATABASE_URL` | Neon, pooled — the app | set |
+| `DATABASE_URL_UNPOOLED` | Neon, direct — build migrations | set |
+| `AUTH_SECRET`, `AUTH_URL` | Auth.js | set |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | Google sign-in | set |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | Calendar delegation | set |
+| `CRON_SECRET` | Guards all four crons | set |
+| `RESEND_API_KEY`, `MAIL_FROM` | Permit expiry email | **NOT SET** |
+| `BLOB_READ_WRITE_TOKEN` | QR uploads | **NOT SET** (see below) |
+
+Without `RESEND_API_KEY` the expiry cron still runs and reports; it just sends
+nothing and says `email not configured`. `src/lib/email.ts` (booking mail) is a
+separate console-log stub and is unaffected either way.
+
+## Blob storage — the one genuinely irreversible thing
+
+Two stores exist on the team:
+
+| Store | ID | Contents |
+|---|---|---|
+| `project-tracker-blob` | `store_V2wbfk4MWfbidj1O` | **the 1,523 permit QR images**, 32MB |
+| `content-creators-pwa-blob` | `store_ZWys1LfS1Ks4zw70` | empty |
+
+Every `permit_files.url` points at
+`v2wbfk4mwfbidj1o.public.blob.vercel-storage.com` — the store id is baked into
+1,523 rows, so **that store can never be renamed or deleted**, and the URLs
+resolve from it whether or not any project is connected.
+
+Before retiring `project-tracker`, connect its store to this project:
+Vercel dashboard → Storage → `project-tracker-blob` → Connect Project →
+`content-creators-pwa`. There is no CLI command for this.
+
+Until that is done, existing QR codes display fine but **uploading QR images on
+a newly issued permit will fail**.
+
+## Crons
+
+Four, all guarded by `CRON_SECRET`. `permit-expiry` fails *closed* if the secret
+is unset; the three older ones skip the check instead.
+
+| Path | Schedule (UTC) |
 |---|---|
-| `AUTH_SECRET` | fresh `openssl rand -base64 32` |
-| `AUTH_URL` | `https://<your-app>.vercel.app` |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | same OAuth client as dev |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | `base64 -i google-service-account.local.json` output |
-| `CRON_SECRET` | fresh `openssl rand -hex 24` |
+| `/api/cron/complete-past-bookings` | `0 17 * * *` |
+| `/api/cron/kpi-snapshot` | `30 20 * * *` |
+| `/api/cron/renew-watch-channels` | `0 3 * * *` |
+| `/api/cron/permit-expiry` | `0 4 * * *` |
 
-## 5. Google OAuth redirect
-Google Cloud Console → Credentials → the OAuth client → add redirect URI:
-`https://<your-app>.vercel.app/api/auth/callback/google`
+## Rolling back
 
-## 6. Smoke test
-Sign in as manager → plan the week in /admin/schedule → book at /book →
-event lands in the creator's calendar → manage link works.
+Code: revert the commit and push, or promote a previous deployment in the
+dashboard. Schema: migrations are forward-only — write a new one.
 
-## 7. Webhooks (optional now; edits made directly in Google Calendar sync back)
-1. Verify the domain in Google Search Console (required by Calendar push).
-2. Set `APP_URL=https://<your-app>.vercel.app` and `WEBHOOK_CHANNEL_TOKEN`
-   (fresh `openssl rand -hex 24`) in Vercel env, redeploy.
-3. Trigger once: `curl -H "Authorization: Bearer <CRON_SECRET>" https://<app>/api/cron/renew-watch-channels`
-   — the daily cron keeps channels renewed after that.
-
-## Notes
-- Crons are configured in `vercel.json` (times are UTC: 17:00 = 21:00 Dubai
-  completion sweep; 20:30 = 00:30 Dubai KPI snapshot).
-- The email stub logs instead of sending until `RESEND_API_KEY` exists;
-  Google Calendar invites are real regardless.
-- Optional while internal-only: Vercel → Settings → Deployment Protection
-  gates the whole site behind Vercel login (remember to disable before
-  agents need public /book access).
+Database backups from the registry cutover are in `../cutover-backups/`
+(outside the repo, not committed).

@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx --env-file=.env src/db/seed.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:migrate:deploy": "tsx scripts/migrate-deploy.mts"
   },
   "dependencies": {
     "@mantine/core": "^9.4.1",
