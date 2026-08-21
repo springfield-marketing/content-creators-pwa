@@ -105,3 +105,41 @@ export async function getRequests(onlyFor?: string) {
     : q
   ).orderBy(desc(permitRequests.createdAt));
 }
+
+export type QrFile = { variant: string; fileName: string; url: string };
+
+// Stable, meaningful order rather than insertion order.
+const VARIANT_ORDER = ["original", "facebook", "instagram", "twitter"];
+
+/**
+ * The QR images on a project's current permit.
+ *
+ * Fetched when the dialog opens rather than shipped with the 396-row list —
+ * four urls per project would more than double the payload for something most
+ * rows never need.
+ *
+ * Callers must check `viewQr` first; this does not, so that the check sits at
+ * the route boundary where the session lives.
+ */
+export async function getQrFiles(projectId: number): Promise<QrFile[]> {
+  const [current] = await db
+    .select({ id: permits.id })
+    .from(permits)
+    .where(eq(permits.projectId, projectId))
+    .orderBy(desc(permits.listingEnd))
+    .limit(1);
+  if (!current) return [];
+
+  const rows = await db
+    .select({
+      variant: permitFiles.variant,
+      fileName: permitFiles.fileName,
+      url: permitFiles.url,
+    })
+    .from(permitFiles)
+    .where(eq(permitFiles.permitId, current.id));
+
+  return rows.sort(
+    (a, b) => VARIANT_ORDER.indexOf(a.variant) - VARIANT_ORDER.indexOf(b.variant),
+  );
+}
