@@ -22,6 +22,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { UserMenu } from "@/components/UserMenu";
+import { activeNavHref } from "@/lib/nav";
 
 // Icons are named rather than passed as components: a server layout builds the
 // sidebar (so it renders before the browser knows who you are), and a function
@@ -80,8 +81,12 @@ export function AppChrome({
   const [opened, { toggle, close }] = useDisclosure();
   const pathname = usePathname();
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
+  // Only the most specific match, so a parent entry does not stay lit while
+  // you are on a child screen beneath it.
+  const active = activeNavHref(
+    pathname,
+    groups.flatMap((g) => g.links.map((l) => l.href)),
+  );
 
   return (
     <AppShell
@@ -132,7 +137,7 @@ export function AppChrome({
                   const Icon = ICONS[link.icon];
                   return <Icon size={20} stroke={1.5} />;
                 })()}
-                active={isActive(link.href)}
+                active={link.href === active}
                 onClick={close}
               />
             ))}
