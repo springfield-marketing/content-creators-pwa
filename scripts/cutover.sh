@@ -22,6 +22,19 @@ BACKUP_DIR="${BACKUP_DIR:-$HERE/../cutover-backups}"
 CHECK_ONLY=false
 [ "${1:-}" = "--check" ] && CHECK_ONLY=true
 
+# Admin work goes to the DIRECT endpoint, never Neon's pooler.
+#
+# The pooler hands back server connections without resetting search_path, and
+# pg_dump sets it to '' for its session. Back up first and the next psql can
+# inherit that empty path, at which point every unqualified query fails with
+# "relation does not exist" against a database that is perfectly healthy. That
+# is exactly what happened on the first production run of this script.
+#
+# PGOPTIONS would pin it, but the pooler rejects `options=` in the startup
+# packet and says to use an unpooled connection — which is the right answer for
+# migrations and dumps regardless.
+unpooled() { printf '%s' "${1/-pooler./.}"; }
+
 fail() { echo "  ✗ $1" >&2; exit 1; }
 ok() { echo "  ✓ $1"; }
 
@@ -31,6 +44,9 @@ TARGET_URL="${TARGET_URL:-$(grep -E '^NEON_DATABASE_URL=' "$HERE/.env" | cut -d=
 [ -n "$TARGET_URL" ] || fail "no NEON_DATABASE_URL in .env — set TARGET_URL"
 SOURCE_URL="${SOURCE_URL:-$(grep -E '^DATABASE_URL=' "$REGISTRY/.env.vercel" | cut -d= -f2-)}"
 [ -n "$SOURCE_URL" ] || fail "no DATABASE_URL in $REGISTRY/.env.vercel — set SOURCE_URL"
+
+TARGET_URL="$(unpooled "$TARGET_URL")"
+SOURCE_URL="$(unpooled "$SOURCE_URL")"
 
 psql "$TARGET_URL" -tAc 'select 1' >/dev/null || fail "cannot reach the target database"
 ok "target reachable"

@@ -22,10 +22,26 @@ set -euo pipefail
 : "${SOURCE_URL:?set SOURCE_URL to the registry database}"
 : "${TARGET_URL:?set TARGET_URL to the booking app database}"
 
+SOURCE_URL="$(unpooled "$SOURCE_URL")"
+TARGET_URL="$(unpooled "$TARGET_URL")"
+
 # FK order. permit_files depends on permits depends on projects depends on
 # developers, and pg_dump given several -t flags emits them alphabetically —
 # which is exactly the wrong order — so each table is dumped on its own.
 TABLES=(developers projects permits permit_files)
+
+# Admin work goes to the DIRECT endpoint, never Neon's pooler.
+#
+# The pooler hands back server connections without resetting search_path, and
+# pg_dump sets it to '' for its session. Back up first and the next psql can
+# inherit that empty path, at which point every unqualified query fails with
+# "relation does not exist" against a database that is perfectly healthy. That
+# is exactly what happened on the first production run of this script.
+#
+# PGOPTIONS would pin it, but the pooler rejects `options=` in the startup
+# packet and says to use an unpooled connection — which is the right answer for
+# migrations and dumps regardless.
+unpooled() { printf '%s' "${1/-pooler./.}"; }
 
 echo "source: $(psql "$SOURCE_URL" -tAc 'select current_database()')"
 echo "target: $(psql "$TARGET_URL" -tAc 'select current_database()')"
