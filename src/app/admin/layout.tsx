@@ -1,21 +1,31 @@
-"use client";
-
-import Link from "next/link";
-import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
-import { Alert, Anchor, Group, Text } from "@mantine/core";
-import dayjs from "dayjs";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { AppChrome, type ChromeGroup } from "@/components/AppChrome";
-import { IconLicense } from "@tabler/icons-react";
+import { LapsingPermitsBanner } from "@/components/LapsingPermitsBanner";
 
 // Manager shell: desktop-first sidebar, grouped by function, collapsible on
-// mobile. A team_lead only reaches the review queue, so they see just that.
+// mobile. A team_lead only reaches the review queue, so they see just that,
+// and marketing reaches permits without the rest of the dashboard.
+//
+// A server component, so the sidebar is decided before the HTML is sent.
+// Deriving it from useSession() meant every visitor was served a sidebar built
+// from "nobody" and it only filled in after hydration — which for marketing
+// rendered the review link they would be bounced from, and no permits link at
+// all.
 const NAV_GROUPS: ChromeGroup[] = [
   {
     title: "Review",
     links: [
       { href: "/admin/review", label: "Queue", icon: "queue" },
       { href: "/admin/review-log", label: "Review log", icon: "reviewLog" },
+    ],
+  },
+  {
+    title: "Permits",
+    links: [
+      { href: "/admin/permits", label: "All permits", icon: "permits" },
+      { href: "/admin/permits/requests", label: "Requests", icon: "requests" },
+      { href: "/admin/permits/renew", label: "Renewals", icon: "renewals" },
     ],
   },
   {
@@ -34,14 +44,6 @@ const NAV_GROUPS: ChromeGroup[] = [
     ],
   },
   {
-    title: "Permits",
-    links: [
-      { href: "/permits", label: "All permits", icon: "permits" },
-      { href: "/permits/requests", label: "Requests", icon: "requests" },
-      { href: "/permits/renew", label: "Renewals", icon: "renewals" },
-    ],
-  },
-  {
     title: "People",
     links: [
       { href: "/admin/creators", label: "Creators", icon: "creators" },
@@ -51,97 +53,42 @@ const NAV_GROUPS: ChromeGroup[] = [
   },
 ];
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { data: session } = useSession();
-  // A team_lead only reaches the review queue (see proxy.ts) — offering the
-  // rest of the sidebar would just bounce them back out.
-  const isManager = !!session?.user?.roles?.includes("manager");
+  const session = await auth();
+  if (!session) redirect("/login");
 
-  // A permit lapsing is worth interrupting someone about — it only showed on
-  // the permits screen, which nobody opens unless they already suspect a
-  // problem. Managers only: a team lead can't reach that screen to act on it.
-  const [lapsing, setLapsing] = useState<
-    { id: string; code: string; label: string; expiresOn: string | null }[]
-  >([]);
-  useEffect(() => {
-    if (!isManager) return;
-    let cancelled = false;
-    fetch("/api/admin/permits")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(
-        (
-          rows: {
-            id: string;
-            code: string;
-            label: string;
-            isActive: boolean;
-            expiresOn: string | null;
-          }[],
-        ) => {
-          if (cancelled) return;
-          const cutoff = dayjs().add(30, "day");
-          setLapsing(
-            rows.filter(
-              (p) =>
-                p.isActive &&
-                p.expiresOn !== null &&
-                dayjs(p.expiresOn).isBefore(cutoff),
-            ),
-          );
-        },
-      )
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [isManager]);
+  const roles = session.user.roles;
+  const isManager = roles.includes("manager");
+  // The review queue is the one admin screen a team lead reaches.
+  const isTeamLead = roles.includes("team_lead");
+  // Marketing and permit admins hold no content-ops role but maintain permits,
+  // so the sidebar shows them that group and nothing else.
+  const maintainsPermits = roles.some((r) =>
+    ["permit_admin", "marketing"].includes(r),
+  );
+
   const groups = NAV_GROUPS.map((g) => ({
     title: g.title,
-    // A team_lead only reaches the review queue (see route-access.ts) —
-    // offering the rest of the sidebar would just bounce them back out.
-    links: g.links.filter((l) => isManager || l.href === "/admin/review"),
+    // Mirrors route-access.ts. Offering a link someone would be bounced from
+    // is worse than not offering it.
+    links: g.links.filter(
+      (l) =>
+        isManager ||
+        (isTeamLead && l.href === "/admin/review") ||
+        (maintainsPermits && l.href.startsWith("/admin/permits")),
+    ),
   })).filter((g) => g.links.length > 0);
 
   return (
     <AppChrome
       title="Content Team · Admin"
       groups={groups}
-      banner={
-        lapsing.length > 0 && (
-          <Alert
-            color={
-              lapsing.some((p) => dayjs(p.expiresOn).isBefore(dayjs()))
-                ? "red"
-                : "orange"
-            }
-            variant="light"
-            icon={<IconLicense size={18} />}
-            mb="md"
-          >
-            <Group justify="space-between" wrap="wrap" gap="xs">
-              <Text size="sm">
-                {lapsing
-                  .map(
-                    (p) =>
-                      `${p.label} (${p.code}) ${
-                        dayjs(p.expiresOn).isBefore(dayjs())
-                          ? `expired ${dayjs(p.expiresOn).format("D MMM")}`
-                          : `expires ${dayjs(p.expiresOn).format("D MMM")}`
-                      }`,
-                  )
-                  .join(" · ")}
-              </Text>
-              <Anchor component={Link} href="/permits" size="sm">
-                Renew or switch off
-              </Anchor>
-            </Group>
-          </Alert>
-        )
-      }
+      // Managers act on lapsing permits; nobody else can.
+      banner={isManager ? <LapsingPermitsBanner /> : null}
     >
       {children}
     </AppChrome>

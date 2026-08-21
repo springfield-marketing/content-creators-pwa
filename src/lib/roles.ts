@@ -16,8 +16,10 @@ const HOME_BY_ROLE: [Role, string][] = [
   ["manager", "/admin/review"],
   ["team_lead", "/admin/review"],
   ["executive", "/reports"],
-  ["permit_admin", "/permits"],
-  ["marketing", "/permits"],
+  // The people who maintain permits work out of the dashboard; agents get the
+  // read-only view they reach from the booking flow.
+  ["permit_admin", "/admin/permits"],
+  ["marketing", "/admin/permits"],
   ["agent", "/permits"],
 ];
 

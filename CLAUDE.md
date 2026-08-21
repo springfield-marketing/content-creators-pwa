@@ -58,13 +58,25 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ## Trakheesi registry (merged in from the standalone app)
 
-All permits, both kinds, at `/permits` — one list inside the app's own shell.
-Creators read the offplan ones from `/creator/permits` in their mobile shell.
-Logic lives in `src/lib/registry/`.
+Three audiences, three entry points, one set of components:
 
-The shell is `src/components/AppChrome.tsx`, shared with `/admin`. Permits once
-carried its own header and tab strip, inherited from the standalone registry,
-which made one product look like two. Don't reintroduce a second chrome.
+- `/admin/permits` — the dashboard tab. View, edit, renew, add, work the
+  request queue. Manager, permit_admin and marketing. Renders in the admin
+  shell, so the dashboard sidebar stays put.
+- `/creator/permits` — a tab in the creator's mobile shell. Offplan, read-only.
+- `/permits` — agents, reached from a link in the booking header. Offplan,
+  read-only, redacted, plus their own requests.
+
+Logic lives in `src/lib/registry/`. The shell is
+`src/components/AppChrome.tsx`, shared by `/admin` and anything else that needs
+a sidebar. Permits once carried its own header and tab strip inherited from the
+standalone registry, which made one product look like two — don't reintroduce a
+second chrome.
+
+`/admin/permits` sits ABOVE `/admin` in `route-access.ts` so marketing reaches
+permits without the rest of the dashboard. The admin layout is a server
+component for the same reason its sidebar must be: deriving nav from
+`useSession()` served everyone a sidebar built from "nobody" until hydration.
 
 **One table, several kinds. Keep the meanings apart.**
 

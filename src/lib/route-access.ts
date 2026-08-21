@@ -11,19 +11,23 @@ export const ROUTE_ROLES: [string, Role[]][] = [
   ["/admin/review", ["manager", "team_lead"]],
   ["/api/admin/review-queue", ["manager", "team_lead"]],
   ["/api/admin/deliverables", ["manager", "team_lead"]],
+  // Permits are maintained from the dashboard, and marketing maintains them
+  // without holding any content-ops role — so these sit above the general
+  // /admin rules rather than inheriting their manager-only gate.
+  ["/admin/permits", ["manager", "permit_admin", "marketing"]],
+  ["/api/admin/permits", ["manager", "permit_admin", "marketing"]],
   ["/admin", ["manager"]],
   ["/api/admin", ["manager"]],
   ["/creator", ["creator"]],
   ["/api/me", ["creator"]],
   ["/reports", ["executive", "manager"]],
   ["/api/reports", ["executive", "manager"]],
-  // The permits section lists both kinds. Manager appears here despite
-  // granting nothing in the registry itself, because managers own the general
-  // company-content codes; the page redacts the offplan detail they have no
-  // capability for.
+  // The agent-facing read-only view, reached from a link in the booking flow.
+  // Anyone who maintains permits is redirected on to the dashboard screen,
+  // which does everything this one does and more.
   //
   // Creators read offplan permits from inside their own shell at
-  // /creator/permits, so they need the API but not the standalone screen.
+  // /creator/permits, so they need the API but not this screen.
   ["/permits", ["permit_admin", "marketing", "agent", "manager"]],
   ["/api/permits", ["permit_admin", "marketing", "agent", "creator"]],
 ];

@@ -215,7 +215,7 @@ export function RenewBatch() {
 
       <Text size="xs" c="dimmed">
         QR codes are not part of a batch — attach them per project from the{" "}
-        <Anchor href="/permits" size="xs">
+        <Anchor href="/admin/permits" size="xs">
           projects list
         </Anchor>
         .
