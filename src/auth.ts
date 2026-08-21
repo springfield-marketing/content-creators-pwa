@@ -104,10 +104,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return !!row && row.isActive !== false;
     },
     async jwt({ token, user }) {
-      // On initial sign-in, embed the app roles so the proxy can gate
-      // routes without a database round-trip per request.
-      if (user?.email) {
-        const row = await resolveUser(user.email, user.name);
+      // Re-read on every token read, not just at sign-in.
+      //
+      // Roles used to be embedded once and never refreshed, which meant a role
+      // granted to someone already signed in did nothing until they happened to
+      // sign out — and the symptom was silent: the proxy simply bounced them
+      // home. That is exactly what happened when permit_admin was granted for
+      // the registry. A stale token denying access the database has already
+      // allowed is not a trade worth one query.
+      //
+      // At this headcount an indexed lookup on a unique column costs nothing.
+      const email = user?.email ?? token.email;
+      if (email) {
+        const row = await resolveUser(email, user?.name ?? token.name);
         if (row) {
           token.userId = row.id;
           token.roles = row.roles;

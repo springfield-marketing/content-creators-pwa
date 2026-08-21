@@ -3,6 +3,12 @@
 // General permits: codes covering routine company content rather than one
 // client project. Work logged under an active code here is reviewed by a
 // manager — it never reaches a team lead's queue.
+//
+// Lives under /permits alongside the offplan registry so there is one place to
+// look for a permit, but the two remain different things: these decide WHO
+// REVIEWS a deliverable, offplan ones decide WHETHER A PROJECT MAY BE MARKETED.
+// Still manager-only, and still served by /api/admin/permits — the API did not
+// move, only the screen.
 
 import { useCallback, useEffect, useState } from "react";
 import {

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Stack, Text, Title } from "@mantine/core";
 import { auth } from "@/auth";
 import { ProjectSearch } from "@/components/registry/ProjectSearch";
-import { can } from "@/lib/registry/access";
+import { can, canReachRegistry } from "@/lib/registry/access";
 import { getProjects } from "@/lib/registry/queries";
 import { forRoles } from "@/lib/registry/visibility";
 
@@ -16,6 +16,10 @@ export default async function PermitsPage() {
   if (!session) redirect("/login");
 
   const roles = session.user.roles;
+  // Managers reach this section for the General tab and hold nothing in the
+  // registry, so send them there rather than showing a fully redacted list.
+  if (!canReachRegistry(roles)) redirect("/permits/general");
+
   const projects = forRoles(await getProjects(), roles);
   const showDetails = can(roles, "viewPermitDetails");
 

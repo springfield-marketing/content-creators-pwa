@@ -39,7 +39,7 @@ const NAV_GROUPS = [
     links: [
       { href: "/admin/review", label: "Queue", icon: IconChecklist },
       { href: "/admin/review-log", label: "Review log", icon: IconGavel },
-      { href: "/admin/permits", label: "General permits", icon: IconLicense },
+      { href: "/permits/general", label: "General permits", icon: IconLicense },
     ],
   },
   {
@@ -210,7 +210,7 @@ export default function AdminLayout({
                   )
                   .join(" · ")}
               </Text>
-              <Anchor component={Link} href="/admin/permits" size="sm">
+              <Anchor component={Link} href="/permits/general" size="sm">
                 Renew or switch off
               </Anchor>
             </Group>

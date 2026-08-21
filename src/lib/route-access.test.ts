@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ROUTE_ROLES, allowed } from "./route-access";
+import { can } from "./registry/access";
 import { homeFor } from "./roles";
 import type { Role } from "@/auth";
 
@@ -86,6 +87,33 @@ describe("allowed", () => {
     });
   });
 
+  describe("the permits section holds both kinds of permit", () => {
+    // /permits/general is the manager-only company-content codes; the offplan
+    // registry is the permit roles. Both live under /permits, so the prefix
+    // admits managers and the pages gate themselves beyond it.
+    it("lets a manager in for the General tab", () => {
+      expect(allowed("/permits/general", ["manager"])).toBe(true);
+    });
+
+    it("still grants a manager nothing in the registry itself", () => {
+      // Reaching the URL is not the same as being able to read permits — that
+      // is decided by the capability table, which gives manager nothing.
+      expect(can(["manager"], "viewPermitDetails")).toBe(false);
+      expect(can(["manager"], "issuePermit")).toBe(false);
+    });
+
+    it("keeps agents out of the General tab's data", () => {
+      // The route prefix admits them; /permits/general itself is manager-only
+      // and its API stays under /api/admin, which agents cannot reach.
+      expect(allowed("/api/admin/permits", ["agent"])).toBe(false);
+    });
+
+    it("does not let a team lead or executive in", () => {
+      expect(allowed("/permits", ["team_lead"])).toBe(false);
+      expect(allowed("/permits", ["executive"])).toBe(false);
+    });
+  });
+
   describe("failing shut", () => {
     it("denies a matched path with no rule", () => {
       // A new screen under a matched prefix with no entry here should lock,
@@ -126,5 +154,10 @@ describe("homeFor lands every role somewhere real", () => {
   it("sends a manager who is only an agent to the review screen", () => {
     // Eloisa and Nihaal: the content-ops job comes first.
     expect(homeFor(["manager", "agent"])).toBe("/admin/review");
+  });
+
+  it("still sends a plain manager to the review screen, not to permits", () => {
+    // /permits admits managers for the General tab, but it is not their home.
+    expect(homeFor(["manager"])).toBe("/admin/review");
   });
 });
