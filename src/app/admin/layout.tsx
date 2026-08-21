@@ -1,68 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import {
-  Alert,
-  Anchor,
-  AppShell,
-  Burger,
-  Group,
-  NavLink,
-  Text,
-} from "@mantine/core";
+import { Alert, Anchor, Group, Text } from "@mantine/core";
 import dayjs from "dayjs";
-import { UserMenu } from "@/components/UserMenu";
-import { useDisclosure } from "@mantine/hooks";
-import {
-  IconCalendarTime,
-  IconCalendarWeek,
-  IconChartBar,
-  IconChecklist,
-  IconGavel,
-  IconHistory,
-  IconLicense,
-  IconSettings,
-  IconTargetArrow,
-  IconUserShield,
-  IconUsers,
-} from "@tabler/icons-react";
+import { AppChrome, type ChromeGroup } from "@/components/AppChrome";
+import { IconLicense } from "@tabler/icons-react";
 
 // Manager shell: desktop-first sidebar, grouped by function, collapsible on
 // mobile. A team_lead only reaches the review queue, so they see just that.
-const NAV_GROUPS = [
+const NAV_GROUPS: ChromeGroup[] = [
   {
     title: "Review",
     links: [
-      { href: "/admin/review", label: "Queue", icon: IconChecklist },
-      { href: "/admin/review-log", label: "Review log", icon: IconGavel },
-      { href: "/permits/general", label: "General permits", icon: IconLicense },
+      { href: "/admin/review", label: "Queue", icon: "queue" },
+      { href: "/admin/review-log", label: "Review log", icon: "reviewLog" },
     ],
   },
   {
     title: "Schedule",
     links: [
-      { href: "/admin/schedule", label: "Weekly plan", icon: IconCalendarTime },
-      { href: "/admin/bookings", label: "Bookings", icon: IconCalendarWeek },
+      { href: "/admin/schedule", label: "Weekly plan", icon: "schedule" },
+      { href: "/admin/bookings", label: "Bookings", icon: "bookings" },
     ],
   },
   {
     title: "Insights",
     links: [
-      { href: "/admin/activity", label: "Activity", icon: IconHistory },
-      { href: "/admin/kpis", label: "KPIs", icon: IconChartBar },
-      { href: "/admin/targets", label: "Targets", icon: IconTargetArrow },
+      { href: "/admin/activity", label: "Activity", icon: "history" },
+      { href: "/admin/kpis", label: "KPIs", icon: "chart" },
+      { href: "/admin/targets", label: "Targets", icon: "targets" },
+    ],
+  },
+  {
+    title: "Permits",
+    links: [
+      { href: "/permits", label: "All permits", icon: "permits" },
+      { href: "/permits/requests", label: "Requests", icon: "requests" },
+      { href: "/permits/renew", label: "Renewals", icon: "renewals" },
     ],
   },
   {
     title: "People",
     links: [
-      { href: "/admin/creators", label: "Creators", icon: IconSettings },
-      { href: "/admin/agents", label: "Agents", icon: IconUsers },
-      { href: "/admin/team", label: "Team", icon: IconUserShield },
+      { href: "/admin/creators", label: "Creators", icon: "creators" },
+      { href: "/admin/agents", label: "Agents", icon: "users" },
+      { href: "/admin/team", label: "Team", icon: "team" },
     ],
   },
 ];
@@ -72,8 +56,6 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [opened, { toggle, close }] = useDisclosure();
-  const pathname = usePathname();
   const { data: session } = useSession();
   // A team_lead only reaches the review queue (see proxy.ts) — offering the
   // rest of the sidebar would just bounce them back out.
@@ -98,7 +80,7 @@ export default function AdminLayout({
             label: string;
             isActive: boolean;
             expiresOn: string | null;
-          }[]
+          }[],
         ) => {
           if (cancelled) return;
           const cutoff = dayjs().add(30, "day");
@@ -107,86 +89,29 @@ export default function AdminLayout({
               (p) =>
                 p.isActive &&
                 p.expiresOn !== null &&
-                dayjs(p.expiresOn).isBefore(cutoff)
-            )
+                dayjs(p.expiresOn).isBefore(cutoff),
+            ),
           );
-        }
+        },
       )
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [isManager]);
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
+  const groups = NAV_GROUPS.map((g) => ({
+    title: g.title,
+    // A team_lead only reaches the review queue (see route-access.ts) —
+    // offering the rest of the sidebar would just bounce them back out.
+    links: g.links.filter((l) => isManager || l.href === "/admin/review"),
+  })).filter((g) => g.links.length > 0);
 
   return (
-    <AppShell
-      header={{ height: 56 }}
-      navbar={{ width: 240, breakpoint: "sm", collapsed: { mobile: !opened } }}
-      padding="lg"
-    >
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group gap="sm">
-            <Burger
-              opened={opened}
-              onClick={toggle}
-              hiddenFrom="sm"
-              size="sm"
-            />
-            <Image
-              src="/S LOGO-Blue.png"
-              alt="Springfield Properties"
-              width={26}
-              height={26}
-            />
-            <Text fw={700}>Content Team · Admin</Text>
-          </Group>
-          <UserMenu showName={false} />
-        </Group>
-      </AppShell.Header>
-
-      <AppShell.Navbar p="xs">
-        {NAV_GROUPS.map((group) => {
-          const items = group.links.filter(
-            (l) => isManager || l.href === "/admin/review"
-          );
-          if (items.length === 0) return null;
-          return (
-            <div key={group.title}>
-              {isManager && (
-                <Text
-                  size="xs"
-                  fw={700}
-                  c="dimmed"
-                  tt="uppercase"
-                  px="sm"
-                  pt="md"
-                  pb={4}
-                >
-                  {group.title}
-                </Text>
-              )}
-              {items.map((link) => (
-                <NavLink
-                  key={link.href}
-                  component={Link}
-                  href={link.href}
-                  label={link.label}
-                  fw={500}
-                  leftSection={<link.icon size={20} stroke={1.5} />}
-                  active={isActive(link.href)}
-                  onClick={close}
-                />
-              ))}
-            </div>
-          );
-        })}
-      </AppShell.Navbar>
-
-      <AppShell.Main>
-        {lapsing.length > 0 && (
+    <AppChrome
+      title="Content Team · Admin"
+      groups={groups}
+      banner={
+        lapsing.length > 0 && (
           <Alert
             color={
               lapsing.some((p) => dayjs(p.expiresOn).isBefore(dayjs()))
@@ -206,18 +131,19 @@ export default function AdminLayout({
                         dayjs(p.expiresOn).isBefore(dayjs())
                           ? `expired ${dayjs(p.expiresOn).format("D MMM")}`
                           : `expires ${dayjs(p.expiresOn).format("D MMM")}`
-                      }`
+                      }`,
                   )
                   .join(" · ")}
               </Text>
-              <Anchor component={Link} href="/permits/general" size="sm">
+              <Anchor component={Link} href="/permits" size="sm">
                 Renew or switch off
               </Anchor>
             </Group>
           </Alert>
-        )}
-        {children}
-      </AppShell.Main>
-    </AppShell>
+        )
+      }
+    >
+      {children}
+    </AppChrome>
   );
 }

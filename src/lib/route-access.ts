@@ -17,10 +17,10 @@ export const ROUTE_ROLES: [string, Role[]][] = [
   ["/api/me", ["creator"]],
   ["/reports", ["executive", "manager"]],
   ["/api/reports", ["executive", "manager"]],
-  // The permits section holds both kinds. Offplan is the registry roles;
-  // /permits/general is the manager-only company-content codes, which is why
-  // manager appears here despite granting nothing in the registry itself —
-  // the pages gate themselves beyond this point.
+  // The permits section lists both kinds. Manager appears here despite
+  // granting nothing in the registry itself, because managers own the general
+  // company-content codes; the page redacts the offplan detail they have no
+  // capability for.
   //
   // Creators read offplan permits from inside their own shell at
   // /creator/permits, so they need the API but not the standalone screen.

@@ -1,14 +1,13 @@
 import { redirect } from "next/navigation";
-import { Stack, Text, Title } from "@mantine/core";
 import { auth } from "@/auth";
-import { ProjectSearch } from "@/components/registry/ProjectSearch";
+import { PermitsTable } from "@/components/registry/PermitsTable";
 import { can, canReachRegistry } from "@/lib/registry/access";
-import { getProjects } from "@/lib/registry/queries";
+import { getAllPermits } from "@/lib/registry/queries";
 import { forRoles } from "@/lib/registry/visibility";
 
-// The whole list ships to the browser so search needs no round trip, which is
-// exactly why it is redacted here first — anything the client receives is
-// readable by the user regardless of what the UI draws.
+// Every permit, both kinds, in one list. The whole set ships to the browser so
+// search needs no round trip — which is why what someone may not see is removed
+// here, on the server, rather than merely left undrawn.
 export const dynamic = "force-dynamic";
 
 export default async function PermitsPage() {
@@ -16,30 +15,43 @@ export default async function PermitsPage() {
   if (!session) redirect("/login");
 
   const roles = session.user.roles;
-  // Managers reach this section for the General tab and hold nothing in the
-  // registry, so send them there rather than showing a fully redacted list.
-  if (!canReachRegistry(roles)) redirect("/permits/general");
+  const isManager = roles.includes("manager");
+  if (!canReachRegistry(roles) && !isManager) redirect("/");
 
-  const projects = forRoles(await getProjects(), roles);
-  const showDetails = can(roles, "viewPermitDetails");
+  const all = await getAllPermits();
+
+  // The two kinds are gated on different things, so they are assembled
+  // separately rather than run through one redaction.
+  //
+  // Offplan is the registry: who sees permit numbers and QR codes comes from
+  // the capability table, and forRoles strips what an agent may not have.
+  //
+  // General codes belong to managers — they decide who reviews what. Never
+  // redacted, because a manager who cannot read the code cannot manage it; and
+  // never shown to anyone else, because it is not their business. Running these
+  // through forRoles blanked the very codes the screen exists to edit.
+  const offplan = canReachRegistry(roles)
+    ? forRoles(
+        all.filter((p) => p.category === "offplan"),
+        roles,
+      )
+    : [];
+  const general = isManager ? all.filter((p) => p.category === "general") : [];
+
+  const permits = [...offplan, ...general].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   return (
-    <Stack gap="lg">
-      <div>
-        <Title order={2}>Projects</Title>
-        <Text size="sm" c="dimmed">
-          {showDetails
-            ? "Advertising permit status across every offplan project"
-            : "Projects you can market right now"}
-        </Text>
-      </div>
-
-      <ProjectSearch
-        projects={projects}
-        showDetails={showDetails}
-        showQr={can(roles, "viewQr")}
-        mayIssue={can(roles, "issuePermit")}
-      />
-    </Stack>
+    <PermitsTable
+      permits={permits}
+      // A manager sees only general codes, which are never redacted, so the
+      // detail columns are safe to draw for them even though the capability
+      // table grants them nothing in the registry.
+      showDetails={can(roles, "viewPermitDetails") || isManager}
+      showQr={can(roles, "viewQr")}
+      mayIssue={can(roles, "issuePermit")}
+      mayManageGeneral={isManager}
+    />
   );
 }
