@@ -331,7 +331,9 @@ export const auditLog = pgTable(
     id: bigserial("id", { mode: "number" }).primaryKey(),
     actorId: uuid("actor_id"),
     entity: text("entity").notNull(),
-    entityId: uuid("entity_id").notNull(),
+    // text, not uuid: permits are integer-keyed, and an audit trail that could
+    // only record uuid entities would have to skip them entirely.
+    entityId: text("entity_id").notNull(),
     action: text("action").notNull(),
     diff: jsonb("diff"),
     // The creator an event is about (the booking/deliverable owner), for the
@@ -375,27 +377,6 @@ export const reviewDecisions = pgTable(
     ),
   ]
 );
-
-// General media permits: codes that cover routine company content (HR videos,
-// activations, social posts) rather than one client project. Work logged under
-// one of these is routed away from team leads — only managers review it.
-// `code` holds digits only; permits are typed as free text and the same permit
-// arrives spelled several ways ("PERMIT NUMBER 0275066700", "General QR code
-// 2113748196"), so both sides are reduced to digits before comparing.
-export const generalPermits = pgTable("general_permits", {
-  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  code: text("code").notNull().unique(),
-  label: text("label").notNull(), // what the permit covers, for the admin list
-  isActive: boolean("is_active").notNull().default(true),
-  // Informational only — an expired code still routes to managers until it's
-  // switched off, so a date passing never silently reassigns review work.
-  expiresOn: date("expires_on"),
-  createdBy: uuid("created_by").references(() => users.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-}, (t) => [
-  // A blank code would match every permit with no digits ("N/A", "No permit").
-  check("general_permits_code_digits", sql`${t.code} ~ '^[0-9]+$'`),
-]);
 
 // ─── Trakheesi registry ──────────────────────────────────────────────────────
 // Advertising permits for Springfield offplan projects, merged in from the
@@ -450,18 +431,43 @@ export const projects = pgTable("projects", {
     .defaultNow(),
 }, (t) => [index("projects_name").on(t.nameEn)]);
 
+// What kind of permit a row is. Text with a CHECK rather than a pgEnum: adding
+// a category later ("secondary", and whatever comes after) is then one
+// migration swapping the constraint, instead of the enum type-swap 0024 needed.
+// Postgres will not let a value added by ALTER TYPE be used in the same
+// transaction, and the migration runner puts every pending migration in one.
+export type PermitCategory = "offplan" | "general";
+
 // One row per issuance. Renewing a permit inserts a new row rather than
 // updating the old one, so the history of what was valid when is preserved.
+//
+// Holds every kind of permit. `category` says which, and what each kind
+// requires is enforced by CHECK constraints in the migration rather than by
+// column nullability, because the requirement depends on the kind:
+//   offplan — a project and a listing window
+//   general — a label, no project, and a code of digits only
 export const permits = pgTable("permits", {
   id: serial("id").primaryKey(),
-  projectId: integer("project_id")
-    .notNull()
-    .references(() => projects.id),
+  category: text("category").$type<PermitCategory>().notNull().default("offplan"),
+  // Null for a permit covering no single project. A general company-content
+  // code is exactly that, and is why this is nullable.
+  projectId: integer("project_id").references(() => projects.id),
   permitNumber: text("permit_number").notNull(),
+  // What the permit covers, where a project name cannot say it. Required for
+  // general, unused by offplan.
+  label: text("label"),
+  // General codes are switched off rather than deleted: it changes who reviews
+  // future work, and the audit trail should still explain past routing.
+  // Offplan permits are governed by their dates, so this stays true for them.
+  isActive: boolean("is_active").notNull().default(true),
   // `date` not `timestamp`: a listing window is calendar days, and timezones
   // would only introduce off-by-one errors around expiry.
-  listingStart: date("listing_start").notNull(),
-  listingEnd: date("listing_end").notNull(),
+  //
+  // Nullable so a general code can carry an expiry with no start. For general
+  // permits that expiry is informational — routing keys on isActive alone, so
+  // a date passing never silently reassigns review work.
+  listingStart: date("listing_start"),
+  listingEnd: date("listing_end"),
   qrUrl: text("qr_url"),
   qrDriveId: text("qr_drive_id"),
   permitPdfUrl: text("permit_pdf_url"),

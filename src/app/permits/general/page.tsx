@@ -37,7 +37,8 @@ import {
 } from "@tabler/icons-react";
 
 type Permit = {
-  id: string;
+  // Integer since these became rows in `permits`; the API stringifies nothing.
+  id: number;
   code: string;
   label: string;
   isActive: boolean;
