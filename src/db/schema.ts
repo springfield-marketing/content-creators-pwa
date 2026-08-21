@@ -5,7 +5,7 @@
 // Deviation from §B4: users.slug added — the public booking page is
 // /book/[creator] and needs a URL-safe identifier that isn't a UUID.
 
-import { sql } from "drizzle-orm";
+import { desc, sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
@@ -17,19 +17,31 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
 // Roles are a set, not a single value: a team leader shoots AND verifies, so
 // Ahmed is {creator,team_lead} and keeps every creator code path.
+//
+// The last three arrived with the Trakheesi registry and describe a different
+// axis: what someone may do with advertising permits, not what they do in
+// content ops. They are deliberately NOT implied by `manager` — the two
+// systems disagreed about the same people (Eloisa and Nihaal manage content
+// but are only agents against the registry), so permit rights are granted
+// per person rather than inferred. See src/lib/access.ts.
 export const userRole = pgEnum("user_role", [
   "creator",
   "team_lead",
   "manager",
   "executive",
+  "agent",
+  "marketing",
+  "permit_admin",
 ]);
 export const bookingStatus = pgEnum("booking_status", [
   "confirmed",
@@ -383,4 +395,128 @@ export const generalPermits = pgTable("general_permits", {
 }, (t) => [
   // A blank code would match every permit with no digits ("N/A", "No permit").
   check("general_permits_code_digits", sql`${t.code} ~ '^[0-9]+$'`),
+]);
+
+// ─── Trakheesi registry ──────────────────────────────────────────────────────
+// Advertising permits for Springfield offplan projects, merged in from the
+// standalone Trakheesi Registry app. Distinct from `general_permits` above:
+// those are company-content codes that decide who reviews a deliverable, these
+// are per-project DLD permits that decide whether a project may be marketed
+// at all. The two never mix — keep the vocabulary separate.
+//
+// Integer keys are inherited from the source app rather than converted to
+// uuid: nothing outside this block references them, and preserving the ids
+// keeps the migrated QR file rows pointing at the right permits.
+
+export const dldStatus = pgEnum("dld_status", ["active", "finished"]);
+export const requestStatus = pgEnum("request_status", [
+  "new",
+  "in_progress",
+  "issued",
+  "rejected",
+]);
+
+export const developers = pgTable("developers", {
+  id: serial("id").primaryKey(),
+  nameEn: text("name_en").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  // Null for developer-level permits that cover no single project, e.g. the
+  // "Aldar General QR Code" row in the source sheet. Postgres allows multiple
+  // nulls under a unique constraint, so these coexist fine.
+  dldProjectNumber: text("dld_project_number").unique(),
+  nameEn: text("name_en").notNull(),
+  developerId: integer("developer_id").references(() => developers.id),
+  emirate: text("emirate"),
+  dldStatus: dldStatus("dld_status"),
+  // Filled by a separate mapping script, not by this app.
+  wpPostId: integer("wp_post_id"),
+  // Drive folder identity is stored rather than searched for by name: with
+  // four files per permit, four concurrent searches would each find nothing
+  // and each create a folder.
+  driveFolderId: text("drive_folder_id"),
+  driveArchiveFolderId: text("drive_archive_folder_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (t) => [index("projects_name").on(t.nameEn)]);
+
+// One row per issuance. Renewing a permit inserts a new row rather than
+// updating the old one, so the history of what was valid when is preserved.
+export const permits = pgTable("permits", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .notNull()
+    .references(() => projects.id),
+  permitNumber: text("permit_number").notNull(),
+  // `date` not `timestamp`: a listing window is calendar days, and timezones
+  // would only introduce off-by-one errors around expiry.
+  listingStart: date("listing_start").notNull(),
+  listingEnd: date("listing_end").notNull(),
+  qrUrl: text("qr_url"),
+  qrDriveId: text("qr_drive_id"),
+  permitPdfUrl: text("permit_pdf_url"),
+  permitPdfDriveId: text("permit_pdf_drive_id"),
+  issuedByEmail: text("issued_by_email"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+}, (t) => [index("permits_project_end").on(t.projectId, desc(t.listingEnd))]);
+
+/**
+ * The QR images for a permit. DLD issues four sizes — original, facebook,
+ * instagram, twitter — so a single url column on `permits` could never hold
+ * them. One row per variant; the unique constraint makes re-import idempotent.
+ *
+ * `driveId` is filled in by the n8n archive workflow, not by the app.
+ */
+export const permitFiles = pgTable(
+  "permit_files",
+  {
+    id: serial("id").primaryKey(),
+    permitId: integer("permit_id")
+      .notNull()
+      .references(() => permits.id, { onDelete: "cascade" }),
+    variant: text("variant").notNull(),
+    fileName: text("file_name").notNull(),
+    url: text("url").notNull(),
+    driveId: text("drive_id"),
+    // Set once the file has been moved into the project's Archive folder,
+    // which happens when a renewal supersedes it.
+    driveArchivedAt: timestamp("drive_archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [unique("permit_files_permit_variant").on(t.permitId, t.variant)],
+);
+
+export const permitRequests = pgTable("permit_requests", {
+  id: serial("id").primaryKey(),
+  // Null when someone requests a permit for a project not yet tracked; the
+  // free-text name is what they typed.
+  projectId: integer("project_id").references(() => projects.id),
+  requestedProjectName: text("requested_project_name"),
+  // Email rather than a users FK: the requester may be an agent whose row is
+  // created on first sign-in, and the registry has always keyed on address.
+  requestedByEmail: text("requested_by_email").notNull(),
+  note: text("note"),
+  status: requestStatus("status").notNull().default("new"),
+  permitId: integer("permit_id").references(() => permits.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+}, (t) => [
+  index("permit_requests_status").on(t.status, desc(t.createdAt)),
 ]);

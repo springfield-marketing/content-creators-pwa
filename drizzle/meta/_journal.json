@@ -169,6 +169,27 @@
       "when": 1787130205403,
       "tag": "0023_deliverable_posted_url",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787292217789,
+      "tag": "0024_trakheesi_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787292855365,
+      "tag": "0025_grant_permit_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787296293290,
+      "tag": "0026_marketing_permit_admin",
+      "breakpoints": true
     }
   ]
 }

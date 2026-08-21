@@ -53,3 +53,59 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+## Trakheesi registry (merged in from the standalone app)
+
+Advertising permits for Springfield offplan projects, at `/permits`,
+`/creator/permits` and `src/lib/registry/`.
+
+**Two things are called "permits". Keep them apart.**
+
+- `general_permits` — company-content codes deciding **who reviews** a
+  deliverable. Managed at `/admin/permits`. Predates the merge; untouched by it.
+- `permits` — per-project DLD permits deciding **whether a project may be
+  marketed**. The registry.
+
+**Permit roles are a second axis, not a rank.** `agent`, `marketing` and
+`permit_admin` are granted per person and are never implied by `manager` — the
+two apps disagreed about the same people, so inferring would have handed three
+content managers the ability to issue permits. See `src/lib/registry/access.ts`.
+
+**Agents provision themselves.** Any `@springfield-re.com` Google account that
+signs in without a `users` row is created as `{agent}`. `isAllowedEmail` is
+therefore the only thing between a Google account and a session, and
+`src/proxy.ts` fails **shut** on an unmatched path.
+
+### Scope — do not design around these
+
+- DLD / Trakheesi API. Permit issuance and payment stay manual; this app is the
+  record, not the buyer.
+- WhatsApp Cloud API. Notifications go out by email.
+- Automated project-number to WordPress post mapping. A separate script owns it.
+
+The goal is to reduce workload and keep a reliable record, **not** to remove
+humans from the flow. An admin stays in the loop for payment and permit upload.
+
+### Data notes
+
+- ~400 projects; 389 permits share the same expiry, 15 Oct 2026. **Batch
+  renewal is a hard requirement, not a nice-to-have** — `/permits/renew`.
+- The 1,523 QR images live in Vercel Blob under store `v2wbfk4mwfbidj1o`
+  (`project-tracker-blob`). That id is baked into every `permit_files.url`, so
+  the store must outlive the old project and cannot be renamed. Two stores are
+  connected to this project, so `src/lib/registry/storage.ts` pins `storeId`
+  rather than letting the SDK pick — see docs/deploy.md.
+- The original source sheet had 8 duplicate project numbers, four date formats,
+  and developer-level permits with no project number ("Aldar General QR Code").
+  Its CSV importer did **not** come across — the data is migrated and that path
+  is dead. Only `parseListingDate` survives, in `src/lib/registry/dates.ts`,
+  because the renewal template still uses those formats.
+
+### Migrations here are hand-written
+
+`drizzle-kit generate` has not worked in this repo since the 0011 snapshot
+stopped being committed (`drizzle/meta/` stops at 0010, the journal has 25
+entries). Every migration from 0011 on is hand-written with a comment saying
+why. Follow that; do not try to regenerate the snapshot chain as a side quest.
