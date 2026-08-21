@@ -103,12 +103,20 @@ Every `permit_files.url` points at
 1,523 rows, so **that store can never be renamed or deleted**, and the URLs
 resolve from it whether or not any project is connected.
 
-Before retiring `project-tracker`, connect its store to this project:
-Vercel dashboard → Storage → `project-tracker-blob` → Connect Project →
-`content-creators-pwa`. There is no CLI command for this.
+`project-tracker-blob` is connected to **both** projects (done 21 Aug 2026), so
+new QR uploads can reach it. There is no CLI command for connecting a store;
+it is Vercel dashboard → Storage → Connect Project.
 
-Until that is done, existing QR codes display fine but **uploading QR images on
-a newly issued permit will fail**.
+**Both stores being connected is why `src/lib/registry/storage.ts` pins
+`storeId` explicitly.** Under OIDC the SDK resolves the store from
+`BLOB_STORE_ID`, which names *this app's own* store — so without pinning, QR
+codes issued from here would land in a different store from the 1,523 issued
+before, and `content-creators-pwa-blob` would quietly stop being empty. Anyone
+later deleting it as unused would destroy live permits.
+
+Connecting the store created `BLOB_STORE_ID_BOOKING_STORE_ID`. `storage.ts`
+reads that, with `PERMIT_BLOB_STORE_ID` as an override if the generated name
+ever changes.
 
 ## Crons
 

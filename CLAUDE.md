@@ -92,9 +92,11 @@ humans from the flow. An admin stays in the loop for payment and permit upload.
 
 - ~400 projects; 389 permits share the same expiry, 15 Oct 2026. **Batch
   renewal is a hard requirement, not a nice-to-have** — `/permits/renew`.
-- The 1,523 QR images live in Vercel Blob under store `v2wbfk4mwfbidj1o`. That
-  store id is baked into every `permit_files.url`, so the store must outlive the
-  old project and cannot be renamed.
+- The 1,523 QR images live in Vercel Blob under store `v2wbfk4mwfbidj1o`
+  (`project-tracker-blob`). That id is baked into every `permit_files.url`, so
+  the store must outlive the old project and cannot be renamed. Two stores are
+  connected to this project, so `src/lib/registry/storage.ts` pins `storeId`
+  rather than letting the SDK pick — see docs/deploy.md.
 - The original source sheet had 8 duplicate project numbers, four date formats,
   and developer-level permits with no project number ("Aldar General QR Code").
   Its CSV importer did **not** come across — the data is migrated and that path
