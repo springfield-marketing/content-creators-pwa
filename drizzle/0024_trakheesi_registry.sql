@@ -17,12 +17,22 @@
 -- disagreed about the same people (Eloisa and Nihaal manage content but are
 -- only agents against the registry), so permit rights are granted per person.
 --
--- ADD VALUE rather than the type-swap dance of 0011: Postgres only forbids
--- USING a new enum value in the transaction that added it, and nothing here
--- uses them. The grants land in their own migration, after this one commits.
-ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'agent';--> statement-breakpoint
-ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'marketing';--> statement-breakpoint
-ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'permit_admin';--> statement-breakpoint
+-- A new type plus a swap, exactly as 0011 did, and for the reason 0011 gave:
+-- the migration runner's transaction boundaries are not ours to assume.
+--
+-- ADD VALUE was tried first and failed against production. Postgres forbids
+-- USING an enum value in the transaction that ADDED it, and drizzle's migrator
+-- runs every pending migration in ONE transaction — so 0024 adding the values
+-- and 0025 granting them are the same transaction, and the grant is rejected.
+-- A value of a type CREATED in the transaction has no such restriction, which
+-- is why this form works and ADD VALUE cannot.
+--
+-- users.roles is the only dependent column and it has no default, so the swap
+-- is a single ALTER through text[].
+CREATE TYPE "public"."user_role_new" AS ENUM('creator', 'team_lead', 'manager', 'executive', 'agent', 'marketing', 'permit_admin');--> statement-breakpoint
+ALTER TABLE "users" ALTER COLUMN "roles" TYPE "public"."user_role_new"[] USING "roles"::text[]::"public"."user_role_new"[];--> statement-breakpoint
+DROP TYPE "public"."user_role";--> statement-breakpoint
+ALTER TYPE "public"."user_role_new" RENAME TO "user_role";--> statement-breakpoint
 
 CREATE TYPE "public"."dld_status" AS ENUM('active', 'finished');--> statement-breakpoint
 CREATE TYPE "public"."request_status" AS ENUM('new', 'in_progress', 'issued', 'rejected');--> statement-breakpoint

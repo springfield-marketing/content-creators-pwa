@@ -95,7 +95,10 @@ ok "registry -> $BACKUP_DIR/registry-$stamp.sql ($(du -h "$BACKUP_DIR/registry-$
 
 echo
 echo "== migrate =="
-( cd "$HERE" && DATABASE_URL="$TARGET_URL" npx drizzle-kit migrate )
+# scripts/migrate-deploy.mts, not drizzle-kit migrate: the CLI exits 1 with no
+# message when a Neon connection fails, which is indistinguishable from a
+# broken migration. This one prints the error.
+( cd "$HERE" && DATABASE_URL="$TARGET_URL" npx tsx scripts/migrate-deploy.mts )
 now=$(psql "$TARGET_URL" -tAc 'select count(*) from drizzle.__drizzle_migrations')
 ok "migrations applied: $applied -> $now"
 
