@@ -34,6 +34,7 @@ export default async function PermitsPage() {
         projects={projects}
         showDetails={showDetails}
         showQr={can(roles, "viewQr")}
+        mayIssue={can(roles, "issuePermit")}
       />
     </Stack>
   );

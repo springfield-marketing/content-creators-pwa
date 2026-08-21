@@ -16,6 +16,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus } from "@tabler/icons-react";
+import { IssuePermitDialog, type IssueTarget } from "./IssuePermitDialog";
 
 type RequestRow = {
   id: number;
@@ -46,11 +47,14 @@ const STATUS_LABEL: Record<RequestRow["status"], string> = {
 export function RequestsPanel({
   canRequest,
   showRequester,
+  canResolve = false,
   projects,
 }: {
   canRequest: boolean;
   /** Admins see the whole queue, so they need to know who asked. */
   showRequester: boolean;
+  /** Admins work the queue: issue against a request, or turn it down. */
+  canResolve?: boolean;
   projects: { id: number; name: string }[];
 }) {
   const [rows, setRows] = useState<RequestRow[] | null>(null);
@@ -58,6 +62,7 @@ export function RequestsPanel({
   const [projectName, setProjectName] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [issueTarget, setIssueTarget] = useState<IssueTarget | null>(null);
 
   const reload = useCallback(() => {
     fetch("/api/permits/requests")
@@ -114,6 +119,23 @@ export function RequestsPanel({
     });
   };
 
+  const setStatus = async (id: number, status: string) => {
+    const res = await fetch(`/api/permits/requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) {
+      notifications.show({
+        title: "Couldn't update the request",
+        message: "Try again.",
+        color: "red",
+      });
+      return;
+    }
+    reload();
+  };
+
   return (
     <>
       {canRequest && (
@@ -153,6 +175,7 @@ export function RequestsPanel({
                 <Table.Th>Note</Table.Th>
                 <Table.Th>Raised</Table.Th>
                 <Table.Th>Status</Table.Th>
+                {canResolve && <Table.Th />}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -196,6 +219,62 @@ export function RequestsPanel({
                       {STATUS_LABEL[r.status]}
                     </Badge>
                   </Table.Td>
+                  {canResolve && (
+                    <Table.Td>
+                      {/* An issued request is finished; reopening it would
+                          detach it from the permit that fulfilled it. */}
+                      {r.status !== "issued" && (
+                        <Group justify="flex-end" gap="xs" wrap="nowrap">
+                          <Button
+                            size="xs"
+                            variant="subtle"
+                            onClick={() =>
+                              setIssueTarget({
+                                projectId: r.projectId,
+                                projectName:
+                                  r.projectName ??
+                                  r.requestedProjectName ??
+                                  "",
+                                requestId: r.id,
+                              })
+                            }
+                          >
+                            Issue
+                          </Button>
+                          {r.status === "new" && (
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              color="gray"
+                              onClick={() => setStatus(r.id, "in_progress")}
+                            >
+                              Start
+                            </Button>
+                          )}
+                          {r.status !== "rejected" && (
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              color="red"
+                              onClick={() => setStatus(r.id, "rejected")}
+                            >
+                              Reject
+                            </Button>
+                          )}
+                          {r.status === "rejected" && (
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              color="gray"
+                              onClick={() => setStatus(r.id, "new")}
+                            >
+                              Reopen
+                            </Button>
+                          )}
+                        </Group>
+                      )}
+                    </Table.Td>
+                  )}
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -237,6 +316,14 @@ export function RequestsPanel({
           </Group>
         </Stack>
       </Modal>
+
+      <IssuePermitDialog
+        target={issueTarget}
+        onClose={() => {
+          setIssueTarget(null);
+          reload();
+        }}
+      />
     </>
   );
 }

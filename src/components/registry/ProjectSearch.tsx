@@ -18,6 +18,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconQrcode, IconSearch } from "@tabler/icons-react";
+import { IssuePermitDialog, type IssueTarget } from "./IssuePermitDialog";
 import { QrDialog, type QrTarget } from "./QrDialog";
 import { StatusBadge } from "./StatusBadge";
 import { STATUS_LABEL, type PermitStatus } from "@/lib/registry/permit-status";
@@ -76,15 +77,19 @@ export function ProjectSearch({
   projects,
   showDetails,
   showQr,
+  mayIssue = false,
 }: {
   projects: ProjectRow[];
   showDetails: boolean;
   showQr: boolean;
+  /** Admins issue directly; asking themselves for a permit is nonsense. */
+  mayIssue?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<Filter>("all");
   const [emirate, setEmirate] = useState("all");
   const [qrTarget, setQrTarget] = useState<QrTarget | null>(null);
+  const [issueTarget, setIssueTarget] = useState<IssueTarget | null>(null);
 
   const emirates = useMemo(
     () =>
@@ -106,6 +111,8 @@ export function ProjectSearch({
     { key: "none", label: STATUS_LABEL.none },
   ];
 
+  const hasActions = showQr || mayIssue;
+
   const agentLabel = (st: PermitStatus) =>
     showDetails ? undefined : st === "active" ? "Available" : "Not available";
 
@@ -126,6 +133,19 @@ export function ProjectSearch({
       threshold: matchSorter.rankings.CONTAINS,
     });
   }, [projects, query, status, emirate, showDetails]);
+
+  const issueButton = (p: ProjectRow) =>
+    mayIssue ? (
+      <Button
+        size="xs"
+        variant="subtle"
+        onClick={() =>
+          setIssueTarget({ projectId: p.id, projectName: p.name })
+        }
+      >
+        {p.status === "none" ? "Issue" : "Renew"}
+      </Button>
+    ) : null;
 
   const qrButton = (p: ProjectRow) => {
     if (!showQr) return null;
@@ -212,7 +232,7 @@ export function ProjectSearch({
                 {showDetails && <Table.Th>Permit #</Table.Th>}
                 {showDetails && <Table.Th>Expires</Table.Th>}
                 <Table.Th>Status</Table.Th>
-                {showQr && <Table.Th />}
+                {hasActions && <Table.Th />}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -244,9 +264,12 @@ export function ProjectSearch({
                   <Table.Td>
                     <StatusBadge status={p.status} label={agentLabel(p.status)} />
                   </Table.Td>
-                  {showQr && (
+                  {hasActions && (
                     <Table.Td>
-                      <Group justify="flex-end">{qrButton(p)}</Group>
+                      <Group justify="flex-end" gap="xs" wrap="nowrap">
+                        {issueButton(p)}
+                        {qrButton(p)}
+                      </Group>
                     </Table.Td>
                   )}
                 </Table.Tr>
@@ -300,7 +323,12 @@ export function ProjectSearch({
                 </SimpleGrid>
               )}
 
-              {showQr && <Group mt="sm">{qrButton(p)}</Group>}
+              {hasActions && (
+                <Group mt="sm" gap="xs">
+                  {issueButton(p)}
+                  {qrButton(p)}
+                </Group>
+              )}
             </Box>
           ))}
         </Stack>
@@ -318,11 +346,29 @@ export function ProjectSearch({
                 marketing before advertising it.
               </Text>
             )}
+            {/* Admins have no Request button — they would only be asking
+                themselves — so without this they could not add a project at
+                all until someone else raised a request for it. */}
+            {mayIssue && query.trim() && (
+              <Button
+                size="xs"
+                mt="sm"
+                onClick={() =>
+                  setIssueTarget({ projectId: null, projectName: query.trim() })
+                }
+              >
+                Add “{query.trim()}” and issue a permit
+              </Button>
+            )}
           </Stack>
         )}
       </Card>
 
       <QrDialog target={qrTarget} onClose={() => setQrTarget(null)} />
+      <IssuePermitDialog
+        target={issueTarget}
+        onClose={() => setIssueTarget(null)}
+      />
     </>
   );
 }

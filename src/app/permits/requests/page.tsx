@@ -36,6 +36,7 @@ export default async function PermitRequestsPage() {
       <RequestsPanel
         canRequest={can(roles, "requestPermit")}
         showRequester={seesAll}
+        canResolve={can(roles, "issuePermit")}
         projects={projects}
       />
     </Stack>

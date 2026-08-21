@@ -33,6 +33,11 @@ export default function PermitsLayout({
       label: can(roles, "viewAllRequests") ? "Requests" : "My requests",
       show: can(roles, "viewOwnRequests"),
     },
+    {
+      href: "/permits/renew",
+      label: "Renewals",
+      show: can(roles, "batchRenew"),
+    },
   ].filter((t) => t.show);
 
   return (
