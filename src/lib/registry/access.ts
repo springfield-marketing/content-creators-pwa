@@ -4,12 +4,18 @@
 // SET, matching this app, rather than the single value the registry used. A
 // capability is granted if ANY role the person holds grants it.
 //
-// The permit roles are deliberately a separate axis from the content-ops ones.
-// `manager` grants nothing here — the two apps disagreed about the same people
-// (Eloisa and Nihaal manage content but were only agents against the registry),
-// so inferring permit rights from a content-team rank would have quietly handed
-// three managers the ability to issue permits. Permit rights are granted per
-// person; see migration 0025.
+// `manager` carries the dashboard permit capabilities, because the permits tab
+// lives in the admin dashboard and exists for admins to view, edit, renew and
+// add. Offering a manager the Renewals link and then bouncing them off it was
+// the alternative, and that is what it used to do.
+//
+// This is a widening: managers who were only agents against the old registry
+// (Eloisa, Nihaal) can now issue and renew permits. `permit_admin` and
+// `marketing` remain separate roles because they grant permit rights WITHOUT
+// any content-ops access — marketing reaches /admin/permits and nothing else.
+//
+// `requestPermit` is deliberately not a manager capability: they issue permits
+// directly, so asking for one would be asking themselves.
 
 import type { Role } from "@/auth";
 
@@ -24,16 +30,16 @@ import type { Role } from "@/auth";
  */
 const CAPABILITIES = {
   /** See the permit number, project number and expiry date. */
-  viewPermitDetails: ["permit_admin", "marketing", "creator"],
+  viewPermitDetails: ["manager", "permit_admin", "marketing", "creator"],
   /** Reach the QR image at all. Enforced server-side, not just in the UI. */
-  viewQr: ["permit_admin", "marketing", "creator"],
+  viewQr: ["manager", "permit_admin", "marketing", "creator"],
   requestPermit: ["permit_admin", "marketing", "agent"],
-  issuePermit: ["permit_admin"],
+  issuePermit: ["manager", "permit_admin"],
   /** The admin queue: everyone's requests, with actions. */
-  viewAllRequests: ["permit_admin"],
+  viewAllRequests: ["manager", "permit_admin"],
   /** Raise requests and see the ones you raised. */
-  viewOwnRequests: ["permit_admin", "marketing", "agent"],
-  batchRenew: ["permit_admin"],
+  viewOwnRequests: ["manager", "permit_admin", "marketing", "agent"],
+  batchRenew: ["manager", "permit_admin"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

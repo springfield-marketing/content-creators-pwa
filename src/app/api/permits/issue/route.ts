@@ -135,6 +135,7 @@ export async function POST(req: Request) {
       permitNumber,
       listingStart,
       listingEnd,
+      notes: str("notes") || null,
       issuedByEmail: session.user.email,
     })
     .returning();

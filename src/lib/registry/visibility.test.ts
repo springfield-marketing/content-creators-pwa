@@ -89,12 +89,18 @@ describe("creators", () => {
 });
 
 describe("the content-ops roles on their own", () => {
-  it("are redacted exactly like agents", () => {
+  it("gives managers everything, since they run the permits tab", () => {
+    expect(forRoles([row], ["manager"])[0]).toEqual(row);
+  });
+
+  it("redacts team leads and executives exactly like agents", () => {
     // They hold no permit capability, so they fall through to the same
     // redaction rather than to an accidental "everything".
-    const [seen] = forRoles([row], ["manager"]);
-    expect(seen.permitNumber).toBeNull();
-    expect(seen.qrUrl).toBeNull();
-    expect(seen.dldProjectNumber).toBeNull();
+    for (const role of ["team_lead", "executive"] as const) {
+      const [seen] = forRoles([row], [role]);
+      expect(seen.permitNumber).toBeNull();
+      expect(seen.qrUrl).toBeNull();
+      expect(seen.dldProjectNumber).toBeNull();
+    }
   });
 });

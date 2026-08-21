@@ -111,11 +111,13 @@ describe("allowed", () => {
       expect(allowed("/admin", ["agent"])).toBe(false);
     });
 
-    it("still grants a manager nothing in the registry itself", () => {
-      // Reaching the screen is not the same as reading offplan permits — that
-      // is decided by the capability table. The page redacts accordingly.
-      expect(can(["manager"], "viewPermitDetails")).toBe(false);
-      expect(can(["manager"], "issuePermit")).toBe(false);
+    it("gives managers the capabilities the screen offers", () => {
+      // The sidebar shows a manager every permits link, so the capability
+      // table has to back all of them — offering a link that bounces is worse
+      // than not offering it.
+      expect(can(["manager"], "viewPermitDetails")).toBe(true);
+      expect(can(["manager"], "issuePermit")).toBe(true);
+      expect(can(["manager"], "batchRenew")).toBe(true);
     });
   });
 

@@ -46,27 +46,33 @@ describe("can", () => {
     });
   });
 
-  describe("the content-ops axis grants nothing here", () => {
-    // The whole reason permit roles are separate values rather than inferred:
-    // three people manage the content team without being registry admins, and
-    // deriving permit rights from rank would have silently promoted them.
-    it("gives a plain manager no permit rights at all", () => {
+  describe("managers run the permits tab in the dashboard", () => {
+    // The tab exists for admins to view, edit, renew and add. Offering a
+    // manager the Renewals link and then bouncing them off it was the
+    // alternative, and that is what it used to do.
+    it("lets a manager do everything the dashboard offers", () => {
       for (const capability of [
         "viewPermitDetails",
         "viewQr",
-        "requestPermit",
         "issuePermit",
         "viewAllRequests",
         "viewOwnRequests",
         "batchRenew",
       ] as const) {
-        expect(can(["manager"], capability)).toBe(false);
+        expect(can(["manager"], capability)).toBe(true);
       }
     });
 
-    it("gives team leads and executives nothing either", () => {
+    it("does not have them requesting permits from themselves", () => {
+      expect(can(["manager"], "requestPermit")).toBe(false);
+    });
+
+    it("still gives team leads and executives nothing", () => {
+      // The widening is to `manager` alone, not to content-ops generally.
       expect(can(["team_lead"], "viewQr")).toBe(false);
+      expect(can(["team_lead"], "issuePermit")).toBe(false);
       expect(can(["executive"], "viewPermitDetails")).toBe(false);
+      expect(can(["executive"], "batchRenew")).toBe(false);
     });
   });
 
@@ -75,11 +81,19 @@ describe("can", () => {
       expect(can(["manager", "permit_admin"], "issuePermit")).toBe(true);
     });
 
-    it("gives a manager who is only an agent the agent's limits", () => {
-      // Eloisa and Nihaal, exactly: managers here, agents against the registry.
+    it("gives a manager who is also an agent both sets", () => {
+      // Eloisa and Nihaal: managers here, agents against the old registry.
+      // Roles add up, so the manager half now carries the dashboard rights.
       expect(can(["manager", "agent"], "requestPermit")).toBe(true);
-      expect(can(["manager", "agent"], "viewPermitDetails")).toBe(false);
-      expect(can(["manager", "agent"], "issuePermit")).toBe(false);
+      expect(can(["manager", "agent"], "viewPermitDetails")).toBe(true);
+      expect(can(["manager", "agent"], "issuePermit")).toBe(true);
+    });
+
+    it("still lets marketing in without any content-ops access", () => {
+      // The reason permit roles remain separate values: marketing maintains
+      // permits and reaches nothing else in the dashboard.
+      expect(can(["marketing"], "viewPermitDetails")).toBe(true);
+      expect(can(["marketing"], "issuePermit")).toBe(false);
     });
 
     it("lets a creator who leads a team still read permits", () => {
@@ -96,8 +110,11 @@ describe("canReachRegistry", () => {
     expect(canReachRegistry(["creator"])).toBe(true);
   });
 
+  it("admits managers, who run the permits tab", () => {
+    expect(canReachRegistry(["manager"])).toBe(true);
+  });
+
   it("turns away the content-ops roles that have no permit business", () => {
-    expect(canReachRegistry(["manager"])).toBe(false);
     expect(canReachRegistry(["executive"])).toBe(false);
     expect(canReachRegistry(["team_lead"])).toBe(false);
   });

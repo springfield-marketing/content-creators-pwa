@@ -16,7 +16,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus } from "@tabler/icons-react";
-import { IssuePermitDialog, type IssueTarget } from "./IssuePermitDialog";
+import { AddPermitDialog, type AddTarget } from "./AddPermitDialog";
 
 type RequestRow = {
   id: number;
@@ -62,7 +62,7 @@ export function RequestsPanel({
   const [projectName, setProjectName] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [issueTarget, setIssueTarget] = useState<IssueTarget | null>(null);
+  const [issueTarget, setIssueTarget] = useState<AddTarget | null>(null);
 
   const reload = useCallback(() => {
     fetch("/api/permits/requests")
@@ -235,6 +235,7 @@ export function RequestsPanel({
                                   r.projectName ??
                                   r.requestedProjectName ??
                                   "",
+                                category: "offplan",
                                 requestId: r.id,
                               })
                             }
@@ -317,8 +318,9 @@ export function RequestsPanel({
         </Stack>
       </Modal>
 
-      <IssuePermitDialog
+      <AddPermitDialog
         target={issueTarget}
+        projects={projects}
         onClose={() => {
           setIssueTarget(null);
           reload();

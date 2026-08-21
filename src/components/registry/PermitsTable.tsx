@@ -16,8 +16,8 @@ import {
   TextInput,
 } from "@mantine/core";
 import { IconPlus, IconQrcode, IconSearch } from "@tabler/icons-react";
+import { AddPermitDialog, type AddTarget } from "./AddPermitDialog";
 import { GeneralPermitModal } from "./GeneralPermitModal";
-import { IssuePermitDialog, type IssueTarget } from "./IssuePermitDialog";
 import { QrDialog, type QrTarget } from "./QrDialog";
 import { StatusBadge } from "./StatusBadge";
 import type { PermitRow } from "@/lib/registry/queries";
@@ -45,12 +45,15 @@ function formatDate(iso: string | null) {
  */
 export function PermitsTable({
   permits,
+  projects = [],
   showDetails,
   showQr,
   mayIssue = false,
   mayManageGeneral = false,
 }: {
   permits: PermitRow[];
+  /** Existing projects, so adding a permit can attach rather than duplicate. */
+  projects?: { id: number; name: string }[];
   showDetails: boolean;
   showQr: boolean;
   mayIssue?: boolean;
@@ -59,7 +62,7 @@ export function PermitsTable({
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
   const [qrTarget, setQrTarget] = useState<QrTarget | null>(null);
-  const [issueTarget, setIssueTarget] = useState<IssueTarget | null>(null);
+  const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
   const [editing, setEditing] = useState<PermitRow | "new" | null>(null);
 
   const results = useMemo(() => {
@@ -89,7 +92,11 @@ export function PermitsTable({
             size="xs"
             variant="subtle"
             onClick={() =>
-              setIssueTarget({ projectId: p.projectId, projectName: p.name })
+              setAddTarget({
+                projectId: p.projectId,
+                projectName: p.name,
+                category: "offplan",
+              })
             }
           >
             {p.status === "none" ? "Issue" : "Renew"}
@@ -132,12 +139,18 @@ export function PermitsTable({
               : "Projects you can market right now"}
           </Text>
         </div>
-        {mayManageGeneral && (
+        {mayIssue && (
           <Button
             leftSection={<IconPlus size={16} />}
-            onClick={() => setEditing("new")}
+            onClick={() =>
+              setAddTarget({
+                projectId: null,
+                projectName: "",
+                category: "offplan",
+              })
+            }
           >
-            Add general permit
+            Add permit
           </Button>
         )}
       </Group>
@@ -300,7 +313,11 @@ export function PermitsTable({
                 size="xs"
                 mt="sm"
                 onClick={() =>
-                  setIssueTarget({ projectId: null, projectName: query.trim() })
+                  setAddTarget({
+                    projectId: null,
+                    projectName: query.trim(),
+                    category: "offplan",
+                  })
                 }
               >
                 Add “{query.trim()}” and issue a permit
@@ -311,9 +328,10 @@ export function PermitsTable({
       </Card>
 
       <QrDialog target={qrTarget} onClose={() => setQrTarget(null)} />
-      <IssuePermitDialog
-        target={issueTarget}
-        onClose={() => setIssueTarget(null)}
+      <AddPermitDialog
+        target={addTarget}
+        projects={projects}
+        onClose={() => setAddTarget(null)}
       />
       <GeneralPermitModal
         target={editing}

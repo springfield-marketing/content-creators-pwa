@@ -56,6 +56,7 @@ const createSchema = z.object({
   label: z.string().trim().min(2).max(120),
   // Optional: not every permit states one, and it only ever warns.
   expiresOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  notes: z.string().trim().max(1000).optional(),
 });
 
 export async function POST(req: Request) {
@@ -95,6 +96,7 @@ export async function POST(req: Request) {
       // A general permit's expiry is the date it stops being valid, which is
       // what listing_end means; there is no start to record.
       listingEnd: parsed.data.expiresOn ?? null,
+      notes: parsed.data.notes || null,
       issuedByEmail: session.user.email,
     })
     .returning({ id: permits.id });

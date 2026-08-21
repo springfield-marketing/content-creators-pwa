@@ -101,10 +101,19 @@ hide that work from team leads. Watch for column shadowing too: a bare
 `permit_number` inside a subquery over `deliverables` binds to the inner table,
 which is exactly how the "uses" count on the general permits screen broke.
 
-**Permit roles are a second axis, not a rank.** `agent`, `marketing` and
-`permit_admin` are granted per person and are never implied by `manager` — the
-two apps disagreed about the same people, so inferring would have handed three
-content managers the ability to issue permits. See `src/lib/registry/access.ts`.
+**Managers run the permits tab**, so `manager` carries view / issue / renew /
+queue. The tab lives in the dashboard for admins to view, edit, renew and add,
+and the alternative was offering a manager the Renewals link then bouncing them
+off it — which is what it used to do.
+
+`agent`, `marketing` and `permit_admin` stay separate roles because they grant
+permit rights WITHOUT content-ops access: marketing reaches `/admin/permits`
+and nothing else in the dashboard. See `src/lib/registry/access.ts`.
+
+**Sidebar visibility must mirror `route-access.ts`.** Offering a link that
+bounces is worse than not offering it, and `redirect()` in these pages returns
+200 with a client-side navigation — so a bad guard looks like a working page in
+anything that does not run JS.
 
 **Agents provision themselves.** Any `@springfield-re.com` Google account that
 signs in without a `users` row is created as `{agent}`. `isAllowedEmail` is
