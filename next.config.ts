@@ -13,9 +13,9 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/leaderboard", destination: "/leaderboard.html" }];
   },
-  // General permits moved next to the offplan registry, so there is one place
-  // to look for a permit. This URL was bookmarked and linked from the
-  // lapsing-permit banner for months.
+  // General permits are rows on /permits now rather than their own screen.
+  // This URL was bookmarked and linked from the lapsing-permit banner for
+  // months.
   //
   // Config rather than a page calling redirect(): under the admin shell that
   // rendered the layout and returned 200 instead of redirecting, and a moved
@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/admin/permits",
-        destination: "/permits/general",
+        destination: "/permits",
         permanent: false,
       },
     ];

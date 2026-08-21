@@ -1,6 +1,13 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { developers, permitFiles, permitRequests, permits, projects } from "@/db/schema";
+import {
+  developers,
+  permitFiles,
+  permitRequests,
+  permits,
+  projects,
+  type PermitCategory,
+} from "@/db/schema";
 import { type PermitStatus, permitStatus, todayInDubai } from "./permit-status";
 
 export type ProjectRow = {
@@ -149,4 +156,95 @@ export async function getQrFiles(projectId: number): Promise<QrFile[]> {
   return rows.sort(
     (a, b) => VARIANT_ORDER.indexOf(a.variant) - VARIANT_ORDER.indexOf(b.variant),
   );
+}
+
+export type PermitRow = {
+  id: number;
+  category: PermitCategory;
+  // Nullable because redaction blanks it — a permit always has one, but an
+  // agent never receives it. See visibility.ts.
+  permitNumber: string | null;
+  /** Project name for offplan, the permit's own label for general. */
+  name: string;
+  developer: string | null;
+  dldProjectNumber: string | null;
+  projectId: number | null;
+  listingEnd: string | null;
+  isActive: boolean;
+  status: PermitStatus;
+  qrUrl: string | null;
+  fileCount: number;
+};
+
+/**
+ * Every permit, both kinds, for the one list the app shows.
+ *
+ * Offplan rows collapse to the current permit per project — a renewal is a new
+ * row, and the list is about what is valid now, not the history. General codes
+ * have no project so each is its own row.
+ */
+export async function getAllPermits(): Promise<PermitRow[]> {
+  const today = todayInDubai();
+
+  const [rows, fileRows] = await Promise.all([
+    db
+      .select({
+        id: permits.id,
+        category: permits.category,
+        permitNumber: permits.permitNumber,
+        label: permits.label,
+        isActive: permits.isActive,
+        listingEnd: permits.listingEnd,
+        qrUrl: permits.qrUrl,
+        projectId: permits.projectId,
+        projectName: projects.nameEn,
+        dldProjectNumber: projects.dldProjectNumber,
+        developer: developers.nameEn,
+      })
+      .from(permits)
+      .leftJoin(projects, eq(permits.projectId, projects.id))
+      .leftJoin(developers, eq(projects.developerId, developers.id))
+      .orderBy(desc(permits.listingEnd)),
+    db
+      .select({ permitId: permitFiles.permitId, variant: permitFiles.variant })
+      .from(permitFiles),
+  ]);
+
+  const filesPerPermit = new Map<number, number>();
+  for (const f of fileRows)
+    filesPerPermit.set(f.permitId, (filesPerPermit.get(f.permitId) ?? 0) + 1);
+
+  // Newest-first, so the first row seen for a project is its current permit.
+  const seenProject = new Set<number>();
+  const out: PermitRow[] = [];
+
+  for (const r of rows) {
+    if (r.category === "offplan") {
+      if (r.projectId === null || seenProject.has(r.projectId)) continue;
+      seenProject.add(r.projectId);
+    }
+    out.push({
+      id: r.id,
+      category: r.category,
+      permitNumber: r.permitNumber,
+      name: (r.category === "general" ? r.label : r.projectName) ?? "—",
+      developer: r.developer,
+      dldProjectNumber: r.dldProjectNumber,
+      projectId: r.projectId,
+      listingEnd: r.listingEnd,
+      isActive: r.isActive,
+      // A general code is governed by its switch, not its dates: an expired one
+      // keeps routing work to managers until someone turns it off.
+      status:
+        r.category === "general"
+          ? r.isActive
+            ? "active"
+            : "expired"
+          : permitStatus(r.listingEnd, today),
+      qrUrl: r.qrUrl,
+      fileCount: filesPerPermit.get(r.id) ?? 0,
+    });
+  }
+
+  return out.sort((a, b) => a.name.localeCompare(b.name));
 }

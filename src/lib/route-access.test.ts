@@ -87,25 +87,24 @@ describe("allowed", () => {
     });
   });
 
-  describe("the permits section holds both kinds of permit", () => {
-    // /permits/general is the manager-only company-content codes; the offplan
-    // registry is the permit roles. Both live under /permits, so the prefix
-    // admits managers and the pages gate themselves beyond it.
-    it("lets a manager in for the General tab", () => {
-      expect(allowed("/permits/general", ["manager"])).toBe(true);
+  describe("the permits list holds both kinds of permit", () => {
+    it("lets a manager in, because they own the general codes", () => {
+      expect(allowed("/permits", ["manager"])).toBe(true);
     });
 
     it("still grants a manager nothing in the registry itself", () => {
-      // Reaching the URL is not the same as being able to read permits — that
-      // is decided by the capability table, which gives manager nothing.
+      // Reaching the list is not the same as reading offplan permits — that is
+      // decided by the capability table, which gives manager nothing. The page
+      // redacts accordingly.
       expect(can(["manager"], "viewPermitDetails")).toBe(false);
       expect(can(["manager"], "issuePermit")).toBe(false);
     });
 
-    it("keeps agents out of the General tab's data", () => {
-      // The route prefix admits them; /permits/general itself is manager-only
-      // and its API stays under /api/admin, which agents cannot reach.
+    it("keeps agents away from managing general codes", () => {
+      // The list admits them; the write API stays under /api/admin, which the
+      // route table does not open to agents.
       expect(allowed("/api/admin/permits", ["agent"])).toBe(false);
+      expect(allowed("/api/admin/permits", ["marketing"])).toBe(false);
     });
 
     it("does not let a team lead or executive in", () => {

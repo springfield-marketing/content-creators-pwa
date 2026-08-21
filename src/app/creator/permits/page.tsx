@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { Stack, Text, Title } from "@mantine/core";
 import { auth } from "@/auth";
-import { ProjectSearch } from "@/components/registry/ProjectSearch";
+import { PermitsTable } from "@/components/registry/PermitsTable";
 import { can } from "@/lib/registry/access";
-import { getProjects } from "@/lib/registry/queries";
+import { getAllPermits } from "@/lib/registry/queries";
 import { forRoles } from "@/lib/registry/visibility";
 
 // The same registry, inside the creator's mobile shell.
@@ -18,7 +18,14 @@ export default async function CreatorPermitsPage() {
   if (!session) redirect("/login");
 
   const roles = session.user.roles;
-  const projects = forRoles(await getProjects(), roles);
+  // Offplan only. General codes decide who reviews a deliverable and belong to
+  // managers; a creator looking up what they are shooting has no use for them,
+  // and the unfiltered list handed them the lot.
+  const all = await getAllPermits();
+  const permits = forRoles(
+    all.filter((p) => p.category === "offplan"),
+    roles,
+  );
 
   return (
     <Stack gap="md">
@@ -29,8 +36,8 @@ export default async function CreatorPermitsPage() {
         </Text>
       </div>
 
-      <ProjectSearch
-        projects={projects}
+      <PermitsTable
+        permits={permits}
         showDetails={can(roles, "viewPermitDetails")}
         showQr={can(roles, "viewQr")}
       />

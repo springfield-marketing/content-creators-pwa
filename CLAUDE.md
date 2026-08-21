@@ -58,8 +58,13 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ## Trakheesi registry (merged in from the standalone app)
 
-Advertising permits for Springfield offplan projects, at `/permits`,
-`/creator/permits` and `src/lib/registry/`.
+All permits, both kinds, at `/permits` — one list inside the app's own shell.
+Creators read the offplan ones from `/creator/permits` in their mobile shell.
+Logic lives in `src/lib/registry/`.
+
+The shell is `src/components/AppChrome.tsx`, shared with `/admin`. Permits once
+carried its own header and tab strip, inherited from the standalone registry,
+which made one product look like two. Don't reintroduce a second chrome.
 
 **One table, several kinds. Keep the meanings apart.**
 
@@ -68,8 +73,9 @@ Everything lives in `permits`, distinguished by `category`:
 - `offplan` — per-project DLD permits deciding **whether a project may be
   marketed**. The Trakheesi registry. Needs a project and a listing window.
 - `general` — company-content codes deciding **who reviews** a deliverable.
-  Managed at `/permits/general`. No project, a `label`, a digits-only
-  `permit_number`, and an `is_active` switch that routing keys on.
+  No project, a `label`, a digits-only `permit_number`, and an `is_active`
+  switch that routing keys on. Manager-only, and edited from a row action on
+  the same list.
 
 `category` is text with a CHECK, not a pgEnum, so the next kind (secondary, and
 whatever follows) is one migration swapping the constraint rather than the enum
