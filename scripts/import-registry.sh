@@ -22,14 +22,6 @@ set -euo pipefail
 : "${SOURCE_URL:?set SOURCE_URL to the registry database}"
 : "${TARGET_URL:?set TARGET_URL to the booking app database}"
 
-SOURCE_URL="$(unpooled "$SOURCE_URL")"
-TARGET_URL="$(unpooled "$TARGET_URL")"
-
-# FK order. permit_files depends on permits depends on projects depends on
-# developers, and pg_dump given several -t flags emits them alphabetically —
-# which is exactly the wrong order — so each table is dumped on its own.
-TABLES=(developers projects permits permit_files)
-
 # Admin work goes to the DIRECT endpoint, never Neon's pooler.
 #
 # The pooler hands back server connections without resetting search_path, and
@@ -42,6 +34,14 @@ TABLES=(developers projects permits permit_files)
 # packet and says to use an unpooled connection — which is the right answer for
 # migrations and dumps regardless.
 unpooled() { printf '%s' "${1/-pooler./.}"; }
+
+SOURCE_URL="$(unpooled "$SOURCE_URL")"
+TARGET_URL="$(unpooled "$TARGET_URL")"
+
+# FK order. permit_files depends on permits depends on projects depends on
+# developers, and pg_dump given several -t flags emits them alphabetically —
+# which is exactly the wrong order — so each table is dumped on its own.
+TABLES=(developers projects permits permit_files)
 
 echo "source: $(psql "$SOURCE_URL" -tAc 'select current_database()')"
 echo "target: $(psql "$TARGET_URL" -tAc 'select current_database()')"

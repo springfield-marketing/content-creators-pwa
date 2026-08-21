@@ -1,33 +1,33 @@
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
-import {
-  Anchor,
-  Box,
-  Container,
-  Group,
-  Text,
-} from "@mantine/core";
+import { redirect } from "next/navigation";
+import { Box, Container, Group, Text } from "@mantine/core";
+import { auth } from "@/auth";
 import { UserMenu } from "@/components/UserMenu";
-import { can } from "@/lib/registry/access";
-import type { Role } from "@/auth";
+import { PermitsNav, type PermitTab } from "@/components/registry/PermitsNav";
+import { can, canReachRegistry } from "@/lib/registry/access";
 
-// Registry shell, for the people whose whole job here is permits: booking
-// agents, marketing, and the permit admins. Creators reach the same data from
-// inside their own mobile shell at /creator/permits, so they never see this.
-export default function PermitsLayout({
+// The permits section. Two different things share it: "Offplan" is the
+// Trakheesi registry — per-project DLD permits deciding whether a project may
+// be marketed — and "General" is the company-content codes deciding who reviews
+// a deliverable. One place to look for a permit; still two separate tables.
+//
+// A server component so the tabs are decided before the HTML is sent. Reading
+// roles from useSession() here rendered an empty nav on first paint, because
+// the session is not known until the browser fetches it.
+//
+// Creators reach offplan permits from inside their own mobile shell at
+// /creator/permits and never see this.
+export default async function PermitsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const { data: session } = useSession();
-  const roles = (session?.user?.roles ?? []) as Role[];
+  const session = await auth();
+  if (!session) redirect("/login");
 
-  const tabs = [
-    { href: "/permits", label: "Projects", show: true },
+  const roles = session.user.roles;
+
+  const tabs: PermitTab[] = [
+    { href: "/permits", label: "Offplan", show: canReachRegistry(roles) },
     {
       href: "/permits/requests",
       label: can(roles, "viewAllRequests") ? "Requests" : "My requests",
@@ -38,7 +38,14 @@ export default function PermitsLayout({
       label: "Renewals",
       show: can(roles, "batchRenew"),
     },
-  ].filter((t) => t.show);
+    {
+      href: "/permits/general",
+      label: "General",
+      show: roles.includes("manager"),
+    },
+  ]
+    .filter((t) => t.show)
+    .map(({ href, label }) => ({ href, label }));
 
   return (
     <>
@@ -47,26 +54,7 @@ export default function PermitsLayout({
           <Group justify="space-between">
             <Group gap="lg">
               <Text fw={700}>Permits</Text>
-              <Group gap="md">
-                {tabs.map((tab) => {
-                  const active =
-                    tab.href === "/permits"
-                      ? pathname === "/permits"
-                      : pathname.startsWith(tab.href);
-                  return (
-                    <Anchor
-                      key={tab.href}
-                      component={Link}
-                      href={tab.href}
-                      size="sm"
-                      fw={active ? 600 : 400}
-                      c={active ? "brand" : "dimmed"}
-                    >
-                      {tab.label}
-                    </Anchor>
-                  );
-                })}
-              </Group>
+              <PermitsNav tabs={tabs} />
             </Group>
             <UserMenu />
           </Group>
