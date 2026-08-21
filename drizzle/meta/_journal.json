@@ -169,6 +169,13 @@
       "when": 1787130205403,
       "tag": "0023_deliverable_posted_url",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787292217789,
+      "tag": "0024_trakheesi_registry",
+      "breakpoints": true
     }
   ]
 }
