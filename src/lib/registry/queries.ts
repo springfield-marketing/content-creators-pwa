@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { developers, permitFiles, permitRequests, permits, projects } from "@/db/schema";
 import { type PermitStatus, permitStatus, todayInDubai } from "./permit-status";
@@ -42,6 +42,9 @@ export async function getProjects(): Promise<ProjectRow[]> {
       .from(projects)
       .leftJoin(developers, eq(projects.developerId, developers.id))
       .orderBy(projects.nameEn),
+    // Offplan only. The same table holds general company-content codes, which
+    // have no project and belong to a different screen entirely; without this
+    // they would arrive with a null projectId and pollute the map below.
     db
       .select({
         projectId: permits.projectId,
@@ -51,6 +54,7 @@ export async function getProjects(): Promise<ProjectRow[]> {
         qrUrl: permits.qrUrl,
       })
       .from(permits)
+      .where(eq(permits.category, "offplan"))
       .orderBy(desc(permits.listingEnd)),
     db
       .select({ permitId: permitFiles.permitId, variant: permitFiles.variant })
@@ -62,9 +66,12 @@ export async function getProjects(): Promise<ProjectRow[]> {
     filesPerPermit.set(f.permitId, (filesPerPermit.get(f.permitId) ?? 0) + 1);
 
   // Permits arrive newest-first, so the first one seen per project is current.
+  // projectId is nullable on the column, but the where above and the
+  // permits_offplan_shape CHECK together mean it cannot be null here.
   const current = new Map<number, (typeof permitRows)[number]>();
   const counts = new Map<number, number>();
   for (const p of permitRows) {
+    if (p.projectId === null) continue;
     if (!current.has(p.projectId)) current.set(p.projectId, p);
     counts.set(p.projectId, (counts.get(p.projectId) ?? 0) + 1);
   }
@@ -125,7 +132,7 @@ export async function getQrFiles(projectId: number): Promise<QrFile[]> {
   const [current] = await db
     .select({ id: permits.id })
     .from(permits)
-    .where(eq(permits.projectId, projectId))
+    .where(and(eq(permits.category, "offplan"), eq(permits.projectId, projectId)))
     .orderBy(desc(permits.listingEnd))
     .limit(1);
   if (!current) return [];

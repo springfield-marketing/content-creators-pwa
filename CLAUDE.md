@@ -61,12 +61,27 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 Advertising permits for Springfield offplan projects, at `/permits`,
 `/creator/permits` and `src/lib/registry/`.
 
-**Two things are called "permits". Keep them apart.**
+**One table, several kinds. Keep the meanings apart.**
 
-- `general_permits` — company-content codes deciding **who reviews** a
-  deliverable. Managed at `/admin/permits`. Predates the merge; untouched by it.
-- `permits` — per-project DLD permits deciding **whether a project may be
-  marketed**. The registry.
+Everything lives in `permits`, distinguished by `category`:
+
+- `offplan` — per-project DLD permits deciding **whether a project may be
+  marketed**. The Trakheesi registry. Needs a project and a listing window.
+- `general` — company-content codes deciding **who reviews** a deliverable.
+  Managed at `/permits/general`. No project, a `label`, a digits-only
+  `permit_number`, and an `is_active` switch that routing keys on.
+
+`category` is text with a CHECK, not a pgEnum, so the next kind (secondary, and
+whatever follows) is one migration swapping the constraint rather than the enum
+type-swap 0024 needed. Per-category shape rules are CHECK constraints —
+`permits_offplan_shape`, `permits_general_shape` — because what a row requires
+depends on its kind.
+
+**Anything reading permits must pin the category.** 32 offplan permit numbers
+also appear on deliverables, so an unpinned review-routing query would silently
+hide that work from team leads. Watch for column shadowing too: a bare
+`permit_number` inside a subquery over `deliverables` binds to the inner table,
+which is exactly how the "uses" count on the general permits screen broke.
 
 **Permit roles are a second axis, not a rank.** `agent`, `marketing` and
 `permit_admin` are granted per person and are never implied by `manager` — the

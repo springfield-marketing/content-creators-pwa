@@ -7,7 +7,7 @@ import { z } from "zod";
 import { and, eq, ne } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { generalPermits } from "@/db/schema";
+import { permits } from "@/db/schema";
 import { jsonError, parseBody } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { digitsOnly } from "@/lib/general-permits";
@@ -31,7 +31,12 @@ export async function PATCH(
   const session = await auth();
   if (!session) return jsonError(401, "Not authenticated");
 
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = Number(rawId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return jsonError(400, "Invalid permit id");
+  }
+
   const parsed = await parseBody(req, schema);
   if ("error" in parsed) return parsed.error;
   const input = parsed.data;
@@ -45,36 +50,44 @@ export async function PATCH(
       return jsonError(422, "A permit code must contain at least one digit");
     }
     const [clash] = await db
-      .select({ id: generalPermits.id })
-      .from(generalPermits)
-      .where(and(eq(generalPermits.code, code), ne(generalPermits.id, id)))
+      .select({ id: permits.id })
+      .from(permits)
+      .where(
+        and(
+          eq(permits.category, "general"),
+          eq(permits.permitNumber, code),
+          ne(permits.id, id),
+        ),
+      )
       .limit(1);
     if (clash) {
       return jsonError(409, `${code} is already on the list.`);
     }
   }
 
+  // The category guard is what stops this endpoint editing an offplan permit
+  // by id — those are issued and renewed, never toggled.
   const [updated] = await db
-    .update(generalPermits)
+    .update(permits)
     .set({
-      ...(code !== undefined ? { code } : {}),
+      ...(code !== undefined ? { permitNumber: code } : {}),
       ...(input.label !== undefined ? { label: input.label } : {}),
-      ...(input.expiresOn !== undefined ? { expiresOn: input.expiresOn } : {}),
+      ...(input.expiresOn !== undefined ? { listingEnd: input.expiresOn } : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     })
-    .where(eq(generalPermits.id, id))
-    .returning({ id: generalPermits.id, code: generalPermits.code });
+    .where(and(eq(permits.id, id), eq(permits.category, "general")))
+    .returning({ id: permits.id, code: permits.permitNumber });
   if (!updated) return jsonError(404, "Permit not found");
 
   await logAudit({
-    entity: "general_permit",
-    entityId: id,
+    entity: "permit",
+    entityId: String(id),
     action:
       input.isActive === undefined
-        ? "update"
+        ? "update_general"
         : input.isActive
-          ? "enable"
-          : "disable",
+          ? "enable_general"
+          : "disable_general",
     actorId: session.user.id,
     diff: { ...input, ...(code !== undefined ? { code } : {}) },
   });
