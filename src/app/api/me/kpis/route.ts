@@ -2,7 +2,7 @@
 
 import { NextResponse } from "next/server";
 import dayjs from "dayjs";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { agents, bookings, deliverables } from "@/db/schema";
@@ -36,6 +36,11 @@ export async function GET(req: Request) {
       )
     );
 
+  // Enough to tell one card from another: a creator with three videos back
+  // from the same shoot saw three identical cards, and the comment alone
+  // ("CHANGE FARM TO PALM PLEASE") names neither the video nor the shoot.
+  // Shoot-tied work is identified by its booking's project, untied work by the
+  // title the creator gave it — the same coalesce the review queue does.
   const revisions = await db
     .select({
       id: deliverables.id,
@@ -44,14 +49,23 @@ export async function GET(req: Request) {
       comment: deliverables.reviewComment,
       permit: deliverables.permitNumber, // editable on resubmit; required on videos
       imageCount: deliverables.imageCount, // same, for photos
+      workDate: deliverables.workDate,
+      projectName: bookings.projectName,
+      title: deliverables.title,
+      agentName: agents.fullName,
     })
     .from(deliverables)
+    .leftJoin(bookings, eq(bookings.id, deliverables.bookingId))
+    .leftJoin(agents, eq(agents.id, deliverables.agentId))
     .where(
       and(
         eq(deliverables.creatorId, session.user.id),
         eq(deliverables.reviewStatus, "needs_revision")
       )
-    );
+    )
+    // Now that the cards carry dates, they need a stable order to be read as a
+    // list rather than a reshuffling pile.
+    .orderBy(desc(deliverables.workDate));
 
   // Shoots that still owe videos — a reminder to finish submitting.
   const outstandingRows = await db

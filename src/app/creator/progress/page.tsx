@@ -53,6 +53,10 @@ type Revision = {
   comment: string | null;
   permit: string | null;
   imageCount: number | null;
+  workDate: string;
+  projectName: string | null; // the shoot this came from
+  title: string | null; // creator-supplied, for untied work
+  agentName: string | null;
 };
 type Outstanding = {
   id: string;
@@ -62,6 +66,13 @@ type Outstanding = {
   expectedVideos: number;
   submittedVideos: number;
 };
+
+// What to call a deliverable on screen. A shoot-tied one is named by its
+// project, an untied one by the title the creator gave it — and some older
+// rows carry neither.
+function nameOf(d: Revision): string {
+  return d.projectName ?? d.title ?? "Untitled";
+}
 
 // Mirror the server's URL rule so a scheme-less paste (e.g. "www.…") is caught
 // here with a clear hint, instead of failing submission with a vague error.
@@ -254,6 +265,21 @@ export default function MyProgress() {
                 {d.type === "photo_shoot" ? "Photo Shoot" : "Video Shoot"}
               </Badge>
             </Group>
+            <div>
+              <Text size="sm" fw={600} lh={1.3}>
+                {nameOf(d)}
+                {d.agentName ? ` · for ${d.agentName}` : ""}
+              </Text>
+              <Text size="xs" c="dimmed" lh={1.3}>
+                Shot {dayjs(d.workDate).format("ddd D MMM")}
+                {d.type === "video_shoot" && d.permit
+                  ? ` · Permit ${d.permit}`
+                  : ""}
+                {d.type === "photo_shoot" && d.imageCount != null
+                  ? ` · ${d.imageCount} images`
+                  : ""}
+              </Text>
+            </div>
             {d.comment && (
               <Text size="sm" c="dimmed">
                 “{d.comment}”
@@ -412,6 +438,17 @@ export default function MyProgress() {
       >
         {resubmitTarget && (
           <Stack gap="md">
+            <div>
+              <Text size="sm" fw={600} lh={1.3}>
+                {nameOf(resubmitTarget)}
+                {resubmitTarget.agentName
+                  ? ` · for ${resubmitTarget.agentName}`
+                  : ""}
+              </Text>
+              <Text size="xs" c="dimmed" lh={1.3}>
+                Shot {dayjs(resubmitTarget.workDate).format("ddd D MMM")}
+              </Text>
+            </div>
             <Alert variant="light" color="orange" icon={<IconAlertTriangle size={18} />}>
               <Text size="sm" fw={500} mb={4}>
                 What the manager asked for:
