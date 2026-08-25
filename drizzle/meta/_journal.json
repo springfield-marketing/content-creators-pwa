@@ -197,6 +197,13 @@
       "when": 1787308426372,
       "tag": "0027_permit_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1787394826372,
+      "tag": "0028_permit_emirate",
+      "breakpoints": true
     }
   ]
 }

@@ -24,6 +24,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { Emirate } from "@/lib/registry/authority";
 
 // Roles are a set, not a single value: a team leader shoots AND verifies, so
 // Ahmed is {creator,team_lead} and keeps every creator code path.
@@ -453,6 +454,12 @@ export const permits = pgTable("permits", {
   // code is exactly that, and is why this is nullable.
   projectId: integer("project_id").references(() => projects.id),
   permitNumber: text("permit_number").notNull(),
+  // Which emirate the permit covers, and so which authority issued it —
+  // Trakheesi in Dubai, Madhmoun in Abu Dhabi. Held here rather than read off
+  // the project because a general code has no project, and because the issuer
+  // is a fact about the permit. The authority itself is derived, never stored:
+  // see src/lib/registry/authority.ts.
+  emirate: text("emirate").$type<Emirate>().notNull(),
   // What the permit covers, where a project name cannot say it. Required for
   // general, unused by offplan.
   label: text("label"),

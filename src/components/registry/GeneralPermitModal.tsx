@@ -7,12 +7,14 @@ import {
   Button,
   Group,
   Modal,
+  Select,
   Stack,
   Switch,
   Text,
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { EMIRATES } from "@/lib/registry/authority";
 import type { PermitRow } from "@/lib/registry/queries";
 
 /**
@@ -61,6 +63,7 @@ function GeneralPermitForm({
   const [code, setCode] = useState(row?.permitNumber ?? "");
   const [label, setLabel] = useState(row?.name ?? "");
   const [expiresOn, setExpiresOn] = useState(row?.listingEnd ?? "");
+  const [emirate, setEmirate] = useState<string | null>(row?.emirate ?? "Dubai");
   const [isActive, setIsActive] = useState(row?.isActive ?? true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +75,7 @@ function GeneralPermitForm({
     const body = {
       code,
       label,
+      emirate,
       expiresOn: expiresOn || null,
       ...(row ? { isActive } : {}),
     };
@@ -122,6 +126,14 @@ function GeneralPermitForm({
         value={label}
         onChange={(e) => setLabel(e.currentTarget.value)}
         required
+      />
+      <Select
+        label="Emirate"
+        description="Which authority issued it — a general code has no project to take this from"
+        data={EMIRATES}
+        value={emirate}
+        onChange={setEmirate}
+        allowDeselect={false}
       />
       <TextInput
         label="Expires"

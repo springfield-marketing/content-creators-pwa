@@ -15,6 +15,7 @@ import { can } from "@/lib/registry/access";
 import { validateIssue, validateNewProject } from "@/lib/registry/issue";
 import { variantFromFileName } from "@/lib/registry/qr-import";
 import { checkUpload, saveUpload } from "@/lib/registry/storage";
+import { isEmirate } from "@/lib/registry/authority";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -87,6 +88,23 @@ export async function POST(req: Request) {
     return jsonError(422, "Unknown project.");
   }
 
+  // The permit inherits the emirate of the project it covers — that is what
+  // decides whether this is a Trakheesi or a Madhmoun permit. Read back rather
+  // than taken from the form, so an existing project cannot be issued a permit
+  // for an emirate it is not in.
+  const [project] = await db
+    .select({ emirate: projects.emirate })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (!project) return jsonError(422, "Unknown project.");
+  if (!isEmirate(project.emirate)) {
+    return jsonError(
+      422,
+      "This project has no emirate set, so there is no way to tell which authority issues its permit. Set it on the project first.",
+    );
+  }
+
   const requestId = Number(form.get("requestId"));
   const hasRequest = Number.isInteger(requestId) && requestId > 0;
 
@@ -132,6 +150,7 @@ export async function POST(req: Request) {
     .insert(permits)
     .values({
       projectId,
+      emirate: project.emirate,
       permitNumber,
       listingStart,
       listingEnd,

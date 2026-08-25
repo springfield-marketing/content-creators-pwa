@@ -21,18 +21,10 @@ import { notifications } from "@mantine/notifications";
 import { IconUpload } from "@tabler/icons-react";
 import { defaultListingEnd } from "@/lib/registry/issue";
 import type { PermitCategory } from "@/db/schema";
+// The seven, from the lib that also maps them to an issuing authority — the
+// same list the permits_emirate CHECK constraint holds.
+import { EMIRATES } from "@/lib/registry/authority";
 
-// Where the permit is issued. A fixed list rather than free text: it is one of
-// seven, and the old sheet accumulated spellings of each.
-const EMIRATES = [
-  "Dubai",
-  "Abu Dhabi",
-  "Sharjah",
-  "Ajman",
-  "Ras Al Khaimah",
-  "Fujairah",
-  "Umm Al Quwain",
-];
 
 export type AddTarget = {
   /** An existing project to renew against, or null to add a new one. */
@@ -139,6 +131,7 @@ function AddPermitForm({
       body: JSON.stringify({
         code: permitNumber,
         label,
+        emirate,
         expiresOn: end || null,
         notes: notes.trim() || undefined,
       }),
@@ -210,6 +203,17 @@ function AddPermitForm({
             { value: "offplan", label: "Offplan project" },
             { value: "general", label: "General / company" },
           ]}
+        />
+      )}
+
+      {category === "general" && (
+        <Select
+          label="Emirate"
+          description="Which authority issued this code — there is no project to take it from"
+          data={EMIRATES}
+          value={emirate}
+          onChange={setEmirate}
+          allowDeselect={false}
         />
       )}
 

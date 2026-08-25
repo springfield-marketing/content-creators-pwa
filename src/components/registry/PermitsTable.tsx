@@ -21,6 +21,7 @@ import { GeneralPermitModal } from "./GeneralPermitModal";
 import { QrDialog, type QrTarget } from "./QrDialog";
 import { StatusBadge } from "./StatusBadge";
 import type { PermitRow } from "@/lib/registry/queries";
+import { authorityLabelFor } from "@/lib/registry/authority";
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -187,6 +188,7 @@ export function PermitsTable({
               <Table.Tr>
                 <Table.Th>Permit</Table.Th>
                 {showDetails && <Table.Th>Kind</Table.Th>}
+                {showDetails && <Table.Th>Authority</Table.Th>}
                 {showDetails && <Table.Th>Number</Table.Th>}
                 {showDetails && <Table.Th>Expires</Table.Th>}
                 <Table.Th>Status</Table.Th>
@@ -215,6 +217,14 @@ export function PermitsTable({
                       >
                         {p.category === "general" ? "General" : "Offplan"}
                       </Badge>
+                    </Table.Td>
+                  )}
+                  {showDetails && (
+                    <Table.Td>
+                      <Text size="sm">{authorityLabelFor(p.emirate)}</Text>
+                      <Text size="xs" c="dimmed">
+                        {p.emirate}
+                      </Text>
                     </Table.Td>
                   )}
                   {showDetails && (
