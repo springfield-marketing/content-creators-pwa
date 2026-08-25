@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   developers,
@@ -9,6 +9,7 @@ import {
   type PermitCategory,
 } from "@/db/schema";
 import { type PermitStatus, permitStatus, todayInDubai } from "./permit-status";
+import { type Authority, authorityFor } from "./authority";
 
 export type ProjectRow = {
   id: number;
@@ -161,6 +162,9 @@ export async function getQrFiles(projectId: number): Promise<QrFile[]> {
 export type PermitRow = {
   id: number;
   category: PermitCategory;
+  emirate: string;
+  /** Derived from the emirate; null where that emirate issues no permits. */
+  authority: Authority | null;
   // Nullable because redaction blanks it — a permit always has one, but an
   // agent never receives it. See visibility.ts.
   permitNumber: string | null;
@@ -191,6 +195,7 @@ export async function getAllPermits(): Promise<PermitRow[]> {
       .select({
         id: permits.id,
         category: permits.category,
+        emirate: permits.emirate,
         permitNumber: permits.permitNumber,
         label: permits.label,
         isActive: permits.isActive,
@@ -226,6 +231,8 @@ export async function getAllPermits(): Promise<PermitRow[]> {
     out.push({
       id: r.id,
       category: r.category,
+      emirate: r.emirate,
+      authority: authorityFor(r.emirate),
       permitNumber: r.permitNumber,
       name: (r.category === "general" ? r.label : r.projectName) ?? "—",
       developer: r.developer,
@@ -247,4 +254,60 @@ export async function getAllPermits(): Promise<PermitRow[]> {
   }
 
   return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export type LapsingPermit = {
+  id: number;
+  name: string;
+  category: PermitCategory;
+  permitNumber: string;
+  listingEnd: string;
+  /** Negative once it has lapsed. */
+  daysLeft: number;
+};
+
+/**
+ * Permits at or past the end of their listing window, soonest first.
+ *
+ * Only the permit currently running for each project. A renewal is a new row
+ * and the one it replaces is kept as history — counting those would report
+ * every project ever renewed as expired, permanently.
+ *
+ * General codes appear only if they carry an expiry date. Their status is
+ * governed by the `is_active` switch rather than the calendar, so one without
+ * a date is not lapsing, it is simply on.
+ */
+export async function getLapsingPermits(
+  withinDays = 60,
+): Promise<LapsingPermit[]> {
+  const today = todayInDubai();
+
+  const { rows } = await db.execute(sql`
+    SELECT p.id,
+           p.category,
+           p.permit_number,
+           p.listing_end,
+           COALESCE(pr.name_en, p.label, '—') AS name,
+           (p.listing_end - ${today}::date) AS days_left
+    FROM (
+      SELECT DISTINCT ON (COALESCE(project_id, -id)) *
+      FROM permits
+      WHERE is_active AND listing_end IS NOT NULL
+      -- Negated id keeps every general code in a group of its own, since they
+      -- share a NULL project.
+      ORDER BY COALESCE(project_id, -id), listing_end DESC
+    ) p
+    LEFT JOIN projects pr ON pr.id = p.project_id
+    WHERE p.listing_end <= ${today}::date + ${withinDays}::int
+    ORDER BY p.listing_end, name
+  `);
+
+  return (rows as Record<string, unknown>[]).map((r) => ({
+    id: Number(r.id),
+    name: String(r.name),
+    category: r.category as PermitCategory,
+    permitNumber: String(r.permit_number),
+    listingEnd: String(r.listing_end),
+    daysLeft: Number(r.days_left),
+  }));
 }
