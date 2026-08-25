@@ -1,11 +1,15 @@
 export type IssueInput = {
   permitNumber: string;
-  listingStart: string;
+  // Optional since the one add form stopped asking for it: nothing reads a
+  // listing start — status, ordering and expiry all key on the end date — and
+  // it only ever existed to derive a default end the form now asks for
+  // directly. Still validated when a caller does supply one.
+  listingStart?: string;
   listingEnd: string;
 };
 
 export type IssueResult =
-  | { ok: true; value: IssueInput }
+  | { ok: true; value: { permitNumber: string; listingStart: string | null; listingEnd: string } }
   | { ok: false; error: string };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -23,7 +27,7 @@ function isRealIsoDate(s: string): boolean {
 
 export function validateIssue(input: IssueInput): IssueResult {
   const permitNumber = input.permitNumber.trim();
-  const listingStart = input.listingStart.trim();
+  const listingStart = input.listingStart?.trim() || null;
   const listingEnd = input.listingEnd.trim();
 
   if (!permitNumber) return { ok: false, error: "Enter the permit number." };
@@ -32,12 +36,12 @@ export function validateIssue(input: IssueInput): IssueResult {
   if (!/^\d{6,15}$/.test(permitNumber))
     return { ok: false, error: "The permit number should be 6–15 digits." };
 
-  if (!isRealIsoDate(listingStart))
+  if (listingStart !== null && !isRealIsoDate(listingStart))
     return { ok: false, error: "Enter a valid start date." };
   if (!isRealIsoDate(listingEnd))
-    return { ok: false, error: "Enter a valid end date." };
-  if (listingEnd < listingStart)
-    return { ok: false, error: "The end date cannot be before the start date." };
+    return { ok: false, error: "Enter a valid expiry date." };
+  if (listingStart !== null && listingEnd < listingStart)
+    return { ok: false, error: "The expiry cannot be before the start date." };
 
   return { ok: true, value: { permitNumber, listingStart, listingEnd } };
 }

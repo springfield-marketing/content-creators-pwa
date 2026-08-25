@@ -235,7 +235,6 @@ export function RequestsPanel({
                                   r.projectName ??
                                   r.requestedProjectName ??
                                   "",
-                                category: "offplan",
                                 requestId: r.id,
                               })
                             }

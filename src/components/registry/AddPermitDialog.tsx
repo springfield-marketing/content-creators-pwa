@@ -6,11 +6,10 @@ import {
   Alert,
   Autocomplete,
   Button,
-  Divider,
+  Checkbox,
   FileInput,
   Group,
   Modal,
-  SegmentedControl,
   Select,
   Stack,
   Text,
@@ -20,7 +19,6 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IconUpload } from "@tabler/icons-react";
 import { defaultListingEnd } from "@/lib/registry/issue";
-import type { PermitCategory } from "@/db/schema";
 // The seven, from the lib that also maps them to an issuing authority — the
 // same list the permits_emirate CHECK constraint holds.
 import { EMIRATES } from "@/lib/registry/authority";
@@ -30,17 +28,18 @@ export type AddTarget = {
   /** An existing project to renew against, or null to add a new one. */
   projectId: number | null;
   projectName: string;
-  category: PermitCategory;
   /** Closes the request this fulfils, if any. */
   requestId?: number;
 };
 
 /**
- * Add a permit of any kind, or renew an existing one.
+ * Add a permit, or renew an existing one.
  *
- * One dialog rather than one per category: they are one table and one thing a
- * person sets out to do ("add a permit"), and the category decides which
- * fields apply rather than which button to press.
+ * One form, one field set, whatever the permit covers — both kinds are
+ * Trakheesi permits and a person adding one sets out to do the same thing
+ * either way. What used to be a category switch deciding which half of the
+ * form to show is now a single checkbox saying who reviews the videos logged
+ * under it, which is the one thing the two kinds actually do differently.
  */
 export function AddPermitDialog({
   target,
@@ -57,11 +56,7 @@ export function AddPermitDialog({
       opened={!!target}
       onClose={onClose}
       title={
-        target?.projectId
-          ? `Renew — ${target.projectName}`
-          : target?.category === "general"
-            ? "Add general permit"
-            : "Add permit"
+        target?.projectId ? `Renew — ${target.projectName}` : "Add permit"
       }
       centered
       size="lg"
@@ -70,7 +65,7 @@ export function AddPermitDialog({
           admin on to the next permit. */}
       {target && (
         <AddPermitForm
-          key={`${target.category}:${target.projectId}:${target.projectName}`}
+          key={`${target.projectId}:${target.projectName}`}
           target={target}
           projects={projects}
           onClose={onClose}
@@ -92,20 +87,21 @@ function AddPermitForm({
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
 
-  const [category, setCategory] = useState<PermitCategory>(target.category);
-  // Locked to a project when renewing; free to pick or type when adding.
-  const [projectName, setProjectName] = useState(target.projectName);
+  // What the permit covers. A project name when it covers a project, whatever
+  // the code is for when it does not — the same box either way.
+  const [covers, setCovers] = useState(target.projectName);
   const [dldNumber, setDldNumber] = useState("");
   const [developer, setDeveloper] = useState("");
   const [emirate, setEmirate] = useState<string | null>("Dubai");
 
   const [permitNumber, setPermitNumber] = useState("");
-  const [label, setLabel] = useState("");
-  const [start, setStart] = useState(today);
   const [end, setEnd] = useState(() => defaultListingEnd(today));
-  const [endTouched, setEndTouched] = useState(false);
   const [notes, setNotes] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  // Off by default: a permit is a permit. On, it says this code's videos go to
+  // a manager rather than the team lead — which is the one thing the two kinds
+  // of permit genuinely do differently, so it is asked rather than guessed.
+  const [companyContent, setCompanyContent] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,55 +109,38 @@ function AddPermitForm({
   const isRenewal = target.projectId !== null;
   // An exact name match attaches to that project; anything else creates one.
   const matched = projects.find(
-    (p) => p.name.toLowerCase() === projectName.trim().toLowerCase(),
+    (p) => p.name.toLowerCase() === covers.trim().toLowerCase(),
   );
   const projectId = target.projectId ?? matched?.id ?? null;
-  const willCreateProject = category === "offplan" && projectId === null;
+  const willCreateProject = !companyContent && projectId === null;
+  const attachesToProject = !companyContent && projectId !== null;
 
-  // Permits run a year, so the end date follows the start until it is edited.
-  const onStart = (v: string) => {
-    setStart(v);
-    if (!endTouched) setEnd(defaultListingEnd(v));
-  };
+  // One endpoint for both, because it is one form and one thing being recorded.
+  const submit = async () => {
+    setSaving(true);
+    setError(null);
 
-  const saveGeneral = async () => {
-    const res = await fetch("/api/admin/permits", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code: permitNumber,
-        label,
-        emirate,
-        expiresOn: end || null,
-        notes: notes.trim() || undefined,
-      }),
-    });
-    return res;
-  };
-
-  const saveOffplan = async () => {
     const body = new FormData();
-    if (projectId !== null) {
+    body.set("permitNumber", permitNumber);
+    body.set("emirate", emirate ?? "");
+    body.set("covers", covers.trim());
+    body.set("listingEnd", end);
+    if (notes.trim()) body.set("notes", notes.trim());
+    for (const f of files) body.append("qr", f);
+
+    if (companyContent) {
+      body.set("companyContent", "true");
+    } else if (projectId !== null) {
       body.set("projectId", String(projectId));
     } else {
-      body.set("newName", projectName.trim());
+      body.set("newName", covers.trim());
       body.set("newDldNumber", dldNumber);
       body.set("newDeveloper", developer);
       body.set("newEmirate", emirate ?? "");
     }
     if (target.requestId) body.set("requestId", String(target.requestId));
-    body.set("permitNumber", permitNumber);
-    body.set("listingStart", start);
-    body.set("listingEnd", end);
-    if (notes.trim()) body.set("notes", notes.trim());
-    for (const f of files) body.append("qr", f);
-    return fetch("/api/permits/issue", { method: "POST", body });
-  };
 
-  const submit = async () => {
-    setSaving(true);
-    setError(null);
-    const res = category === "general" ? await saveGeneral() : await saveOffplan();
+    const res = await fetch("/api/permits/issue", { method: "POST", body });
     setSaving(false);
 
     if (!res.ok) {
@@ -174,16 +153,12 @@ function AddPermitForm({
     router.refresh();
     notifications.show({
       title: isRenewal ? "Permit renewed" : "Permit added",
-      message:
-        category === "general" ? label : projectName.trim() || permitNumber,
+      message: covers.trim() || permitNumber,
       color: "green",
     });
   };
 
-  const ready =
-    category === "general"
-      ? permitNumber.trim() && label.trim().length >= 2
-      : permitNumber.trim() && projectName.trim() && start && end;
+  const ready = !!permitNumber.trim() && covers.trim().length >= 2 && !!end;
 
   return (
     <Stack>
@@ -193,155 +168,90 @@ function AddPermitForm({
         </Alert>
       )}
 
-      {/* Renewing is always the same kind as what it replaces. */}
-      {!isRenewal && (
-        <SegmentedControl
-          value={category}
-          onChange={(v) => setCategory(v as PermitCategory)}
-          fullWidth
-          data={[
-            { value: "offplan", label: "Offplan project" },
-            { value: "general", label: "General / company" },
-          ]}
-        />
-      )}
+      <TextInput
+        label="Permit number"
+        placeholder="2113748196"
+        description="Paste it as you received it"
+        value={permitNumber}
+        onChange={(e) => setPermitNumber(e.currentTarget.value)}
+        required
+        data-autofocus
+      />
 
-      {category === "general" && (
+      <Group grow align="flex-start">
+        <Autocomplete
+          label="What it covers"
+          placeholder="A project name, or what the code is for"
+          description={
+            willCreateProject
+              ? "Not tracked yet — it will be recorded with this permit"
+              : "Pick a tracked project, or type anything else"
+          }
+          data={projects.map((p) => p.name)}
+          value={covers}
+          onChange={setCovers}
+          disabled={isRenewal}
+          limit={8}
+          required
+        />
         <Select
           label="Emirate"
-          description="Which authority issued this code — there is no project to take it from"
+          description={
+            attachesToProject
+              ? "Taken from the project this covers"
+              : "Decides the authority"
+          }
           data={EMIRATES}
           value={emirate}
           onChange={setEmirate}
           allowDeselect={false}
+          // A permit covering a tracked project inherits that project's
+          // emirate server-side, so offering the choice here would only let
+          // someone pick one and see another.
+          disabled={attachesToProject}
         />
-      )}
+      </Group>
 
-      {category === "offplan" ? (
-        <>
-          <Autocomplete
-            label="Project"
-            placeholder="Start typing, or type a new project name"
-            description={
-              willCreateProject
-                ? "Not tracked yet — it will be created with this permit"
-                : "Pick a tracked project to renew, or type a name to add one"
-            }
-            data={projects.map((p) => p.name)}
-            value={projectName}
-            onChange={setProjectName}
-            disabled={isRenewal}
-            limit={8}
-            required
-            data-autofocus
-          />
+      <Group grow align="flex-start">
+        <TextInput
+          label="DLD project number"
+          placeholder="4131"
+          inputMode="numeric"
+          description="Optional — company codes and developer-level permits have none"
+          value={dldNumber}
+          onChange={(e) => setDldNumber(e.currentTarget.value)}
+          disabled={companyContent || !willCreateProject}
+        />
+        <TextInput
+          label="Developer"
+          placeholder="AMIS SIGNATURE"
+          description="Optional"
+          value={developer}
+          onChange={(e) => setDeveloper(e.currentTarget.value)}
+          disabled={companyContent || !willCreateProject}
+        />
+      </Group>
 
-          {willCreateProject && (
-            <>
-              <Group grow align="flex-start">
-                <TextInput
-                  label="DLD project number"
-                  placeholder="4131"
-                  inputMode="numeric"
-                  description="Optional — developer-level permits have none"
-                  value={dldNumber}
-                  onChange={(e) => setDldNumber(e.currentTarget.value)}
-                />
-                <Select
-                  label="Emirate"
-                  data={EMIRATES}
-                  value={emirate}
-                  onChange={setEmirate}
-                  allowDeselect={false}
-                />
-              </Group>
-              <TextInput
-                label="Developer"
-                placeholder="AMIS SIGNATURE"
-                value={developer}
-                onChange={(e) => setDeveloper(e.currentTarget.value)}
-              />
-              <Divider />
-            </>
-          )}
+      <TextInput
+        label="Expires"
+        type="date"
+        description="Defaults to a year less a day"
+        value={end}
+        onChange={(e) => setEnd(e.currentTarget.value)}
+        required
+      />
 
-          <TextInput
-            label="Permit number"
-            placeholder="0487839955"
-            inputMode="numeric"
-            description="6–15 digits, as issued by DLD"
-            value={permitNumber}
-            onChange={(e) => setPermitNumber(e.currentTarget.value)}
-            required
-          />
-
-          <Group grow>
-            <TextInput
-              label="Listing start"
-              type="date"
-              value={start}
-              onChange={(e) => onStart(e.currentTarget.value)}
-              required
-            />
-            <TextInput
-              label="Listing end"
-              type="date"
-              description="Defaults to a year less a day"
-              value={end}
-              onChange={(e) => {
-                setEndTouched(true);
-                setEnd(e.currentTarget.value);
-              }}
-              required
-            />
-          </Group>
-
-          <FileInput
-            label="QR codes"
-            description="All four DLD variants at once — the variant is read from each file name"
-            placeholder="Choose files"
-            leftSection={<IconUpload size={16} />}
-            accept="image/png,image/jpeg"
-            value={files}
-            onChange={setFiles}
-            multiple
-            clearable
-          />
-        </>
-      ) : (
-        <>
-          <TextInput
-            label="Permit code"
-            placeholder="2113748196"
-            description="Paste it as you received it — everything but the digits is dropped"
-            value={permitNumber}
-            onChange={(e) => setPermitNumber(e.currentTarget.value)}
-            required
-            data-autofocus
-          />
-          <TextInput
-            label="What it covers"
-            placeholder="HR videos, activations, general social posts"
-            value={label}
-            onChange={(e) => setLabel(e.currentTarget.value)}
-            required
-          />
-          <TextInput
-            label="Expires"
-            type="date"
-            description="Optional, and a warning only — routing follows the switch"
-            value={end}
-            onChange={(e) => {
-              setEndTouched(true);
-              setEnd(e.currentTarget.value);
-            }}
-          />
-          <Text size="xs" c="dimmed">
-            Added switched on. Work logged under an active code is reviewed by a
-            manager rather than a team lead; switch it off later from the row.
-          </Text>
-        </>
-      )}
+      <FileInput
+        label="QR codes"
+        description="One, or all four DLD variants at once — the variant is read from each file name"
+        placeholder="Choose files"
+        leftSection={<IconUpload size={16} />}
+        accept="image/png,image/jpeg"
+        value={files}
+        onChange={setFiles}
+        multiple
+        clearable
+      />
 
       <Textarea
         label="Notes"
@@ -352,7 +262,25 @@ function AddPermitForm({
         autosize
       />
 
-      {category === "offplan" && (
+      {/* Renewing keeps whatever the permit it replaces was. */}
+      {!isRenewal && (
+        <>
+          <Checkbox
+            label="Company content — a manager reviews these"
+            description="For codes covering our own content rather than a project. Videos logged under one go to a manager instead of the team lead."
+            checked={companyContent}
+            onChange={(e) => setCompanyContent(e.currentTarget.checked)}
+          />
+          {companyContent && (
+            <Text size="xs" c="dimmed">
+              Added switched on, and stored as digits only. Switch it off later
+              from the row to stop it routing review.
+            </Text>
+          )}
+        </>
+      )}
+
+      {!companyContent && (
         <Text size="xs" c="dimmed">
           Recorded as a new permit; the one it replaces is kept as history.
         </Text>

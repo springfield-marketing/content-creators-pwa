@@ -1,5 +1,9 @@
-// GET  /api/admin/permits — general permit codes, with how often each is used.
-// POST /api/admin/permits — add one.
+// GET /api/admin/permits — general permit codes, with how often each is used.
+//
+// Adding one goes through /api/permits/issue with the rest, since the add form
+// became one form for every kind of permit. What is left here is the list (for
+// the "uses" count, which only makes sense for a code review routes on) and the
+// row editor in [id].
 //
 // Guarded on `issuePermit`, not left to the proxy. The proxy's rule for this
 // path is ["manager", "permit_admin", "marketing"] — the entry that lets
@@ -14,16 +18,12 @@
 // administration of who reviews what, not part of the registry agents use.
 
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { permits } from "@/db/schema";
-import { jsonError, parseBody } from "@/lib/api";
-import { logAudit } from "@/lib/audit";
-import { digitsOnly } from "@/lib/general-permits";
+import { jsonError } from "@/lib/api";
 import { can } from "@/lib/registry/access";
-import { EMIRATES } from "@/lib/registry/authority";
 
 export async function GET() {
   const session = await auth();
@@ -61,76 +61,4 @@ export async function GET() {
   return NextResponse.json(
     rows.map((r) => ({ ...r, createdAt: r.createdAt?.toISOString() ?? null }))
   );
-}
-
-const createSchema = z.object({
-  // Free text in, digits out — managers paste the permit as they received it.
-  code: z.string().trim().min(1).max(100),
-  label: z.string().trim().min(2).max(120),
-  // Asked rather than assumed: a general code has no project to inherit an
-  // emirate from, and a Dubai company code is not valid in Abu Dhabi.
-  emirate: z.enum(EMIRATES),
-  // Optional: not every permit states one, and it only ever warns.
-  expiresOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  notes: z.string().trim().max(1000).optional(),
-});
-
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session) return jsonError(401, "Not authenticated");
-  if (!can(session.user.roles, "issuePermit")) return jsonError(403, "Forbidden");
-
-  const parsed = await parseBody(req, createSchema);
-  if ("error" in parsed) return parsed.error;
-
-  const code = digitsOnly(parsed.data.code);
-  if (!code) {
-    return jsonError(422, "A permit code must contain at least one digit");
-  }
-
-  const [existing] = await db
-    .select({ id: permits.id, isActive: permits.isActive })
-    .from(permits)
-    .where(and(eq(permits.category, "general"), eq(permits.permitNumber, code)))
-    .limit(1);
-  if (existing) {
-    return NextResponse.json(
-      {
-        error: existing.isActive
-          ? `${code} is already a general permit.`
-          : `${code} is on the list but switched off — turn it back on instead.`,
-      },
-      { status: 409 }
-    );
-  }
-
-  const [created] = await db
-    .insert(permits)
-    .values({
-      category: "general",
-      permitNumber: code,
-      emirate: parsed.data.emirate,
-      label: parsed.data.label,
-      // A general permit's expiry is the date it stops being valid, which is
-      // what listing_end means; there is no start to record.
-      listingEnd: parsed.data.expiresOn ?? null,
-      notes: parsed.data.notes || null,
-      issuedByEmail: session.user.email,
-    })
-    .returning({ id: permits.id });
-
-  await logAudit({
-    entity: "permit",
-    entityId: String(created.id),
-    action: "create_general",
-    actorId: session.user.id,
-    diff: {
-      code,
-      label: parsed.data.label,
-      emirate: parsed.data.emirate,
-      expiresOn: parsed.data.expiresOn ?? null,
-    },
-  });
-
-  return NextResponse.json({ id: created.id, code }, { status: 201 });
 }

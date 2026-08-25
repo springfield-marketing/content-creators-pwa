@@ -64,7 +64,7 @@ export function PermitsTable({
   const [kind, setKind] = useState("all");
   const [qrTarget, setQrTarget] = useState<QrTarget | null>(null);
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
-  const [editing, setEditing] = useState<PermitRow | "new" | null>(null);
+  const [editing, setEditing] = useState<PermitRow | null>(null);
 
   const results = useMemo(() => {
     let rows = permits;
@@ -93,11 +93,7 @@ export function PermitsTable({
             size="xs"
             variant="subtle"
             onClick={() =>
-              setAddTarget({
-                projectId: p.projectId,
-                projectName: p.name,
-                category: "offplan",
-              })
+              setAddTarget({ projectId: p.projectId, projectName: p.name })
             }
           >
             {p.status === "none" ? "Issue" : "Renew"}
@@ -147,7 +143,6 @@ export function PermitsTable({
               setAddTarget({
                 projectId: null,
                 projectName: "",
-                category: "offplan",
               })
             }
           >
@@ -326,7 +321,6 @@ export function PermitsTable({
                   setAddTarget({
                     projectId: null,
                     projectName: query.trim(),
-                    category: "offplan",
                   })
                 }
               >

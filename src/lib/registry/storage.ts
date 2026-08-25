@@ -42,13 +42,16 @@ const PERMIT_STORE_ID =
  */
 export async function saveUpload(
   file: File,
-  projectId: number,
+  // Null for a permit covering no single project — a company-content code.
+  // Existing offplan paths are untouched, so the 1,523 migrated images keep
+  // resolving.
+  projectId: number | null,
   permitNumber: string,
   variant: string,
 ): Promise<string> {
   const ext = path.extname(file.name).toLowerCase() || ".png";
   const { url } = await put(
-    `permits/${projectId}/${permitNumber}-${variant}${ext}`,
+    `permits/${projectId ?? "company"}/${permitNumber}-${variant}${ext}`,
     file,
     {
       access: "public",

@@ -29,22 +29,21 @@ export function GeneralPermitModal({
   target,
   onClose,
 }: {
-  /** A row to edit, "new" to add one, or null for closed. */
-  target: PermitRow | "new" | null;
+  /** The row to edit, or null for closed. Adding goes through the add form. */
+  target: PermitRow | null;
   onClose: () => void;
 }) {
-  const isNew = target === "new";
   return (
     <Modal
       opened={!!target}
       onClose={onClose}
-      title={isNew ? "Add general permit" : "Edit general permit"}
+      title="Edit permit"
       centered
     >
       {target && (
         <GeneralPermitForm
-          key={isNew ? "new" : target.id}
-          row={isNew ? null : target}
+          key={target.id}
+          row={target}
           onClose={onClose}
         />
       )}
@@ -56,7 +55,7 @@ function GeneralPermitForm({
   row,
   onClose,
 }: {
-  row: PermitRow | null;
+  row: PermitRow;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -77,12 +76,12 @@ function GeneralPermitForm({
       label,
       emirate,
       expiresOn: expiresOn || null,
-      ...(row ? { isActive } : {}),
+      isActive,
     };
     const res = await fetch(
-      row ? `/api/admin/permits/${row.id}` : "/api/admin/permits",
+      `/api/admin/permits/${row.id}`,
       {
-        method: row ? "PATCH" : "POST",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
@@ -98,7 +97,7 @@ function GeneralPermitForm({
     onClose();
     router.refresh();
     notifications.show({
-      title: row ? "Permit updated" : "Permit added",
+      title: "Permit updated",
       message: label,
       color: "green",
     });

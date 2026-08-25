@@ -33,10 +33,22 @@ describe("validateIssue", () => {
     expect(validateIssue({ ...valid, permitNumber: "1".repeat(20) }).ok).toBe(false);
   });
 
-  it("rejects missing or malformed dates", () => {
-    expect(validateIssue({ ...valid, listingStart: "" }).ok).toBe(false);
+  it("rejects a malformed date", () => {
     expect(validateIssue({ ...valid, listingStart: "15/10/2026" }).ok).toBe(false);
     expect(validateIssue({ ...valid, listingEnd: "2026-13-01" }).ok).toBe(false);
+    expect(validateIssue({ ...valid, listingEnd: "" }).ok).toBe(false);
+  });
+
+  it("accepts a permit with no start date", () => {
+    // The one add form asks for an expiry and nothing else date-shaped;
+    // nothing reads a listing start, so an absent one is not an error.
+    expect(validateIssue({ ...valid, listingStart: "" }).ok).toBe(true);
+    expect(validateIssue({ ...valid, listingStart: undefined }).ok).toBe(true);
+    const r = validateIssue({ permitNumber: "0987654321", listingEnd: "2027-10-15" });
+    expect(r).toEqual({
+      ok: true,
+      value: { permitNumber: "0987654321", listingStart: null, listingEnd: "2027-10-15" },
+    });
   });
 
   it("rejects an end date before the start", () => {
@@ -47,7 +59,7 @@ describe("validateIssue", () => {
     });
     expect(r).toEqual({
       ok: false,
-      error: "The end date cannot be before the start date.",
+      error: "The expiry cannot be before the start date.",
     });
   });
 
