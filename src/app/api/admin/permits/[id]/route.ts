@@ -11,6 +11,8 @@ import { permits } from "@/db/schema";
 import { jsonError, parseBody } from "@/lib/api";
 import { logAudit } from "@/lib/audit";
 import { digitsOnly } from "@/lib/general-permits";
+import { can } from "@/lib/registry/access";
+import { EMIRATES } from "@/lib/registry/authority";
 
 // All optional: the row toggle sends only isActive, the edit form sends the
 // rest. At least one field has to be present or there's nothing to do.
@@ -19,6 +21,9 @@ const schema = z
     isActive: z.boolean(),
     code: z.string().trim().min(1).max(100),
     label: z.string().trim().min(2).max(120),
+    // Correctable: the emirate decides which authority the code belongs to,
+    // and one set wrong on creation would otherwise be stuck that way.
+    emirate: z.enum(EMIRATES),
     expiresOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
   })
   .partial()
@@ -30,6 +35,9 @@ export async function PATCH(
 ) {
   const session = await auth();
   if (!session) return jsonError(401, "Not authenticated");
+  // Same reasoning as the list route: the proxy lets marketing reach this path
+  // for the offplan registry, and editing a general code is not theirs.
+  if (!can(session.user.roles, "issuePermit")) return jsonError(403, "Forbidden");
 
   const { id: rawId } = await params;
   const id = Number(rawId);
@@ -73,6 +81,7 @@ export async function PATCH(
       ...(code !== undefined ? { permitNumber: code } : {}),
       ...(input.label !== undefined ? { label: input.label } : {}),
       ...(input.expiresOn !== undefined ? { listingEnd: input.expiresOn } : {}),
+      ...(input.emirate !== undefined ? { emirate: input.emirate } : {}),
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     })
     .where(and(eq(permits.id, id), eq(permits.category, "general")))
