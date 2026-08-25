@@ -15,6 +15,7 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { EMIRATES } from "@/lib/registry/authority";
+import { FieldLabel } from "./FieldLabel";
 import type { PermitRow } from "@/lib/registry/queries";
 
 /**
@@ -112,8 +113,11 @@ function GeneralPermitForm({
       )}
 
       <TextInput
-        label="Permit code"
-        description="Paste it as you received it — everything but the digits is dropped"
+        label={
+          <FieldLabel hint="Paste it as you received it — everything but the digits is dropped.">
+            Permit code
+          </FieldLabel>
+        }
         value={code}
         onChange={(e) => setCode(e.currentTarget.value)}
         required
@@ -127,17 +131,23 @@ function GeneralPermitForm({
         required
       />
       <Select
-        label="Emirate"
-        description="Which authority issued it — a general code has no project to take this from"
+        label={
+          <FieldLabel hint="Which authority issued it — a general code has no project to take this from.">
+            Emirate
+          </FieldLabel>
+        }
         data={EMIRATES}
         value={emirate}
         onChange={setEmirate}
         allowDeselect={false}
       />
       <TextInput
-        label="Expires"
+        label={
+          <FieldLabel hint="Optional, and a warning only — routing follows the Active switch below.">
+            Expires
+          </FieldLabel>
+        }
         type="date"
-        description="Optional, and a warning only — routing follows the switch below"
         value={expiresOn}
         onChange={(e) => setExpiresOn(e.currentTarget.value)}
       />

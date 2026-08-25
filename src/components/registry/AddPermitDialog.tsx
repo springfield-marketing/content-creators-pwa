@@ -12,7 +12,6 @@ import {
   Modal,
   Select,
   Stack,
-  Text,
   TextInput,
   Textarea,
 } from "@mantine/core";
@@ -22,6 +21,7 @@ import { defaultListingEnd } from "@/lib/registry/issue";
 // The seven, from the lib that also maps them to an issuing authority — the
 // same list the permits_emirate CHECK constraint holds.
 import { EMIRATES } from "@/lib/registry/authority";
+import { FieldLabel } from "./FieldLabel";
 
 
 export type AddTarget = {
@@ -174,18 +174,20 @@ function AddPermitForm({
 
       <Group grow align="flex-start">
         <TextInput
-          label="Permit number"
+          label={<FieldLabel hint="Paste it as you received it.">Permit number</FieldLabel>}
           placeholder="2113748196"
-          description="Paste it as you received it"
           value={permitNumber}
           onChange={(e) => setPermitNumber(e.currentTarget.value)}
           required
           data-autofocus
         />
         <TextInput
-          label="Transaction number"
+          label={
+            <FieldLabel hint="Optional. The DLD transaction this permit was issued against.">
+              Transaction number
+            </FieldLabel>
+          }
           placeholder="Optional"
-          description="The DLD transaction it was issued against"
           value={transactionNumber}
           onChange={(e) => setTransactionNumber(e.currentTarget.value)}
         />
@@ -193,13 +195,20 @@ function AddPermitForm({
 
       <Group grow align="flex-start">
         <Autocomplete
-          label="What it covers"
-          placeholder="A project name, or what the code is for"
-          description={
-            willCreateProject
-              ? "Not tracked yet — it will be recorded with this permit"
-              : "Pick a tracked project, or type anything else"
+          label={
+            <FieldLabel
+              hint={
+                companyContent
+                  ? "What the code is for — HR videos, activations, general social posts."
+                  : willCreateProject
+                    ? "Not tracked yet. This project will be recorded along with the permit."
+                    : "Attaches to this tracked project. Recorded as a new permit; the one it replaces is kept as history."
+              }
+            >
+              What it covers
+            </FieldLabel>
           }
+          placeholder="A project name, or what the code is for"
           data={projects.map((p) => p.name)}
           value={covers}
           onChange={setCovers}
@@ -208,11 +217,16 @@ function AddPermitForm({
           required
         />
         <Select
-          label="Emirate"
-          description={
-            attachesToProject
-              ? "Taken from the project this covers"
-              : "Decides the authority"
+          label={
+            <FieldLabel
+              hint={
+                attachesToProject
+                  ? "Taken from the project this covers."
+                  : "Decides which authority issued it — Trakheesi in Dubai, Madhmoun in Abu Dhabi."
+              }
+            >
+              Emirate
+            </FieldLabel>
           }
           data={EMIRATES}
           value={emirate}
@@ -227,44 +241,53 @@ function AddPermitForm({
 
       <Group grow align="flex-start">
         <TextInput
-          label="DLD project number"
+          label={
+            <FieldLabel hint="Optional. Company codes and developer-level permits have none.">
+              DLD project number
+            </FieldLabel>
+          }
           placeholder="4131"
           inputMode="numeric"
-          description="Optional — company codes and developer-level permits have none"
           value={dldNumber}
           onChange={(e) => setDldNumber(e.currentTarget.value)}
           disabled={companyContent || !willCreateProject}
         />
         <TextInput
           label="Developer"
-          placeholder="AMIS SIGNATURE"
-          description="Optional"
+          placeholder="Optional"
           value={developer}
           onChange={(e) => setDeveloper(e.currentTarget.value)}
           disabled={companyContent || !willCreateProject}
         />
       </Group>
 
-      <TextInput
-        label="Expires"
-        type="date"
-        description="Defaults to a year less a day"
-        value={end}
-        onChange={(e) => setEnd(e.currentTarget.value)}
-        required
-      />
-
-      <FileInput
-        label="QR codes"
-        description="One, or all four DLD variants at once — the variant is read from each file name"
-        placeholder="Choose files"
-        leftSection={<IconUpload size={16} />}
-        accept="image/png,image/jpeg"
-        value={files}
-        onChange={setFiles}
-        multiple
-        clearable
-      />
+      <Group grow align="flex-start">
+        <TextInput
+          label={
+            <FieldLabel hint="Defaults to a year less a day from today.">
+              Expires
+            </FieldLabel>
+          }
+          type="date"
+          value={end}
+          onChange={(e) => setEnd(e.currentTarget.value)}
+          required
+        />
+        <FileInput
+          label={
+            <FieldLabel hint="One, or all four DLD variants at once — the variant is read from each file name.">
+              QR codes
+            </FieldLabel>
+          }
+          placeholder="Choose files"
+          leftSection={<IconUpload size={16} />}
+          accept="image/png,image/jpeg"
+          value={files}
+          onChange={setFiles}
+          multiple
+          clearable
+        />
+      </Group>
 
       <Textarea
         label="Notes"
@@ -277,26 +300,15 @@ function AddPermitForm({
 
       {/* Renewing keeps whatever the permit it replaces was. */}
       {!isRenewal && (
-        <>
-          <Checkbox
-            label="Company content — a manager reviews these"
-            description="For codes covering our own content rather than a project. Videos logged under one go to a manager instead of the team lead."
-            checked={companyContent}
-            onChange={(e) => setCompanyContent(e.currentTarget.checked)}
-          />
-          {companyContent && (
-            <Text size="xs" c="dimmed">
-              Added switched on, and stored as digits only. Switch it off later
-              from the row to stop it routing review.
-            </Text>
-          )}
-        </>
-      )}
-
-      {!companyContent && (
-        <Text size="xs" c="dimmed">
-          Recorded as a new permit; the one it replaces is kept as history.
-        </Text>
+        <Checkbox
+          label={
+            <FieldLabel hint="For codes covering our own content rather than a project. Videos logged under one go to a manager instead of the team lead, the code is stored as digits only, and it is added switched on — switch it off later from the row to stop it routing review.">
+              Company content — a manager reviews these
+            </FieldLabel>
+          }
+          checked={companyContent}
+          onChange={(e) => setCompanyContent(e.currentTarget.checked)}
+        />
       )}
 
       <Group justify="flex-end">
