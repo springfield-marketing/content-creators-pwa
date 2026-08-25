@@ -132,8 +132,12 @@ humans from the flow. An admin stays in the loop for payment and permit upload.
 
 ### Data notes
 
-- ~400 projects; 389 permits share the same expiry, 15 Oct 2026. **Batch
-  renewal is a hard requirement, not a nice-to-have** — `/permits/renew`.
+- ~400 projects; 389 permits share the same expiry, 15 Oct 2026. Batch renewal
+  was built for that cliff and has been **removed at the owner's direction** —
+  permits are renewed one at a time from the row action on `/admin/permits`,
+  which issues the replacement and keeps the old row as history. Do not
+  reintroduce a bulk path without asking; the October round is meant to be done
+  permit by permit.
 - The 1,523 QR images live in Vercel Blob under store `v2wbfk4mwfbidj1o`
   (`project-tracker-blob`). That id is baked into every `permit_files.url`, so
   the store must outlive the old project and cannot be renamed. Two stores are
@@ -142,8 +146,9 @@ humans from the flow. An admin stays in the loop for payment and permit upload.
 - The original source sheet had 8 duplicate project numbers, four date formats,
   and developer-level permits with no project number ("Aldar General QR Code").
   Its CSV importer did **not** come across — the data is migrated and that path
-  is dead. Only `parseListingDate` survives, in `src/lib/registry/dates.ts`,
-  because the renewal template still uses those formats.
+  is dead. `parseListingDate` outlived it for the renewal template, and went
+  with that template when batch renewal was removed; no CSV is parsed anywhere
+  in this app now.
 
 ### Migrations here are hand-written
 

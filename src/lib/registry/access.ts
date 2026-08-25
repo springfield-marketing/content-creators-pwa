@@ -39,7 +39,9 @@ const CAPABILITIES = {
   viewAllRequests: ["manager", "permit_admin"],
   /** Raise requests and see the ones you raised. */
   viewOwnRequests: ["manager", "permit_admin", "marketing", "agent"],
-  batchRenew: ["manager", "permit_admin"],
+  // batchRenew was here. Permits are renewed one at a time from the row action
+  // on the permits list, which is `issuePermit` — a renewal issues the permit
+  // that replaces the old one, and the old row is kept as history either way.
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

@@ -6,7 +6,6 @@ describe("can", () => {
     expect(can(["permit_admin"], "viewQr")).toBe(true);
     expect(can(["permit_admin"], "issuePermit")).toBe(true);
     expect(can(["permit_admin"], "viewAllRequests")).toBe(true);
-    expect(can(["permit_admin"], "batchRenew")).toBe(true);
   });
 
   it("lets marketing download and request but not issue", () => {
@@ -42,7 +41,6 @@ describe("can", () => {
       expect(can(["creator"], "requestPermit")).toBe(false);
       expect(can(["creator"], "issuePermit")).toBe(false);
       expect(can(["creator"], "viewOwnRequests")).toBe(false);
-      expect(can(["creator"], "batchRenew")).toBe(false);
     });
   });
 
@@ -57,7 +55,6 @@ describe("can", () => {
         "issuePermit",
         "viewAllRequests",
         "viewOwnRequests",
-        "batchRenew",
       ] as const) {
         expect(can(["manager"], capability)).toBe(true);
       }
@@ -72,7 +69,7 @@ describe("can", () => {
       expect(can(["team_lead"], "viewQr")).toBe(false);
       expect(can(["team_lead"], "issuePermit")).toBe(false);
       expect(can(["executive"], "viewPermitDetails")).toBe(false);
-      expect(can(["executive"], "batchRenew")).toBe(false);
+      expect(can(["executive"], "issuePermit")).toBe(false);
     });
   });
 

@@ -91,9 +91,20 @@ describe("allowed", () => {
     it("admits the people who maintain them", () => {
       for (const role of ["manager", "permit_admin", "marketing"] as const) {
         expect(allowed("/admin/permits", [role])).toBe(true);
-        expect(allowed("/admin/permits/renew", [role])).toBe(true);
         expect(allowed("/api/admin/permits", [role])).toBe(true);
       }
+    });
+
+    it("keeps marketing on the screens its capabilities cover", () => {
+      // Renewal is now a row action on the list rather than a screen of its
+      // own, so /admin/permits and /admin/permits/requests are the whole
+      // surface — and marketing holds a capability for each.
+      expect(allowed("/admin/permits", ["marketing"])).toBe(true);
+      expect(allowed("/admin/permits/requests", ["marketing"])).toBe(true);
+      expect(can(["marketing"], "viewPermitDetails")).toBe(true);
+      expect(can(["marketing"], "viewOwnRequests")).toBe(true);
+      // Issuing, and so renewing, is still not theirs.
+      expect(can(["marketing"], "issuePermit")).toBe(false);
     });
 
     it("lets marketing in for permits WITHOUT opening the rest of admin", () => {
@@ -117,7 +128,7 @@ describe("allowed", () => {
       // than not offering it.
       expect(can(["manager"], "viewPermitDetails")).toBe(true);
       expect(can(["manager"], "issuePermit")).toBe(true);
-      expect(can(["manager"], "batchRenew")).toBe(true);
+      expect(can(["manager"], "viewAllRequests")).toBe(true);
     });
   });
 

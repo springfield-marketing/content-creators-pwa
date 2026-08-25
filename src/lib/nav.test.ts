@@ -8,7 +8,6 @@ const SIDEBAR = [
   "/admin/review-log",
   "/admin/permits",
   "/admin/permits/requests",
-  "/admin/permits/renew",
   "/admin/schedule",
   "/admin/bookings",
   "/admin/activity",
@@ -25,9 +24,6 @@ describe("activeNavHref", () => {
     // because /admin/permits/requests does start with /admin/permits.
     expect(activeNavHref("/admin/permits/requests", SIDEBAR)).toBe(
       "/admin/permits/requests",
-    );
-    expect(activeNavHref("/admin/permits/renew", SIDEBAR)).toBe(
-      "/admin/permits/renew",
     );
   });
 
@@ -59,7 +55,6 @@ describe("activeNavHref", () => {
     for (const path of [
       "/admin/permits",
       "/admin/permits/requests",
-      "/admin/permits/renew",
       "/admin/review",
       "/admin/review-log",
       "/admin/creators/abc-123",
