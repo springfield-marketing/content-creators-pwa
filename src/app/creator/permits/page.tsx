@@ -18,12 +18,18 @@ export default async function CreatorPermitsPage() {
   if (!session) redirect("/login");
 
   const roles = session.user.roles;
-  // Offplan only. General codes decide who reviews a deliverable and belong to
-  // managers; a creator looking up what they are shooting has no use for them,
-  // and the unfiltered list handed them the lot.
+  // Both kinds. General codes were withheld here on the reasoning that they
+  // decide who reviews a deliverable and so belong to managers — but that is
+  // what the code *does*, not what a creator needs it for: company content is
+  // logged under one, and 78 deliverables across 8 creators already carry a
+  // general number typed from memory. Reading it here is the whole point of
+  // the screen.
+  //
+  // A switched-off code is withheld, though: it no longer routes review, so
+  // logging one would be wrong.
   const all = await getAllPermits();
   const permits = forRoles(
-    all.filter((p) => p.category === "offplan"),
+    all.filter((p) => p.category !== "general" || p.isActive),
     roles,
   );
 
