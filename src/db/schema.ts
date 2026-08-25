@@ -454,6 +454,9 @@ export const permits = pgTable("permits", {
   // code is exactly that, and is why this is nullable.
   projectId: integer("project_id").references(() => projects.id),
   permitNumber: text("permit_number").notNull(),
+  // The DLD transaction the permit was issued against. Optional, and free text:
+  // it is a reference copied off the paperwork, not something matched on.
+  transactionNumber: text("transaction_number"),
   // Which emirate the permit covers, and so which authority issued it —
   // Trakheesi in Dubai, Madhmoun in Abu Dhabi. Held here rather than read off
   // the project because a general code has no project, and because the issuer

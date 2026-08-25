@@ -95,6 +95,7 @@ function AddPermitForm({
   const [emirate, setEmirate] = useState<string | null>("Dubai");
 
   const [permitNumber, setPermitNumber] = useState("");
+  const [transactionNumber, setTransactionNumber] = useState("");
   const [end, setEnd] = useState(() => defaultListingEnd(today));
   const [notes, setNotes] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -122,6 +123,9 @@ function AddPermitForm({
 
     const body = new FormData();
     body.set("permitNumber", permitNumber);
+    if (transactionNumber.trim()) {
+      body.set("transactionNumber", transactionNumber.trim());
+    }
     body.set("emirate", emirate ?? "");
     body.set("covers", covers.trim());
     body.set("listingEnd", end);
@@ -168,15 +172,24 @@ function AddPermitForm({
         </Alert>
       )}
 
-      <TextInput
-        label="Permit number"
-        placeholder="2113748196"
-        description="Paste it as you received it"
-        value={permitNumber}
-        onChange={(e) => setPermitNumber(e.currentTarget.value)}
-        required
-        data-autofocus
-      />
+      <Group grow align="flex-start">
+        <TextInput
+          label="Permit number"
+          placeholder="2113748196"
+          description="Paste it as you received it"
+          value={permitNumber}
+          onChange={(e) => setPermitNumber(e.currentTarget.value)}
+          required
+          data-autofocus
+        />
+        <TextInput
+          label="Transaction number"
+          placeholder="Optional"
+          description="The DLD transaction it was issued against"
+          value={transactionNumber}
+          onChange={(e) => setTransactionNumber(e.currentTarget.value)}
+        />
+      </Group>
 
       <Group grow align="flex-start">
         <Autocomplete

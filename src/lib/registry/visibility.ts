@@ -13,6 +13,9 @@ import type { Role } from "@/auth";
 type Redactable = {
   dldProjectNumber: string | null;
   permitNumber: string | null;
+  // Optional for the same reason otherPermits is handled below: this shape is
+  // shared with the projects list, and a project has no transaction number.
+  transactionNumber?: string | null;
   listingEnd: string | null;
   qrUrl: string | null;
   fileCount: number;
@@ -43,6 +46,9 @@ export function forRoles<T extends Redactable>(rows: T[], roles: Role[]): T[] {
           // Present on the projects list, absent from the permits list; the
           // spread only overwrites it where it exists.
           ...("otherPermits" in r ? { otherPermits: 0 } : {}),
+          // The mirror image: a permit carries a transaction number, a project
+          // does not. Withheld with the permit number — same class of thing.
+          ...("transactionNumber" in r ? { transactionNumber: null } : {}),
           // Agents get a usable/not-usable answer rather than a countdown:
           // "expiring" is still valid today, everything else is not.
           status: r.status === "active" || r.status === "expiring" ? "active" : "none",

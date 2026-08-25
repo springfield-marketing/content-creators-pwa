@@ -104,3 +104,36 @@ describe("the content-ops roles on their own", () => {
     }
   });
 });
+
+describe("transaction number", () => {
+  // Same class of thing as the permit number: a reference an agent has no
+  // business reading. It is withheld with it, and only on rows that carry one.
+  const permitRow = {
+    id: 1,
+    category: "offplan" as const,
+    emirate: "Dubai",
+    authority: "trakheesi" as const,
+    permitNumber: "1234567890",
+    transactionNumber: "TXN-99",
+    name: "Some Project",
+    developer: null,
+    dldProjectNumber: "4131",
+    projectId: 7,
+    listingEnd: "2026-10-15",
+    isActive: true,
+    status: "active" as const,
+    qrUrl: null,
+    fileCount: 4,
+  };
+
+  it("is withheld from an agent, alongside the permit number", () => {
+    const [row] = forRoles([permitRow], ["agent"]);
+    expect(row.transactionNumber).toBeNull();
+    expect(row.permitNumber).toBeNull();
+  });
+
+  it("survives for someone who may see permit details", () => {
+    const [row] = forRoles([permitRow], ["creator"]);
+    expect(row.transactionNumber).toBe("TXN-99");
+  });
+});

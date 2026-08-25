@@ -119,6 +119,7 @@ export async function POST(req: Request) {
       .values({
         category: "general",
         permitNumber: code,
+        transactionNumber: str("transactionNumber") || null,
         emirate,
         label,
         // Informational for a company code: routing follows the Active switch,
@@ -268,6 +269,7 @@ export async function POST(req: Request) {
       projectId,
       emirate: project.emirate,
       permitNumber,
+      transactionNumber: str("transactionNumber") || null,
       listingStart,
       listingEnd,
       notes: str("notes") || null,

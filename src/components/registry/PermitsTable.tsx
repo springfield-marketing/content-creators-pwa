@@ -73,7 +73,13 @@ export function PermitsTable({
     if (kind !== "all") rows = rows.filter((p) => p.category === kind);
     if (!query.trim()) return rows;
     return matchSorter(rows, query.trim(), {
-      keys: ["name", "developer", "permitNumber", "dldProjectNumber"],
+      keys: [
+        "name",
+        "developer",
+        "permitNumber",
+        "transactionNumber",
+        "dldProjectNumber",
+      ],
       threshold: matchSorter.rankings.CONTAINS,
     });
   }, [permits, query, kind, showDetails]);
@@ -225,6 +231,11 @@ export function PermitsTable({
                   {showDetails && (
                     <Table.Td>
                       <Text size="sm">{p.permitNumber}</Text>
+                      {p.transactionNumber && (
+                        <Text size="xs" c="dimmed">
+                          txn {p.transactionNumber}
+                        </Text>
+                      )}
                     </Table.Td>
                   )}
                   {showDetails && (
@@ -277,6 +288,7 @@ export function PermitsTable({
                   {showDetails && (
                     <Text size="xs" c="dimmed">
                       {p.permitNumber} · {formatDate(p.listingEnd)}
+                      {p.transactionNumber ? ` · txn ${p.transactionNumber}` : ""}
                     </Text>
                   )}
                 </Box>

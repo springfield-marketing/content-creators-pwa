@@ -162,6 +162,7 @@ export async function getQrFiles(projectId: number): Promise<QrFile[]> {
 export type PermitRow = {
   id: number;
   category: PermitCategory;
+  transactionNumber: string | null;
   emirate: string;
   /** Derived from the emirate; null where that emirate issues no permits. */
   authority: Authority | null;
@@ -197,6 +198,7 @@ export async function getAllPermits(): Promise<PermitRow[]> {
         category: permits.category,
         emirate: permits.emirate,
         permitNumber: permits.permitNumber,
+        transactionNumber: permits.transactionNumber,
         label: permits.label,
         isActive: permits.isActive,
         listingEnd: permits.listingEnd,
@@ -232,6 +234,7 @@ export async function getAllPermits(): Promise<PermitRow[]> {
       id: r.id,
       category: r.category,
       emirate: r.emirate,
+      transactionNumber: r.transactionNumber,
       authority: authorityFor(r.emirate),
       permitNumber: r.permitNumber,
       name: (r.category === "general" ? r.label : r.projectName) ?? "—",
