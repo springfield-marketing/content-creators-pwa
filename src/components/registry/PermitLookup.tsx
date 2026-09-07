@@ -1,7 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Badge, Box, Card, Group, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Badge,
+  Box,
+  Card,
+  Group,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { matchSorter } from "match-sorter";
 
@@ -16,6 +25,9 @@ export type AvailableProject = {
   id: number;
   name: string;
   developer: string | null;
+  // Where the project is, not what its permit says. Safe to send and worth
+  // filtering on now that the registry covers more than one emirate.
+  emirate: string;
 };
 
 /**
@@ -28,31 +40,58 @@ export type AvailableProject = {
  */
 export function PermitLookup({ projects }: { projects: AvailableProject[] }) {
   const [query, setQuery] = useState("");
+  const [emirate, setEmirate] = useState<string | null>(null);
+
+  // Only the emirates that actually have something to show.
+  const emirates = useMemo(
+    () => [...new Set(projects.map((p) => p.emirate))].sort(),
+    [projects],
+  );
 
   const results = useMemo(() => {
+    const base = emirate
+      ? projects.filter((p) => p.emirate === emirate)
+      : projects;
     const q = query.trim();
-    if (!q) return projects;
-    return matchSorter(projects, q, {
+    if (!q) return base;
+    return matchSorter(base, q, {
       // Developer as well as name: "Emaar" is how someone asks for a project
       // whose exact name they cannot remember.
       keys: ["name", "developer"],
       threshold: matchSorter.rankings.CONTAINS,
     });
-  }, [projects, query]);
+  }, [projects, query, emirate]);
 
   return (
     <Stack gap="sm">
-      <TextInput
-        value={query}
-        onChange={(e) => setQuery(e.currentTarget.value)}
-        leftSection={<IconSearch size={16} />}
-        placeholder="Search a project or developer"
-        size="md"
-        autoComplete="off"
-      />
+      <Group gap="sm" align="flex-start" wrap="nowrap">
+        <TextInput
+          value={query}
+          onChange={(e) => setQuery(e.currentTarget.value)}
+          leftSection={<IconSearch size={16} />}
+          placeholder="Search a project or developer"
+          size="md"
+          autoComplete="off"
+          style={{ flex: 1 }}
+        />
+        {/* Appears on its own once a second emirate has something listed; a
+            filter with one option is furniture. */}
+        {emirates.length > 1 && (
+          <Select
+            data={emirates}
+            value={emirate}
+            onChange={setEmirate}
+            placeholder="All emirates"
+            size="md"
+            w={150}
+            clearable
+            aria-label="Filter by emirate"
+          />
+        )}
+      </Group>
 
       <Text size="xs" c="dimmed">
-        {query.trim()
+        {query.trim() || emirate
           ? `${results.length} of ${projects.length} projects`
           : `${projects.length} projects you can market`}
       </Text>

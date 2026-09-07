@@ -35,7 +35,12 @@ export default async function AgentPermitsPage() {
         p.category === "offplan" &&
         (p.status === "active" || p.status === "expiring"),
     )
-    .map((p) => ({ id: p.id, name: p.name, developer: p.developer }));
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      developer: p.developer,
+      emirate: p.emirate,
+    }));
 
   return (
     <Stack gap="md">

@@ -10,6 +10,7 @@ import {
   Card,
   Group,
   SegmentedControl,
+  Select,
   Stack,
   Table,
   Text,
@@ -62,15 +63,24 @@ export function PermitsTable({
 }) {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
+  const [emirate, setEmirate] = useState<string | null>(null);
   const [qrTarget, setQrTarget] = useState<QrTarget | null>(null);
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
   const [editing, setEditing] = useState<PermitRow | null>(null);
+
+  // Only the emirates that actually have a permit, so the list grows as the
+  // registry does rather than offering five that match nothing.
+  const emirates = useMemo(
+    () => [...new Set(permits.map((p) => p.emirate))].sort(),
+    [permits],
+  );
 
   const results = useMemo(() => {
     let rows = permits;
     // Without detail access a permit is only worth showing if it is usable.
     if (!showDetails) rows = rows.filter((p) => p.status === "active");
     if (kind !== "all") rows = rows.filter((p) => p.category === kind);
+    if (emirate) rows = rows.filter((p) => p.emirate === emirate);
     if (!query.trim()) return rows;
     return matchSorter(rows, query.trim(), {
       keys: [
@@ -82,7 +92,7 @@ export function PermitsTable({
       ],
       threshold: matchSorter.rankings.CONTAINS,
     });
-  }, [permits, query, kind, showDetails]);
+  }, [permits, query, kind, emirate, showDetails]);
 
   const actionsFor = (p: PermitRow) => {
     if (p.category === "general") {
@@ -176,6 +186,21 @@ export function PermitsTable({
                 { value: "offplan", label: "Offplan" },
                 { value: "general", label: "General" },
               ]}
+            />
+          )}
+          {/* Only worth a control once there is more than one to choose
+              between — a filter with a single option is furniture. It appears
+              on its own as soon as a second emirate has a permit. */}
+          {emirates.length > 1 && (
+            <Select
+              data={emirates}
+              value={emirate}
+              onChange={setEmirate}
+              placeholder="All emirates"
+              size="sm"
+              w={150}
+              clearable
+              aria-label="Filter by emirate"
             />
           )}
           <Text size="xs" c="dimmed" ml="auto">
