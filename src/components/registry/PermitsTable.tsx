@@ -37,8 +37,8 @@ function formatDate(iso: string | null) {
 /**
  * Every permit in one table.
  *
- * Both kinds live here because they are one table now and one thing to look up.
- * They are not the same thing, so the Kind column says which, and the actions a
+ * Both types live here because they are one table now and one thing to look up.
+ * They are not the same thing, so the Type column says which, and the actions a
  * row offers differ: an offplan permit is issued, renewed and carries QR codes;
  * a general code is edited and switched on or off.
  *
@@ -62,7 +62,7 @@ export function PermitsTable({
   mayManageGeneral?: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [kind, setKind] = useState("all");
+  const [permitType, setPermitType] = useState("all");
   const [emirate, setEmirate] = useState<string | null>(null);
   const [qrTarget, setQrTarget] = useState<QrTarget | null>(null);
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
@@ -79,7 +79,7 @@ export function PermitsTable({
     let rows = permits;
     // Without detail access a permit is only worth showing if it is usable.
     if (!showDetails) rows = rows.filter((p) => p.status === "active");
-    if (kind !== "all") rows = rows.filter((p) => p.category === kind);
+    if (permitType !== "all") rows = rows.filter((p) => p.category === permitType);
     if (emirate) rows = rows.filter((p) => p.emirate === emirate);
     if (!query.trim()) return rows;
     return matchSorter(rows, query.trim(), {
@@ -92,7 +92,7 @@ export function PermitsTable({
       ],
       threshold: matchSorter.rankings.CONTAINS,
     });
-  }, [permits, query, kind, emirate, showDetails]);
+  }, [permits, query, permitType, emirate, showDetails]);
 
   const actionsFor = (p: PermitRow) => {
     if (p.category === "general") {
@@ -178,8 +178,8 @@ export function PermitsTable({
           />
           {showDetails && (
             <SegmentedControl
-              value={kind}
-              onChange={setKind}
+              value={permitType}
+              onChange={setPermitType}
               size="sm"
               data={[
                 { value: "all", label: "All" },
@@ -213,7 +213,7 @@ export function PermitsTable({
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Permit</Table.Th>
-                {showDetails && <Table.Th>Kind</Table.Th>}
+                {showDetails && <Table.Th>Type</Table.Th>}
                 {showDetails && <Table.Th>Authority</Table.Th>}
                 {showDetails && <Table.Th>Number</Table.Th>}
                 {showDetails && <Table.Th>Expires</Table.Th>}
