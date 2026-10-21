@@ -28,6 +28,7 @@ export async function GET() {
       agentName: agents.fullName,
       agentDeclined: bookings.agentDeclined,
       expectedVideos: bookings.expectedVideos,
+      source: bookings.source, // agent-set video counts are read-only to the creator
       submittedVideos: sql<number>`(select count(*)::int from deliverables d where d.booking_id = ${bookings.id} and d.type = 'video_shoot')`,
     })
     .from(bookings)

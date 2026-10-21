@@ -114,6 +114,8 @@ export async function POST(req: Request) {
           propertyAddress:
             input.locationType === "on_site" ? input.propertyAddress : null,
           notes: input.notes ?? null,
+          expectedVideos:
+            input.shootType === "photo" ? null : input.expectedVideos!,
           startsAt: new Date(slot.start),
           endsAt: new Date(slot.end),
           status: "confirmed",
@@ -134,6 +136,7 @@ export async function POST(req: Request) {
           `Agent: ${agent.name}${agent.phone ? ` (${agent.phone})` : ""}`,
           `Type: ${dbShootTypeLabel[input.shootType]}`,
           `Project: ${input.projectName}`,
+          input.shootType !== "photo" ? `Videos: ${input.expectedVideos}` : null,
           input.notes ? `Notes: ${input.notes}` : null,
           `Booking ID: ${row.id}`,
         ]
@@ -176,6 +179,7 @@ export async function POST(req: Request) {
       start: slot.start,
       shootType: input.shootType,
       project: input.projectName,
+      expectedVideos: input.expectedVideos ?? null,
     },
   });
 

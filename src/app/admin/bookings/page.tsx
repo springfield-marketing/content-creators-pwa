@@ -53,6 +53,7 @@ type AdminBooking = {
   cancellationReason: string | null;
   cancelledBy: string | null;
   agentDeclined: boolean;
+  expectedVideos: number | null;
 };
 
 type CancelRequest = {
@@ -91,6 +92,7 @@ export default function BookingsOverview() {
     notes: "",
     locationType: "on_site" as "on_site" | "office",
     shootType: "video" as "photo" | "video" | "photo_video",
+    expectedVideos: "" as number | string,
   });
   const [moveTo, setMoveTo] = useState<string | null>(null);
   const [moveMinutes, setMoveMinutes] = useState<number | string>(120);
@@ -165,7 +167,14 @@ export default function BookingsOverview() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
         action === "edit"
-          ? { action, ...edit }
+          ? {
+              action,
+              ...edit,
+              expectedVideos:
+                edit.shootType !== "photo" && edit.expectedVideos !== ""
+                  ? Number(edit.expectedVideos)
+                  : undefined,
+            }
           : action === "reschedule"
             ? {
                 action,
@@ -359,6 +368,7 @@ export default function BookingsOverview() {
                                   notes: b.notes ?? "",
                                   locationType: b.locationType,
                                   shootType: b.shootType,
+                                  expectedVideos: b.expectedVideos ?? "",
                                 });
                                 setMoveTo(b.start);
                                 setMoveMinutes(
@@ -599,6 +609,17 @@ export default function BookingsOverview() {
                     allowDeselect={false}
                   />
                 </Group>
+                {edit.shootType !== "photo" && (
+                  <NumberInput
+                    label="Videos expected"
+                    description="Set by the agent. Creators can't change it, so correct it here."
+                    min={1}
+                    max={20}
+                    allowDecimal={false}
+                    value={edit.expectedVideos}
+                    onChange={(v) => setEdit({ ...edit, expectedVideos: v })}
+                  />
+                )}
                 {edit.locationType === "on_site" && (
                   <TextInput
                     label="Address"

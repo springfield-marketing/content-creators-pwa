@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   Group,
+  NumberInput,
   Paper,
   Radio,
   Skeleton,
@@ -45,6 +46,7 @@ function BookingDetails() {
   const [locationKind, setLocationKind] = useState<"onsite" | "office">("onsite");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
+  const [expectedVideos, setExpectedVideos] = useState<number | string>("");
   const [submitting, setSubmitting] = useState(false);
 
   if (state === "loading") {
@@ -72,7 +74,14 @@ function BookingDetails() {
     ? newAgent.name.trim() !== "" && newAgent.email.trim() !== ""
     : agent !== null;
   const locationOk = locationKind === "office" || address.trim() !== "";
-  const canSubmit = agentOk && locationOk && projectName.trim() !== "";
+  // The creator is held to this number, so the agent has to commit to it.
+  const needsCount = shootType !== "photo";
+  const countOk =
+    !needsCount ||
+    (Number.isInteger(Number(expectedVideos)) &&
+      Number(expectedVideos) >= 1 &&
+      Number(expectedVideos) <= 20);
+  const canSubmit = agentOk && locationOk && countOk && projectName.trim() !== "";
 
   const submit = async () => {
     setSubmitting(true);
@@ -120,6 +129,7 @@ function BookingDetails() {
         locationType: locationKind === "onsite" ? "on_site" : "office",
         propertyAddress: locationKind === "onsite" ? address : undefined,
         notes: notes.trim() || undefined,
+        expectedVideos: needsCount ? Number(expectedVideos) : undefined,
       }),
     });
 
@@ -255,6 +265,19 @@ function BookingDetails() {
             value={projectName}
             onChange={(e) => setProjectName(e.currentTarget.value)}
           />
+
+          {needsCount && (
+            <NumberInput
+              label="How many videos do you need from this shoot?"
+              description="The creator delivers this many. Only a manager can change it later."
+              required
+              min={1}
+              max={20}
+              allowDecimal={false}
+              value={expectedVideos}
+              onChange={setExpectedVideos}
+            />
+          )}
 
           <Radio.Group
             label="Location"

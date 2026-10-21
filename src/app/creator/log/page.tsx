@@ -65,6 +65,7 @@ type RecentShoot = {
   agentName: string | null;
   status: string;
   expectedVideos: number | null;
+  source: "agent" | "company" | "manual";
   submittedVideos: number;
 };
 
@@ -149,6 +150,8 @@ export default function LogDeliverable() {
   // has none yet) and read-only thereafter.
   const needsCount = type === "video_shoot" && unbooked === null && !!shootId;
   const alreadyDeclared = selectedShoot?.expectedVideos != null;
+  // The agent committed to this number at booking; only a manager changes it.
+  const setByAgent = alreadyDeclared && selectedShoot?.source === "agent";
   const countOk =
     !needsCount || (expectedVideos !== "" && Number(expectedVideos) >= 1);
   // Not tied to a shoot → a title is required to identify it in review.
@@ -197,7 +200,7 @@ export default function LogDeliverable() {
               ? Number(imageCount)
               : undefined,
           expectedVideos:
-            type === "video_shoot" && unbooked === null && expectedVideos !== ""
+            type === "video_shoot" && unbooked === null && !setByAgent && expectedVideos !== ""
               ? Number(expectedVideos)
               : undefined,
         }),
@@ -455,14 +458,20 @@ export default function LogDeliverable() {
                 {selectedShoot?.expectedVideos} videos
               </Text>
             </Text>
-            <Anchor
-              component="button"
-              type="button"
-              size="sm"
-              onClick={() => setEditExpected(true)}
-            >
-              Edit
-            </Anchor>
+            {setByAgent ? (
+              <Text size="sm" c="dimmed">
+                set by the agent · ask a manager to change it
+              </Text>
+            ) : (
+              <Anchor
+                component="button"
+                type="button"
+                size="sm"
+                onClick={() => setEditExpected(true)}
+              >
+                Edit
+              </Anchor>
+            )}
           </Group>
         ) : (
           <NumberInput

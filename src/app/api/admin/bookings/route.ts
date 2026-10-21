@@ -34,6 +34,7 @@ export async function GET(req: Request) {
       cancellationReason: bookings.cancellationReason,
       cancelledBy: bookings.cancelledBy,
       agentDeclined: bookings.agentDeclined,
+      expectedVideos: bookings.expectedVideos,
     })
     .from(bookings)
     .innerJoin(users, eq(users.id, bookings.creatorId))

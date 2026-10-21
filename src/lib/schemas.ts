@@ -19,10 +19,17 @@ export const bookingCreateSchema = z
     locationType: z.enum(["on_site", "office"]),
     propertyAddress: z.string().trim().max(300).optional(),
     notes: z.string().trim().max(2000).optional(),
+    // How many videos the agent expects. Set at booking so the creator is
+    // held to the agent's number rather than declaring their own afterwards.
+    expectedVideos: z.number().int().min(1).max(20).optional(),
   })
   .refine(
     (v) => v.locationType === "office" || !!v.propertyAddress?.trim(),
     { message: "Property address is required for on-site shoots", path: ["propertyAddress"] }
+  )
+  .refine(
+    (v) => v.shootType === "photo" || v.expectedVideos != null,
+    { message: "Say how many videos this shoot should produce", path: ["expectedVideos"] }
   );
 
 export const agentUpdateSchema = z

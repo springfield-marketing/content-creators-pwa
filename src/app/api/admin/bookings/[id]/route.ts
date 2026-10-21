@@ -40,6 +40,9 @@ const schema = z.discriminatedUnion("action", [
       notes: z.string().trim().max(2000).optional(),
       locationType: z.enum(["on_site", "office"]).optional(),
       shootType: z.enum(["photo", "video", "photo_video"]).optional(),
+      // The agent's video total; creators can't change it, so this is where
+      // a wrong count gets corrected.
+      expectedVideos: z.number().int().min(1).max(20).optional(),
     })
     .refine((v) => Object.keys(v).length > 1, { message: "Nothing to change" }),
   z.object({
@@ -169,6 +172,7 @@ export async function POST(
         locationType: bookings.locationType,
         propertyAddress: bookings.propertyAddress,
         notes: bookings.notes,
+        expectedVideos: bookings.expectedVideos,
         agentName: agents.fullName,
         agentEmail: agents.email,
         agentPhone: agents.phone,
@@ -222,6 +226,7 @@ export async function POST(
             b.agentName ? `Agent: ${b.agentName}${b.agentPhone ? ` (${b.agentPhone})` : ""}` : null,
             `Type: ${dbShootTypeLabel[b.shootType]}`,
             b.projectName ? `Project: ${b.projectName}` : null,
+            b.expectedVideos != null ? `Videos: ${b.expectedVideos}` : null,
             b.notes ? `Notes: ${b.notes}` : null,
             `Booking ID: ${b.id}`,
           ]
@@ -278,6 +283,7 @@ export async function POST(
         locationType: bookings.locationType,
         propertyAddress: bookings.propertyAddress,
         notes: bookings.notes,
+        expectedVideos: bookings.expectedVideos,
         agentName: agents.fullName,
         agentPhone: agents.phone,
       })
@@ -354,6 +360,7 @@ export async function POST(
             next.agentName ? `Agent: ${next.agentName}${next.agentPhone ? ` (${next.agentPhone})` : ""}` : null,
             `Type: ${dbShootTypeLabel[next.shootType]}`,
             next.projectName ? `Project: ${next.projectName}` : null,
+            next.expectedVideos != null ? `Videos: ${next.expectedVideos}` : null,
             next.notes ? `Notes: ${next.notes}` : null,
             `Booking ID: ${id}`,
           ]
@@ -378,6 +385,7 @@ export async function POST(
           notes: b.notes,
           locationType: b.locationType,
           shootType: b.shootType,
+          expectedVideos: b.expectedVideos,
         },
       },
     });

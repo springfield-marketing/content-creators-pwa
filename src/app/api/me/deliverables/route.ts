@@ -131,7 +131,11 @@ export async function POST(req: Request) {
 
   if (input.bookingId) {
     const [b] = await db
-      .select({ agentId: bookings.agentId, expectedVideos: bookings.expectedVideos })
+      .select({
+        agentId: bookings.agentId,
+        expectedVideos: bookings.expectedVideos,
+        source: bookings.source,
+      })
       .from(bookings)
       .where(
         and(
@@ -158,9 +162,23 @@ export async function POST(req: Request) {
       );
     }
 
+    // The agent set the total at booking and the creator is held to it; only
+    // a manager's booking edit can change it.
+    const setByAgent = b.source === "agent" && b.expectedVideos != null;
+    if (
+      setByAgent &&
+      input.expectedVideos != null &&
+      input.expectedVideos !== b.expectedVideos
+    ) {
+      return jsonError(
+        422,
+        `The agent booked ${b.expectedVideos} videos for this shoot — ask a manager to change it`
+      );
+    }
+
     // Record how many videos this shoot should yield, so later submissions
     // (and the manager) can see what's still outstanding.
-    if (input.type === "video_shoot" && input.expectedVideos != null) {
+    if (input.type === "video_shoot" && input.expectedVideos != null && !setByAgent) {
       await db
         .update(bookings)
         .set({ expectedVideos: input.expectedVideos })
