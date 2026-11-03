@@ -1,0 +1,33 @@
+import { describe, expect, it } from "vitest";
+import { movedTo } from "./moved";
+
+const env = { BOOKING_MOVED: "1", DASHBOARD_URL: "https://dashboard.example/", CALLS_APP_URL: "https://calls.example" };
+
+describe("moved mode", () => {
+  it("changes nothing until switched on", () => {
+    expect(movedTo("/book/abhinay", {})).toBeNull();
+    expect(movedTo("/api/bookings", { ...env, BOOKING_MOVED: "0" })).toBeNull();
+  });
+
+  it("sends booking to the Calls app and the rest to the dashboard", () => {
+    expect(movedTo("/book", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots/new" });
+    expect(movedTo("/book/abhinay/details", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots/new" });
+    expect(movedTo("/booking/5b0c7a52", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots" });
+    expect(movedTo("/creator/log", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/creator" });
+    expect(movedTo("/admin", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/shoots" });
+    expect(movedTo("/admin/review-log", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/review" });
+    expect(movedTo("/admin/schedule", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/week-plan" });
+    expect(movedTo("/api/leaderboard", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/api/content/leaderboard" });
+  });
+
+  it("refuses booking writes, stands the crons and the calendar webhook down, keeps the permits", () => {
+    expect(movedTo("/api/bookings", env)).toEqual({ kind: "gone" });
+    expect(movedTo("/api/me/deliverables", env)).toEqual({ kind: "gone" });
+    expect(movedTo("/api/admin/bookings/1", env)).toEqual({ kind: "gone" });
+    expect(movedTo("/api/cron/complete-past-bookings", env)).toEqual({ kind: "idle" });
+    expect(movedTo("/api/webhooks/google-calendar", env)).toEqual({ kind: "idle" });
+    for (const kept of ["/permits", "/permits/requests", "/admin/permits", "/creator/permits", "/api/permits/issue", "/api/admin/permits/3", "/api/cron/permit-expiry", "/login", "/api/auth/session"]) {
+      expect(movedTo(kept, env)).toBeNull();
+    }
+  });
+});
