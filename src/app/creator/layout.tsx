@@ -17,6 +17,7 @@ import {
   IconCirclePlus,
   IconHistory,
   IconLicense,
+  IconListCheck,
 } from "@tabler/icons-react";
 
 // Creator shell: phone-first app layout with a fixed bottom tab bar.
@@ -28,6 +29,7 @@ const tabs = [
   // Sits next to Log on purpose: the permit number is something they copy
   // while filling that form in.
   { href: "/creator/permits", label: "Permits", icon: IconLicense },
+  { href: "/creator/todo", label: "To do", icon: IconListCheck },
   { href: "/creator/progress", label: "Progress", icon: IconChartBar },
   { href: "/creator/history", label: "History", icon: IconHistory },
 ];

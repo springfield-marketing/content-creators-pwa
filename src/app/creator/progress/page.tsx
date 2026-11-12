@@ -1,31 +1,21 @@
 "use client";
 
 // Screen 7 — My progress, on live KPIs (approved-only counting, decision #10).
+// Revisions, unfinished shoots and posting live on To do.
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import {
-  Alert,
-  Anchor,
-  Badge,
-  Button,
   Card,
-  Checkbox,
   Group,
-  Modal,
-  NumberInput,
   Progress,
   SimpleGrid,
   Skeleton,
   Stack,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import Link from "next/link";
-import { IconAlertTriangle, IconRefresh, IconVideo } from "@tabler/icons-react";
 
 type MyKpis = {
   craft: "video" | "photo" | "both";
@@ -40,73 +30,11 @@ type MyKpis = {
   targetPosted: number;
   targetImages: number;
 };
-type ToPost = {
-  id: string;
-  type: "photo_shoot" | "video_shoot";
-  url: string;
-  workDate: string;
-};
-type Revision = {
-  id: string;
-  type: "photo_shoot" | "video_shoot";
-  url: string;
-  comment: string | null;
-  permit: string | null;
-  imageCount: number | null;
-  workDate: string;
-  projectName: string | null; // the shoot this came from
-  title: string | null; // creator-supplied, for untied work
-  agentName: string | null;
-};
-type Outstanding = {
-  id: string;
-  start: string;
-  projectName: string | null;
-  agentName: string | null;
-  expectedVideos: number;
-  submittedVideos: number;
-};
-
-// What to call a deliverable on screen. A shoot-tied one is named by its
-// project, an untied one by the title the creator gave it — and some older
-// rows carry neither.
-function nameOf(d: Revision): string {
-  return d.projectName ?? d.title ?? "Untitled";
-}
-
-// Mirror the server's URL rule so a scheme-less paste (e.g. "www.…") is caught
-// here with a clear hint, instead of failing submission with a vague error.
-function isValidLink(u: string): boolean {
-  if (!/^https?:\/\//i.test(u)) return false;
-  try {
-    new URL(u);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export default function MyProgress() {
-  const [data, setData] = useState<{
-    kpis: MyKpis | null;
-    revisions: Revision[];
-    toPost: ToPost[];
-    outstanding: Outstanding[];
-  } | null>(null);
-  const [acting, setActing] = useState<string | null>(null);
-  // Kept per row: creators clear several of these in one sitting, so a dialog
-  // each would make a routine job slow.
-  const [postedLinks, setPostedLinks] = useState<Record<string, string>>({});
-  // Resubmit dialog: correct the link + acknowledge the comment first.
-  const [resubmitTarget, setResubmitTarget] = useState<Revision | null>(null);
-  const [newUrl, setNewUrl] = useState("");
-  const [newPermit, setNewPermit] = useState("");
-  const [newImageCount, setNewImageCount] = useState<number | string>("");
-  const [ack, setAck] = useState(false);
-  const [resubmitOpen, { open: openResubmit, close: closeResubmit }] =
-    useDisclosure(false);
+  const [data, setData] = useState<{ kpis: MyKpis | null } | null>(null);
 
-  const reload = useCallback(() => {
+  useEffect(() => {
     fetch("/api/me/kpis")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setData)
@@ -118,86 +46,6 @@ export default function MyProgress() {
         })
       );
   }, []);
-  useEffect(reload, [reload]);
-
-  const markPosted = async (id: string) => {
-    setActing(id);
-    const res = await fetch(`/api/me/deliverables/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "mark_posted",
-        postedUrl: (postedLinks[id] ?? "").trim(),
-      }),
-    });
-    setActing(null);
-    const body = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setPostedLinks((m) => {
-        const next = { ...m };
-        delete next[id];
-        return next;
-      });
-      notifications.show({
-        title: "Marked as posted",
-        message: "Counted toward your posted KPI.",
-        color: "green",
-      });
-      reload();
-    } else {
-      notifications.show({
-        title: "Couldn't mark it posted",
-        message: body.error ?? "Check the link and try again.",
-        color: "red",
-      });
-    }
-  };
-
-  const startResubmit = (d: Revision) => {
-    setResubmitTarget(d);
-    setNewUrl(d.url);
-    setNewPermit(d.permit ?? "");
-    setNewImageCount(d.imageCount ?? "");
-    setAck(false);
-    openResubmit();
-  };
-
-  const confirmResubmit = async () => {
-    if (!resubmitTarget) return;
-    setActing(resubmitTarget.id);
-    const changed = newUrl.trim() && newUrl.trim() !== resubmitTarget.url;
-    const res = await fetch(`/api/me/deliverables/${resubmitTarget.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "resubmit",
-        ...(changed ? { url: newUrl.trim() } : {}),
-        ...(resubmitTarget.type === "video_shoot" && newPermit.trim()
-          ? { permitNumber: newPermit.trim() }
-          : {}),
-        ...(resubmitTarget.type === "photo_shoot" && newImageCount !== ""
-          ? { imageCount: Number(newImageCount) }
-          : {}),
-      }),
-    });
-    setActing(null);
-    closeResubmit();
-    const body = await res.json().catch(() => ({}));
-    notifications.show(
-      res.ok
-        ? {
-            title: "Resubmitted",
-            message: "Back in the manager's review queue.",
-            color: "green",
-          }
-        : {
-            title: "Couldn't resubmit",
-            message: body.error ?? "Check the link and try again.",
-            color: "red",
-          }
-    );
-    if (res.ok) reload();
-  };
 
   if (data === null) {
     return (
@@ -253,147 +101,6 @@ export default function MyProgress() {
         </Text>
       </div>
 
-      {data.revisions.map((d) => (
-        <Card key={d.id} style={{ borderColor: "var(--mantine-color-orange-4)" }}>
-          <Stack gap="xs">
-            <Group gap="xs">
-              <IconAlertTriangle size={18} color="var(--mantine-color-orange-6)" />
-              <Text fw={600} size="sm">
-                Revision requested
-              </Text>
-              <Badge size="sm" color="orange" variant="light">
-                {d.type === "photo_shoot" ? "Photo Shoot" : "Video Shoot"}
-              </Badge>
-            </Group>
-            <div>
-              <Text size="sm" fw={600} lh={1.3}>
-                {nameOf(d)}
-                {d.agentName ? ` · for ${d.agentName}` : ""}
-              </Text>
-              <Text size="xs" c="dimmed" lh={1.3}>
-                Shot {dayjs(d.workDate).format("ddd D MMM")}
-                {d.type === "video_shoot" && d.permit
-                  ? ` · Permit ${d.permit}`
-                  : ""}
-                {d.type === "photo_shoot" && d.imageCount != null
-                  ? ` · ${d.imageCount} images`
-                  : ""}
-              </Text>
-            </div>
-            {d.comment && (
-              <Text size="sm" c="dimmed">
-                “{d.comment}”
-              </Text>
-            )}
-            <Group justify="space-between">
-              <Anchor size="xs" href={d.url} target="_blank">
-                Open deliverable
-              </Anchor>
-              <Button
-                size="xs"
-                color="orange"
-                leftSection={<IconRefresh size={14} />}
-                onClick={() => startResubmit(d)}
-              >
-                Fix &amp; resubmit
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
-      ))}
-
-      {data.outstanding.length > 0 && (
-        <Card style={{ borderColor: "var(--mantine-color-blue-3)" }}>
-          <Stack gap="xs">
-            <Group gap="xs">
-              <IconVideo size={18} color="var(--mantine-color-blue-6)" />
-              <Text fw={600} size="sm">
-                Still to submit
-              </Text>
-            </Group>
-            {data.outstanding.map((s) => (
-              <Group key={s.id} justify="space-between" wrap="nowrap">
-                <div style={{ minWidth: 0 }}>
-                  <Text size="sm" fw={600} truncate>
-                    {s.projectName ?? "Shoot"}
-                    {s.agentName ? ` · ${s.agentName}` : ""}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {dayjs(s.start).format("ddd D MMM")} · {s.submittedVideos} of{" "}
-                    {s.expectedVideos} videos submitted
-                  </Text>
-                </div>
-                <Group gap="xs" wrap="nowrap">
-                  <Badge size="sm" color="orange" variant="light">
-                    {s.expectedVideos - s.submittedVideos} left
-                  </Badge>
-                  <Button
-                    size="compact-xs"
-                    variant="light"
-                    component={Link}
-                    href="/creator/log"
-                  >
-                    Add
-                  </Button>
-                </Group>
-              </Group>
-            ))}
-          </Stack>
-        </Card>
-      )}
-
-      {data.toPost.length > 0 && (
-        <Card>
-          <Stack gap="xs">
-            <Text fw={600} size="sm">
-              Approved — ready to post ({data.toPost.length})
-            </Text>
-            {data.toPost.map((d) => {
-              const link = postedLinks[d.id] ?? "";
-              return (
-                <Stack key={d.id} gap={6}>
-                  <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-                    <Badge size="sm" variant="light" color="green">
-                      {d.type === "photo_shoot" ? "Photo Shoot" : "Video Shoot"}
-                    </Badge>
-                    <Anchor size="xs" href={d.url} target="_blank" truncate>
-                      {d.url}
-                    </Anchor>
-                  </Group>
-                  <Group gap="xs" wrap="nowrap" align="flex-start">
-                    <TextInput
-                      style={{ flex: 1 }}
-                      size="xs"
-                      placeholder="Paste the Instagram or TikTok link you posted"
-                      value={link}
-                      onChange={(e) =>
-                        setPostedLinks((m) => ({
-                          ...m,
-                          [d.id]: e.currentTarget.value,
-                        }))
-                      }
-                      error={
-                        link.trim() !== "" && !isValidLink(link.trim())
-                          ? "Needs a full link starting with https://"
-                          : undefined
-                      }
-                    />
-                    <Button
-                      size="xs"
-                      loading={acting === d.id}
-                      disabled={!isValidLink(link.trim())}
-                      onClick={() => markPosted(d.id)}
-                    >
-                      Mark as posted
-                    </Button>
-                  </Group>
-                </Stack>
-              );
-            })}
-          </Stack>
-        </Card>
-      )}
-
       <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md">
         {stats.map((s) => {
           const pct =
@@ -422,100 +129,6 @@ export default function MyProgress() {
           );
         })}
       </SimpleGrid>
-
-      {data.revisions.length === 0 && (
-        <Alert variant="light" color="green">
-          Nothing waiting on you — approved work counts the moment the manager
-          approves it.
-        </Alert>
-      )}
-
-      <Modal
-        opened={resubmitOpen}
-        onClose={closeResubmit}
-        title="Fix & resubmit"
-        centered
-      >
-        {resubmitTarget && (
-          <Stack gap="md">
-            <div>
-              <Text size="sm" fw={600} lh={1.3}>
-                {nameOf(resubmitTarget)}
-                {resubmitTarget.agentName
-                  ? ` · for ${resubmitTarget.agentName}`
-                  : ""}
-              </Text>
-              <Text size="xs" c="dimmed" lh={1.3}>
-                Shot {dayjs(resubmitTarget.workDate).format("ddd D MMM")}
-              </Text>
-            </div>
-            <Alert variant="light" color="orange" icon={<IconAlertTriangle size={18} />}>
-              <Text size="sm" fw={500} mb={4}>
-                What the manager asked for:
-              </Text>
-              <Text size="sm">
-                {resubmitTarget.comment ?? "No comment left."}
-              </Text>
-            </Alert>
-            <TextInput
-              label="Corrected link"
-              description="Paste the fixed version, or leave as-is if you re-exported to the same link."
-              value={newUrl}
-              onChange={(e) => setNewUrl(e.currentTarget.value)}
-              error={
-                newUrl.trim() !== "" && !isValidLink(newUrl.trim())
-                  ? "Enter a full link starting with https://"
-                  : undefined
-              }
-            />
-            {resubmitTarget.type === "video_shoot" && (
-              <TextInput
-                label="Permit number"
-                description="Required for videos — correct it here if that's what the manager flagged."
-                required
-                value={newPermit}
-                onChange={(e) => setNewPermit(e.currentTarget.value)}
-              />
-            )}
-            {resubmitTarget.type === "photo_shoot" && (
-              <NumberInput
-                label="Images in this folder"
-                description="Required for photo shoots — correct it here if that's what the manager flagged."
-                required
-                min={0}
-                max={10000}
-                value={newImageCount}
-                onChange={setNewImageCount}
-              />
-            )}
-            <Checkbox
-              checked={ack}
-              onChange={(e) => setAck(e.currentTarget.checked)}
-              label="I've addressed the manager's comment"
-            />
-            <Group justify="flex-end">
-              <Button variant="default" onClick={closeResubmit}>
-                Cancel
-              </Button>
-              <Button
-                color="orange"
-                disabled={
-                  !ack ||
-                  !isValidLink(newUrl.trim()) ||
-                  (resubmitTarget.type === "video_shoot" &&
-                    newPermit.trim() === "") ||
-                  (resubmitTarget.type === "photo_shoot" &&
-                    newImageCount === "")
-                }
-                loading={acting === resubmitTarget.id}
-                onClick={confirmResubmit}
-              >
-                Resubmit for review
-              </Button>
-            </Group>
-          </Stack>
-        )}
-      </Modal>
     </Stack>
   );
 }

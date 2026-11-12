@@ -229,7 +229,7 @@ export default function LogDeliverable() {
       message:
         ok < links.length
           ? `${links.length - ok} failed — check those links and resubmit them.`
-          : "In the manager's review queue. Mark them posted from Progress once approved.",
+          : "In the manager's review queue. Mark them posted from To do once approved.",
       color: ok < links.length ? "orange" : "green",
     });
     setShootId(null);
