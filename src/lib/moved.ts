@@ -29,8 +29,17 @@ export function movedTo(pathname: string, env: Record<string, string | undefined
   const dashboard = (env.DASHBOARD_URL ?? "").replace(/\/+$/, "");
   const calls = (env.CALLS_APP_URL ?? "").replace(/\/+$/, "");
 
-  // Still here: the permits registry (the creators' permits page too), signing in to it, its expiry cron.
-  if (["/permits", "/admin/permits", "/creator/permits", "/api/permits", "/api/admin/permits", "/login", "/api/auth", "/api/cron/permit-expiry"].some((p) => under(pathname, p))) {
+  // Permits moved too (PERMITS_MOVED=1, the dashboard's IMP-407): the registry to Content → Permits, the creators' page to theirs,
+  // its writes refused, its expiry cron stood down. Until then they stay here, with signing in to them.
+  if (env.PERMITS_MOVED === "1") {
+    if (under(pathname, "/creator/permits")) return { kind: "redirect", to: `${dashboard}/creator/permits` };
+    if (under(pathname, "/permits") || under(pathname, "/admin/permits")) return { kind: "redirect", to: `${dashboard}/app/content/permits` };
+    if (under(pathname, "/api/cron/permit-expiry")) return { kind: "idle" };
+    if (under(pathname, "/api/permits") || under(pathname, "/api/admin/permits")) return { kind: "gone" };
+  } else if (["/permits", "/admin/permits", "/creator/permits", "/api/permits", "/api/admin/permits", "/api/cron/permit-expiry"].some((p) => under(pathname, p))) {
+    return null;
+  }
+  if (["/login", "/api/auth"].some((p) => under(pathname, p))) {
     return null;
   }
   if (under(pathname, "/book")) return { kind: "redirect", to: `${calls}/shoots/new` };

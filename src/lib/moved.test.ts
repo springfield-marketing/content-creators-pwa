@@ -33,4 +33,15 @@ describe("moved mode", () => {
       expect(movedTo(kept, env)).toBeNull();
     }
   });
+  it("sends permits to the dashboard once they've moved too (PERMITS_MOVED=1)", () => {
+    const both = { ...env, PERMITS_MOVED: "1" };
+    expect(movedTo("/admin/permits", both)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/permits" });
+    expect(movedTo("/admin/permits/requests", both)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/permits" });
+    expect(movedTo("/permits", both)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/permits" });
+    expect(movedTo("/creator/permits", both)).toEqual({ kind: "redirect", to: "https://dashboard.example/creator/permits" });
+    expect(movedTo("/api/permits/issue", both)).toEqual({ kind: "gone" });
+    expect(movedTo("/api/admin/permits/3", both)).toEqual({ kind: "gone" });
+    expect(movedTo("/api/cron/permit-expiry", both)).toEqual({ kind: "idle" });
+    expect(movedTo("/login", both)).toBeNull();
+  });
 });
