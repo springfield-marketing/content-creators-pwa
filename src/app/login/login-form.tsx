@@ -18,7 +18,7 @@ import {
 import { IconArrowRight, IconBrandGoogleFilled } from "@tabler/icons-react";
 
 // Staff login. Agents never sign in — they book via the public /book flow.
-function Login({ moved }: { moved: boolean }) {
+function Login({ moved, permitsMoved }: { moved: boolean; permitsMoved: boolean }) {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
@@ -49,9 +49,15 @@ function Login({ moved }: { moved: boolean }) {
               <Button component="a" href="/creator" size="md" fullWidth variant="light" rightSection={<IconArrowRight size={18} />}>
                 Creators: Booking App
               </Button>
-              <Text size="sm" c="dimmed" ta="center" mt="sm">
-                Permits are still here: sign in with your company Google account.
-              </Text>
+              {permitsMoved ? (
+                <Button component="a" href="/admin/permits" size="md" fullWidth variant="light" rightSection={<IconArrowRight size={18} />}>
+                  Permits: in the dashboard
+                </Button>
+              ) : (
+                <Text size="sm" c="dimmed" ta="center" mt="sm">
+                  Permits are still here: sign in with your company Google account.
+                </Text>
+              )}
             </Stack>
           ) : (
             <Stack gap={4} ta="center">
@@ -70,6 +76,7 @@ function Login({ moved }: { moved: boolean }) {
             </Alert>
           )}
 
+          {!permitsMoved && (
           <Button
             size="md"
             fullWidth
@@ -79,6 +86,7 @@ function Login({ moved }: { moved: boolean }) {
           >
             Sign in with Google
           </Button>
+          )}
 
           {!moved && (
           <Text size="xs" c="dimmed" ta="center">
@@ -95,10 +103,10 @@ function Login({ moved }: { moved: boolean }) {
   );
 }
 
-export function LoginForm({ moved }: { moved: boolean }) {
+export function LoginForm({ moved, permitsMoved }: { moved: boolean; permitsMoved: boolean }) {
   return (
     <Suspense>
-      <Login moved={moved} />
+      <Login moved={moved} permitsMoved={permitsMoved} />
     </Suspense>
   );
 }
