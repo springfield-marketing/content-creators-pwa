@@ -14,9 +14,12 @@ describe("moved mode", () => {
     expect(movedTo("/book/abhinay/details", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots/new" });
     expect(movedTo("/booking/5b0c7a52", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots" });
     expect(movedTo("/creator/log", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/creator" });
-    expect(movedTo("/admin", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/shoots" });
-    expect(movedTo("/admin/review-log", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/review" });
-    expect(movedTo("/admin/schedule", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/week-plan" });
+    expect(movedTo("/admin", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content" });
+    expect(movedTo("/admin/review-log", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/review?tab=log" });
+    expect(movedTo("/admin/schedule", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/creators" });
+    expect(movedTo("/admin/kpis", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content" });
+    expect(movedTo("/admin/bookings/7", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content/calendar" });
+    expect(movedTo("/reports", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content" });
     expect(movedTo("/api/leaderboard", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/api/content/leaderboard" });
   });
 
