@@ -11,7 +11,10 @@ describe("moved mode", () => {
 
   it("sends booking to the Calls app and the rest to the dashboard", () => {
     expect(movedTo("/book", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots/new" });
-    expect(movedTo("/book/abhinay/details", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots/new" });
+    // IMP-417: a creator's own link opens with that creator picked.
+    expect(movedTo("/book/abhinay", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots/new?creator=abhinay" });
+    expect(movedTo("/book/abhinay/details", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots/new?creator=abhinay" });
+    expect(movedTo("/book/Not%20A%20Slug", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots/new" });
     expect(movedTo("/booking/5b0c7a52", env)).toEqual({ kind: "redirect", to: "https://calls.example/shoots" });
     expect(movedTo("/creator/log", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/creator" });
     expect(movedTo("/admin", env)).toEqual({ kind: "redirect", to: "https://dashboard.example/app/content" });
@@ -43,5 +46,11 @@ describe("moved mode", () => {
     expect(movedTo("/api/admin/permits/3", both)).toEqual({ kind: "gone" });
     expect(movedTo("/api/cron/permit-expiry", both)).toEqual({ kind: "idle" });
     expect(movedTo("/login", both)).toBeNull();
+  });
+
+  it("sends the front page to Book a shoot once permits have moved too (IMP-417)", () => {
+    expect(movedTo("/", { ...env, PERMITS_MOVED: "1" })).toEqual({ kind: "redirect", to: "https://calls.example/shoots/new" });
+    // Permits still here: the front page stays the sign-in to them.
+    expect(movedTo("/", env)).toBeNull();
   });
 });
