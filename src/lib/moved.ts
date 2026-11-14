@@ -32,6 +32,8 @@ export function movedTo(pathname: string, env: Record<string, string | undefined
   // Permits moved too (PERMITS_MOVED=1, the dashboard's IMP-407): the registry to Content → Permits, the creators' page to theirs,
   // its writes refused, its expiry cron stood down. Until then they stay here, with signing in to them.
   if (env.PERMITS_MOVED === "1") {
+    // The dashboard's IMP-417: with permits gone too, the front page is only ever an agent's old bookmark: straight to Book a shoot.
+    if (pathname === "/") return { kind: "redirect", to: `${calls}/shoots/new` };
     if (under(pathname, "/creator/permits")) return { kind: "redirect", to: `${dashboard}/creator/permits` };
     if (under(pathname, "/permits") || under(pathname, "/admin/permits")) return { kind: "redirect", to: `${dashboard}/app/content/permits` };
     if (under(pathname, "/api/cron/permit-expiry")) return { kind: "idle" };
@@ -42,7 +44,11 @@ export function movedTo(pathname: string, env: Record<string, string | undefined
   if (["/login", "/api/auth"].some((p) => under(pathname, p))) {
     return null;
   }
-  if (under(pathname, "/book")) return { kind: "redirect", to: `${calls}/shoots/new` };
+  if (under(pathname, "/book")) {
+    // IMP-417: a creator's own link (/book/yves, /book/yves/details) opens Book a shoot with that creator already picked.
+    const slug = pathname.split("/")[2] ?? "";
+    return { kind: "redirect", to: `${calls}/shoots/new${/^[a-z0-9-]+$/.test(slug) ? `?creator=${slug}` : ""}` };
+  }
   if (under(pathname, "/booking")) return { kind: "redirect", to: `${calls}/shoots` };
   if (under(pathname, "/creator")) return { kind: "redirect", to: `${dashboard}/creator` };
   if (under(pathname, "/reports")) return { kind: "redirect", to: `${dashboard}/app/content` };
